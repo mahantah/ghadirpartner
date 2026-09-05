@@ -1,0 +1,11 @@
+Options -Indexes
+AddType application/manifest+json .webmanifest
+RewriteEngine On
+RewriteRule ^storage(?:/|$) - [F,L]
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+RewriteRule ^ index.php [QSA,L]
+<FilesMatch "^(config\.php|SHA256SUMS\.txt)$">
+  Require all denied
+</FilesMatch>

@@ -1,0 +1,28 @@
+# Live data / secrets / host-specific files
+/storage/*
+!/storage/.htaccess
+!/storage/README.txt
+/config.php
+/partners/config.php
+
+# Logs, sessions, caches and backups
+*.log
+error_log
+*.zip
+*.tar
+*.tar.gz
+*.sql
+*.bak
+*.backup
+BACKUP-*
+backup-*
+/tmp/
+/cache/
+/sessions/
+
+# cPanel / system / editor files
+.cpanel/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

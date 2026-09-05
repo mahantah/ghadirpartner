@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>اسکن سریال با گوشی</title>
+<style>
+:root{--navy:#102a43;--orange:#f58220;--bg:#f4f7fb;--line:#dfe6ee;--green:#087443;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial;background:var(--bg);color:#14243a}
+header{background:linear-gradient(110deg,#0c2137,var(--navy));color:white;padding:14px 15px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+header img{width:54px;height:54px;object-fit:contain;background:white;border-radius:12px;padding:3px}
+main{max-width:680px;margin:0 auto;padding:14px}.card{background:white;border:1px solid #e7edf3;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 8px 25px #102a4310}
+input,select,button{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;font:inherit;margin-top:8px}
+button{background:var(--navy);color:white;border:0;font-weight:700}.orange{background:var(--orange)}.danger{background:var(--red)}
+.hidden{display:none!important}.msg{padding:11px;border-radius:10px;margin-top:10px;line-height:1.7}.ok{background:#e9f9ee;color:var(--green)}.err{background:#fdecec;color:var(--red)}
+video{width:100%;border-radius:14px;background:#111;max-height:48vh;object-fit:cover}.small{font-size:12px;color:#667085;line-height:1.8}
+.orderbox{background:#f7f9fc;border-radius:11px;padding:10px;margin-top:8px}.count{font-size:20px;font-weight:900;color:var(--navy)}
+#serial{direction:ltr;text-align:center;font-family:Consolas,monospace;font-size:18px}
+</style>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script></head>
+<body>
+<header><img src="/logo.png"><div><b>اسکن سریال با گوشی</b><div style="font-size:12px;color:#d8e4ee;margin-top:4px">سامانه اتوماسیون فروش عمده</div></div></header>
+<main>
+<div id="httpsWarn" class="card hidden">
+<b>برای استفاده از دوربین، صفحه باید با HTTPS باز شود.</b>
+<div class="small">روی لینک زیر بزنید. در اولین ورود ممکن است مرورگر درباره گواهی داخلی شبکه هشدار بدهد؛ پس از تأیید، دوربین فعال می‌شود.</div>
+<a id="httpsLink" style="display:block;direction:ltr;margin-top:10px"></a>
+</div>
+
+<div id="loginCard" class="card">
+<h3>ورود</h3>
+<input id="user" placeholder="نام کاربری" autocomplete="username">
+<input id="pass" type="password" placeholder="رمز عبور" autocomplete="current-password">
+<button id="loginBtn" class="orange">ورود</button>
+<div id="loginMsg"></div>
+</div>
+
+<div id="scanApp" class="hidden">
+<div class="card">
+<h3>انتخاب فاکتور / مشتری</h3>
+<input id="search" placeholder="جستجو با شماره GHP، نام مشتری یا کد مشتری">
+<select id="order"></select>
+<div id="orderInfo" class="orderbox"></div>
+<select id="product"></select>
+<div class="small">سریال دقیقاً به همین شماره سفارش و همین قلم کالا تخصیص داده می‌شود.</div>
+</div>
+
+<div class="card">
+<h3>اسکن بارکد سریال دستگاه</h3>
+<div class="small">برای بارکدهای خطی روی جعبه مثل نمونه I90، دوربین را افقی نگه دارید و خود بارکد را کامل داخل تصویر قرار دهید. موتور جدید Code 128، Code 39، Code 93، EAN، ITF و Codabar را می‌خواند.</div>
+<div style="border:2px dashed #f58220;border-radius:10px;text-align:center;padding:6px;margin:9px 0;font-size:12px">بارکد خطی را در مرکز کادر دوربین قرار دهید</div>
+<video id="video" playsinline muted></video>
+<button id="cameraBtn" class="orange">شروع دوربین</button>
+<button id="stopBtn" class="danger hidden">توقف دوربین</button>
+<input id="serial" placeholder="یا سریال را دستی وارد کنید">
+<button id="submitBtn">ثبت سریال</button>
+<div id="result"></div>
+</div>
+<div class="card small">
+کنترل سریال تکراری و الگوی هر مدل توسط خود سامانه انجام می‌شود. اگر سریال خارج از الگو باشد یا قبلاً ثبت شده باشد، عملیات رد می‌شود.
+</div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let ORD=[],CUST=[],PROD=[],stream=null,detector=null,scanning=false,lastCode='',lastAt=0,zxReader=null;
+async function req(url,opt={}){let r=await fetch(url,opt);let t=await r.text();if(!r.ok)throw new Error(t||('خطا '+r.status));try{return JSON.parse(t)}catch(e){return t}}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function showMsg(text,ok=false){$('result').className='msg '+(ok?'ok':'err');$('result').textContent=text}
+async function boot(){
+ try{
+   let me=await req('/api/me');if(!(me.roles||[]).includes('prep')){throw new Error('این بخش فقط برای واحد انبار فعال است')}
+   $('loginCard').classList.add('hidden');$('scanApp').classList.remove('hidden');
+   [ORD,CUST,PROD]=await Promise.all([req('/api/orders'),req('/api/customers'),req('/api/products')]);
+   renderOrders();
+ }catch(e){}
+}
+function cust(id){return CUST.find(c=>c.id===id)||{}}
+function renderOrders(){
+ let q=$('search').value.trim().toLowerCase();
+ let list=ORD.filter(o=>o.status!=='لغو شده').filter(o=>{
+   let c=cust(o.customer_id);
+   return !q||[o.number,o.customer_name,c.code,c.mobile].join(' ').toLowerCase().includes(q)
+ });
+ $('order').innerHTML='<option value="">انتخاب سفارش</option>'+list.slice().reverse().map(o=>{
+   let c=cust(o.customer_id); return `<option value="${o.id}">${esc(o.number)} | ${esc(o.customer_name)} | ${esc(c.code||'بدون کد')}</option>`
+ }).join('');
+ orderChanged();
+}
+function orderChanged(){
+ let selectedProduct=$('product').value;
+ let o=ORD.find(x=>x.id===+$('order').value);
+ if(!o){$('orderInfo').innerHTML='سفارشی انتخاب نشده';$('product').innerHTML='<option>ابتدا سفارش را انتخاب کنید</option>';return}
+ let c=cust(o.customer_id);
+ $('orderInfo').innerHTML=`<b>${esc(o.number)}</b><br>${esc(o.customer_name)} | کد مشتری: ${esc(c.code||'-')}<br>وضعیت: ${esc(o.status)}`;
+ let serialItems=(o.items||[]).filter(it=>{let p=PROD.find(x=>x.name===it.product);return p&&p.serial_required});
+ $('product').innerHTML=serialItems.map(it=>`<option value="${esc(it.product)}">${esc(it.product)} — ${it.serials?.length||0}/${it.qty}</option>`).join('')||'<option value="">این سفارش قلم سریال‌دار ندارد</option>';
+ if(serialItems.some(it=>it.product===selectedProduct))$('product').value=selectedProduct;
+}
+async function login(){
+ try{
+   await req('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('user').value,password:$('pass').value})});
+   $('loginMsg').textContent='';await boot();
+ }catch(e){$('loginMsg').className='msg err';$('loginMsg').textContent=e.message}
+}
+async function submitSerial(code){
+ code=(code||$('serial').value).trim().toUpperCase();
+ let id=+$('order').value, product=$('product').value;
+ if(!id){showMsg('ابتدا سفارش را انتخاب کنید');return}
+ if(!product){showMsg('کالای سریال‌دار انتخاب نشده');return}
+ if(!code){showMsg('سریال خالی است');return}
+ try{
+   let o=await req('/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,product,serial:code})});
+   showMsg('سریال '+code+' با موفقیت ثبت شد.',true);
+   $('serial').value='';
+   if(navigator.vibrate)navigator.vibrate([100,70,100]);
+   let ix=ORD.findIndex(x=>x.id===o.id);if(ix>=0)ORD[ix]=o;orderChanged();
+ }catch(e){
+   showMsg(e.message,false);
+   if(navigator.vibrate)navigator.vibrate(300);
+ }
+}
+async function startCamera(){
+ if(!window.isSecureContext){showMsg('دوربین فقط روی آدرس HTTPS فعال می‌شود.');return}
+ try{
+   scanning=true;$('cameraBtn').classList.add('hidden');$('stopBtn').classList.remove('hidden');
+   if(window.ZXing && ZXing.BrowserMultiFormatReader){
+     zxReader=new ZXing.BrowserMultiFormatReader();
+     let devices=[];
+     try{
+       devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+     }catch(e){}
+     let back=devices.find(d=>/back|rear|environment|پشت/i.test(d.label))||devices[devices.length-1];
+     if(!back && !devices.length){console.log('Camera list unavailable; ZXing will request default camera.');}
+     await zxReader.decodeFromVideoDevice(back?back.deviceId:undefined,'video',async(result,err)=>{
+       if(!scanning||!result)return;
+       let code=String(result.getText?result.getText():result.text||'').trim().toUpperCase();
+       let now=Date.now();
+       if(code&&(code!==lastCode||now-lastAt>2500)){lastCode=code;lastAt=now;$('serial').value=code;await submitSerial(code)}
+     });
+     return;
+   }
+   if('BarcodeDetector' in window){
+     const supported=await BarcodeDetector.getSupportedFormats();
+     let wanted=['code_128','code_39','code_93','ean_13','ean_8','itf','codabar','qr_code','data_matrix'].filter(x=>supported.includes(x));
+     detector=new BarcodeDetector(wanted.length?{formats:wanted}:undefined);
+     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+     $('video').srcObject=stream;await $('video').play();
+     let track=stream.getVideoTracks()[0],caps=track.getCapabilities?track.getCapabilities():{};
+     if(caps.focusMode&&caps.focusMode.includes('continuous')){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}
+     scanLoop();return;
+   }
+   throw new Error('موتور اسکن روی این مرورگر فعال نیست. Chrome جدید را باز کنید.');
+ }catch(e){
+   scanning=false;$('cameraBtn').classList.remove('hidden');$('stopBtn').classList.add('hidden');
+   showMsg('دوربین/اسکنر فعال نشد: '+e.message);
+ }
+}
+async function scanLoop(){
+ if(!scanning||!detector)return;
+ try{
+   let codes=await detector.detect($('video'));
+   if(codes.length){
+     let code=(codes[0].rawValue||'').trim().toUpperCase(),now=Date.now();
+     if(code&&(code!==lastCode||now-lastAt>2500)){lastCode=code;lastAt=now;$('serial').value=code;await submitSerial(code)}
+   }
+ }catch(e){}
+ if(scanning)requestAnimationFrame(scanLoop);
+}
+function stopCamera(){
+ scanning=false;if(zxReader){try{zxReader.reset()}catch(e){}zxReader=null}
+ if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+ $('video').srcObject=null;$('cameraBtn').classList.remove('hidden');$('stopBtn').classList.add('hidden');
+}
+$('loginBtn').onclick=login;$('pass').onkeydown=e=>{if(e.key==='Enter')login()};
+$('search').oninput=renderOrders;$('order').onchange=orderChanged;
+$('cameraBtn').onclick=startCamera;$('stopBtn').onclick=stopCamera;$('submitBtn').onclick=()=>submitSerial();
+$('serial').onkeydown=e=>{if(e.key==='Enter')submitSerial()};
+let manualScanTimer=null;$('serial').addEventListener('input',()=>{clearTimeout(manualScanTimer);manualScanTimer=setTimeout(()=>{let o=ORD.find(x=>x.id===+$('order').value),it=o?.items?.find(x=>x.product===$('product').value),p=PROD.find(x=>x.name===it?.product),v=$('serial').value.trim().toUpperCase();if(!v||!p?.pattern)return;try{if(new RegExp(p.pattern).test(v))submitSerial(v)}catch(e){}},320)});
+if(location.protocol!=='https:'){
+ $('httpsWarn').classList.remove('hidden');
+ let u='https://'+location.hostname+':8443/mobile-scan';$('httpsLink').href=u;$('httpsLink').textContent=u;
+}
+boot();
+</script>
+</body></html>
