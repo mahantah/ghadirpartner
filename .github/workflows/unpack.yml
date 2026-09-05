@@ -13,8 +13,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Unpack uploaded release
+      - name: Unpack project
         shell: bash
         run: |
           set -e
@@ -31,15 +33,28 @@ jobs:
 
           ROOT="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 
-          rsync -a "$ROOT"/ ./
+          rsync -a \
+            --exclude='.github/' \
+            "$ROOT"/ ./
 
           rm -f "$ZIP"
 
-      - name: Commit extracted release
+      - name: Commit project files
+        shell: bash
         run: |
+          set -e
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add -A
-          git commit -m "Deploy GhadirPay release" || exit 0
-          git push
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Deploy GhadirPay release"
+
+          git pull --rebase origin main
+          git push origin HEAD:main
