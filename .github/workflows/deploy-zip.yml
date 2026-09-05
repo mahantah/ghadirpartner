@@ -1,0 +1,78 @@
+name: Deploy ZIP to cPanel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp
+
+      - name: Extract latest release
+        shell: bash
+        run: |
+          set -e
+
+          ZIP="$(ls -t GhadirPay-GitHub-*.zip 2>/dev/null | head -n 1)"
+
+          if [ -z "$ZIP" ]; then
+            echo "No GhadirPay release ZIP found"
+            exit 1
+          fi
+
+          echo "Using: $ZIP"
+
+          rm -rf /tmp/ghadir-release
+          mkdir -p /tmp/ghadir-release
+          unzip -q "$ZIP" -d /tmp/ghadir-release
+
+          ROOT="$(find /tmp/ghadir-release -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+
+          if [ -z "$ROOT" ]; then
+            ROOT="/tmp/ghadir-release"
+          fi
+
+          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Deploy release via FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          lftp -c "
+          set cmd:fail-exit yes;
+          set ftp:ssl-force true;
+          set ftp:ssl-protect-data true;
+          set ftp:ssl-auth TLS;
+          set ssl:verify-certificate yes;
+          set net:max-retries 3;
+
+          open -u \"$FTP_USERNAME\",\"$FTP_PASSWORD\" ftp://$FTP_SERVER:21;
+
+          mirror -R \
+            --verbose \
+            --exclude-glob '.github/' \
+            --exclude-glob '.git/' \
+            --exclude-glob '.gitignore' \
+            --exclude-glob '.cpanel.yml' \
+            --exclude-glob 'README_GITHUB.md' \
+            --exclude-glob 'README_FA_ORIGINAL.md' \
+            --exclude-glob 'WORK_PROJECT.md' \
+            --exclude-glob 'SHA256SUMS.txt' \
+            --exclude-glob 'storage/ghadir_data.json' \
+            --exclude-glob 'config.php' \
+            --exclude-glob '*.zip' \
+            \"$ROOT/\" /;
+
+          bye
+          "
