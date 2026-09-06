@@ -1,0 +1,104 @@
+name: Deploy selected ZIP to cPanel
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_zip:
+        description: 'Exact release ZIP filename in repository root'
+        required: true
+        default: 'GhadirPay-GitHub-V5.2.32.36-SAFE-V32-BASE.zip'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp
+
+      - name: Validate selected release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="${{ github.event.inputs.release_zip }}"
+          if [[ ! -f "$ZIP" ]]; then
+            echo "Release ZIP not found: $ZIP"
+            echo "Available release ZIPs:"
+            ls -1 GhadirPay-GitHub-*.zip 2>/dev/null || true
+            exit 1
+          fi
+
+          rm -rf /tmp/ghadir-release
+          mkdir -p /tmp/ghadir-release
+          unzip -q "$ZIP" -d /tmp/ghadir-release
+
+          ROOT="/tmp/ghadir-release"
+          if [[ ! -f "$ROOT/index.php" ]]; then
+            FIRST_DIR="$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
+            if [[ -n "$FIRST_DIR" && -f "$FIRST_DIR/index.php" ]]; then
+              ROOT="$FIRST_DIR"
+            fi
+          fi
+
+          if [[ ! -f "$ROOT/index.php" ]]; then
+            echo "index.php was not found in selected release."
+            find /tmp/ghadir-release -maxdepth 2 -type f | sort | head -100
+            exit 1
+          fi
+
+          echo "Selected ZIP: $ZIP"
+          echo "SHA256: $(sha256sum "$ZIP" | awk '{print $1}')"
+          if [[ -f "$ROOT/VERSION.txt" ]]; then
+            echo "VERSION: $(cat "$ROOT/VERSION.txt")"
+          fi
+          echo "Release root: $ROOT"
+
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy exact selected release over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          RELEASE_ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+
+          mirror -R --verbose --parallel=2 \
+            --exclude-glob .git/** \
+            --exclude-glob .github/** \
+            --exclude-glob .gitignore \
+            --exclude-glob .cpanel.yml \
+            --exclude-glob README* \
+            --exclude-glob WORK_PROJECT.md \
+            --exclude-glob HOMA_SETUP.md \
+            --exclude-glob SHA256SUMS.txt \
+            --exclude-glob config.php \
+            --exclude-glob storage/ghadir_data.json \
+            --exclude-glob '*.zip' \
+            "$RELEASE_ROOT/" /
+
+          bye
+          EOF
+
+      - name: Deployment summary
+        run: |
+          echo "Deployment completed."
+          echo "Exact ZIP deployed: ${{ github.event.inputs.release_zip }}"
