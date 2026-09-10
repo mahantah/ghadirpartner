@@ -1,0 +1,97 @@
+name: Build Ghadir Partner Android FINAL v5.4.2.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      android_zip:
+        description: 'Exact Android project ZIP filename in repository root'
+        required: true
+        default: 'GhadirPartner-Android-Native-V5.4.2.0-FINAL.zip'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Extract exact Android project
+        id: project
+        env:
+          ANDROID_ZIP: ${{ inputs.android_zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$ANDROID_ZIP"
+          [[ "$ZIP" =~ ^GhadirPartner-Android-Native-V[0-9.]+-FINAL\.zip$ ]] || exit 1
+          test -f "$ZIP" || { echo "Android ZIP not found: $ZIP"; exit 1; }
+          rm -rf /tmp/ghadir-native
+          mkdir -p /tmp/ghadir-native
+          unzip -q "$ZIP" -d /tmp/ghadir-native
+          ROOT="/tmp/ghadir-native"
+          if [[ ! -f "$ROOT/settings.gradle" ]]; then
+            FIRST_DIR="$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+            if [[ -n "$FIRST_DIR" && -f "$FIRST_DIR/settings.gradle" ]]; then ROOT="$FIRST_DIR"; fi
+          fi
+          test -f "$ROOT/settings.gradle" || { echo "settings.gradle not found"; exit 1; }
+          test -f "$ROOT/gradle.properties" || { echo "gradle.properties not found"; exit 1; }
+          grep -q '^android.useAndroidX=true$' "$ROOT/gradle.properties" || { echo "AndroidX is not enabled"; exit 1; }
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Build customer Portal APK
+        working-directory: ${{ steps.project.outputs.root }}
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain clean assemblePortalDebug --stacktrace 2>&1 | tee /tmp/android-final-build.log
+
+      - name: Collect APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.project.outputs.root }}"
+          mkdir -p /tmp/apks
+          cp "$ROOT/app/build/outputs/apk/portal/debug/app-portal-debug.apk" /tmp/apks/GhadirPartner-Portal-V5.4.2.0-FINAL.apk
+          sha256sum /tmp/apks/*.apk | tee /tmp/apks/SHA256SUMS.txt
+
+      - name: Upload Portal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Portal-APK-v5.4.2.0-FINAL
+          path: /tmp/apks/GhadirPartner-Portal-V5.4.2.0-FINAL.apk
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Android-SHA256-v5.4.2.0
+          path: /tmp/apks/SHA256SUMS.txt
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-FINAL-Build-Log-v5.4.2.0
+          path: /tmp/android-final-build.log
+          if-no-files-found: ignore
