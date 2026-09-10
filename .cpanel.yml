@@ -1,22 +1,5 @@
 ---
+# Production deployment belongs exclusively to the manual GitHub web workflow.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/ghadirpartner/public_html/
-    - /bin/cp index.php $DEPLOYPATH
-    - /bin/cp app.html $DEPLOYPATH
-    - /bin/cp mobile.html $DEPLOYPATH
-    - /bin/cp logo.png $DEPLOYPATH
-    - /bin/cp VERSION.txt $DEPLOYPATH
-    - /bin/cp README_FA_ORIGINAL.md $DEPLOYPATH
-    - /bin/cp WORK_PROJECT.md $DEPLOYPATH
-    - /bin/cp SHA256SUMS.txt $DEPLOYPATH
-    - /bin/cp .htaccess $DEPLOYPATH
-    - /bin/cp .user.ini $DEPLOYPATH
-    - /bin/cp php.ini $DEPLOYPATH
-    - /bin/mkdir -p $DEPLOYPATH/partners
-    - /bin/cp partners/index.php $DEPLOYPATH/partners/
-    - /bin/cp partners/portal.html $DEPLOYPATH/partners/
-    - /bin/cp partners/sw.js $DEPLOYPATH/partners/
-    - /bin/cp partners/manifest.webmanifest $DEPLOYPATH/partners/
-    - /bin/cp partners/logo.png $DEPLOYPATH/partners/
-    - /bin/cp partners/.htaccess $DEPLOYPATH/partners/
+    - /usr/bin/true
