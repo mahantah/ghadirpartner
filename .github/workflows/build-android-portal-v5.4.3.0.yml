@@ -1,0 +1,173 @@
+name: Build Ghadir Partner Android Portal v5.4.3.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      android_zip:
+        description: 'Exact Android project ZIP filename in repository root'
+        required: true
+        default: 'GhadirPartner-Android-Native-V5.4.3.0-BATCH-FINAL.zip'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-android-portal-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Portal APK v5.4.3.0
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Extract and validate Android project
+        id: project
+        env:
+          ANDROID_ZIP: ${{ inputs.android_zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="$ANDROID_ZIP"
+          BASE="$(basename "$ZIP")"
+
+          if [[ "$ZIP" != "$BASE" ]]; then
+            echo "::error::android_zip must be a filename from repository root, not a path."
+            exit 1
+          fi
+
+          if [[ "$BASE" != "GhadirPartner-Android-Native-V5.4.3.0-BATCH-FINAL.zip" ]]; then
+            echo "::error::Unexpected Android ZIP: $BASE"
+            exit 1
+          fi
+
+          test -f "$BASE" || {
+            echo "::error::Android ZIP not found: $BASE"
+            exit 1
+          }
+
+          rm -rf /tmp/ghadir-native
+          mkdir -p /tmp/ghadir-native
+          unzip -q "$BASE" -d /tmp/ghadir-native
+
+          ROOT="/tmp/ghadir-native"
+          if [[ ! -f "$ROOT/settings.gradle" ]]; then
+            mapfile -t TOP_DIRS < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d)
+            if [[ "${#TOP_DIRS[@]}" -eq 1 && -f "${TOP_DIRS[0]}/settings.gradle" ]]; then
+              ROOT="${TOP_DIRS[0]}"
+            fi
+          fi
+
+          test -f "$ROOT/settings.gradle" || { echo "::error::settings.gradle not found"; exit 1; }
+          test -f "$ROOT/build.gradle" || { echo "::error::build.gradle not found"; exit 1; }
+          test -f "$ROOT/gradle.properties" || { echo "::error::gradle.properties not found"; exit 1; }
+          test -f "$ROOT/app/build.gradle" || { echo "::error::app/build.gradle not found"; exit 1; }
+
+          grep -q '^android.useAndroidX=true$' "$ROOT/gradle.properties" || {
+            echo "::error::AndroidX is not enabled"
+            exit 1
+          }
+
+          grep -Eq "versionName[[:space:]]+['\"]5\\.4\\.3\\.0['\"]" "$ROOT/app/build.gradle" || {
+            echo "::error::Expected versionName 5.4.3.0 not found"
+            exit 1
+          }
+
+          grep -Eq 'versionCode[[:space:]]+543000' "$ROOT/app/build.gradle" || {
+            echo "::error::Expected versionCode 543000 not found"
+            exit 1
+          }
+
+          grep -q "assemblePortalDebug" <(printf '%s\n' 'assemblePortalDebug')
+
+          echo "Android ZIP: $BASE"
+          echo "SHA256: $(sha256sum "$BASE" | awk '{print $1}')"
+          echo "Project root: $ROOT"
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+          echo "zip=$BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Build customer Portal APK
+        working-directory: ${{ steps.project.outputs.root }}
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain clean assemblePortalDebug --stacktrace 2>&1 | tee /tmp/android-v5.4.3.0-build.log
+
+      - name: Collect APK and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.project.outputs.root }}"
+          APK="$ROOT/app/build/outputs/apk/portal/debug/app-portal-debug.apk"
+
+          test -f "$APK" || {
+            echo "::error::Portal APK was not produced"
+            exit 1
+          }
+
+          mkdir -p /tmp/ghadir-apks
+          cp "$APK" /tmp/ghadir-apks/GhadirPartner-Portal-V5.4.3.0-BATCH.apk
+          sha256sum /tmp/ghadir-apks/GhadirPartner-Portal-V5.4.3.0-BATCH.apk \
+            | tee /tmp/ghadir-apks/SHA256SUMS.txt
+
+      - name: Upload Portal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Portal-APK-v5.4.3.0-BATCH
+          path: /tmp/ghadir-apks/GhadirPartner-Portal-V5.4.3.0-BATCH.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload APK checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Android-SHA256-v5.4.3.0
+          path: /tmp/ghadir-apks/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-v5.4.3.0-Build-Log
+          path: /tmp/android-v5.4.3.0-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build summary
+        if: success()
+        run: |
+          echo "### Android Portal build completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source ZIP: \`${{ steps.project.outputs.zip }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`5.4.3.0\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Flavor: \`portal\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build type: \`debug\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Web deployment: **not performed**" >> "$GITHUB_STEP_SUMMARY"
