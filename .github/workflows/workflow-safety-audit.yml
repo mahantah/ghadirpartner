@@ -1,0 +1,45 @@
+name: Audit Workflow Deployment Safety
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Reject automatic production deploy workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=0
+
+          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+            [[ -f "$f" ]] || continue
+            [[ "$(basename "$f")" == "workflow-safety-audit.yml" ]] && continue
+
+            if grep -Eq '^[[:space:]]+push:' "$f" && \
+               grep -Eqi '(lftp|ftp:|mirror[[:space:]]+-R|scp[[:space:]]|rsync[[:space:]]|cpanel|deploy.*cPanel)' "$f"; then
+              echo "::error file=$f::Automatic PUSH-triggered deployment detected. Production deploy must be manual only."
+              bad=1
+            fi
+          done
+
+          if [[ "$bad" -ne 0 ]]; then
+            echo "Safety rule: production web deployment must use workflow_dispatch only."
+            exit 1
+          fi
+
+          echo "No push-triggered production deployment workflow detected."

@@ -1,0 +1,220 @@
+name: Deploy Web Release to cPanel - Manual Safe
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_zip:
+        description: "WEB full release ZIP or redesign PATCH ZIP in repository root"
+        required: true
+        default: "GhadirPartner-Web-V5.3.4.4-REDESIGN-CANDIDATE-PATCH.zip"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Validate and deploy exact web release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp rsync
+
+      - name: Prepare release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="${{ inputs.release_zip }}"
+          BASE="$(basename "$ZIP")"
+
+          if [[ "$ZIP" != "$BASE" ]]; then
+            echo "::error::release_zip must be a filename from repository root, not a path."
+            exit 1
+          fi
+
+          if [[ "$BASE" == *Android* || "$BASE" == *Native* || "$BASE" == *APK* ]]; then
+            echo "::error::Android/Native/APK package rejected by WEB deploy."
+            exit 1
+          fi
+
+          if [[ ! -f "$BASE" ]]; then
+            echo "::error::Release/PATCH ZIP not found in repository root: $BASE"
+            echo "Available candidate ZIPs:"
+            ls -1 *.zip 2>/dev/null || true
+            exit 1
+          fi
+
+          rm -rf /tmp/ghadir-release /tmp/ghadir-patch
+          mkdir -p /tmp/ghadir-release /tmp/ghadir-patch
+
+          MODE=""
+
+          if [[ "$BASE" =~ ^GhadirPay-GitHub-V[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+.*\.zip$ ]]; then
+            MODE="full"
+            unzip -q "$BASE" -d /tmp/ghadir-release
+
+            ROOT="/tmp/ghadir-release"
+            if [[ ! -f "$ROOT/index.php" ]]; then
+              mapfile -t TOP_DIRS < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d)
+              if [[ "${#TOP_DIRS[@]}" -eq 1 && -f "${TOP_DIRS[0]}/index.php" ]]; then
+                ROOT="${TOP_DIRS[0]}"
+              fi
+            fi
+
+          elif [[ "$BASE" =~ ^GhadirPartner-Web-V[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-REDESIGN-CANDIDATE-PATCH\.zip$ ]]; then
+            MODE="patch"
+            unzip -q "$BASE" -d /tmp/ghadir-patch
+
+            PATCH_INSTALL="$(find /tmp/ghadir-patch -type f -name install_patch.py | head -n1 || true)"
+            if [[ -z "$PATCH_INSTALL" ]]; then
+              echo "::error::install_patch.py not found inside PATCH ZIP."
+              exit 1
+            fi
+
+            # Build a safe full release from the checked-out runtime source.
+            # Never copy live secrets; they are not expected in GitHub anyway.
+            for f in index.php app.html mobile.html logo.png .htaccess .user.ini php.ini config.example.php VERSION.txt; do
+              if [[ -f "$f" ]]; then
+                cp -a "$f" /tmp/ghadir-release/
+              fi
+            done
+
+            mkdir -p /tmp/ghadir-release/partners /tmp/ghadir-release/storage
+
+            for f in partners/index.php partners/portal.html partners/logo.png partners/.htaccess partners/manifest.webmanifest partners/sw.js partners/config.example.php; do
+              if [[ -f "$f" ]]; then
+                cp -a "$f" "/tmp/ghadir-release/$f"
+              fi
+            done
+
+            for f in storage/.htaccess storage/README.txt; do
+              if [[ -f "$f" ]]; then
+                cp -a "$f" "/tmp/ghadir-release/$f"
+              fi
+            done
+
+            ROOT="/tmp/ghadir-release"
+            python3 "$PATCH_INSTALL" "$ROOT"
+
+          else
+            echo "::error::Unsupported WEB ZIP filename: $BASE"
+            echo "Accepted formats:"
+            echo "  GhadirPay-GitHub-Vx.x.x.x-....zip"
+            echo "  GhadirPartner-Web-Vx.x.x.x-REDESIGN-CANDIDATE-PATCH.zip"
+            exit 1
+          fi
+
+          echo "Release mode: $MODE"
+
+          if [[ ! -f "$ROOT/index.php" ]]; then
+            echo "::error::index.php not found in prepared WEB release."
+            find "$ROOT" -maxdepth 3 -type f | sort
+            exit 1
+          fi
+
+          if [[ ! -f "$ROOT/VERSION.txt" ]]; then
+            echo "::error::VERSION.txt is required for deployment."
+            exit 1
+          fi
+
+          if [[ ! -f "$ROOT/partners/index.php" && ! -f "$ROOT/partners/portal.html" ]]; then
+            echo "::error::Customer portal files are missing."
+            exit 1
+          fi
+
+          # Block secrets/live data in prepared release.
+          if find "$ROOT" -type f \( -name config.php -o -name .env -o -name ghadir_data.json \) | grep -q .; then
+            echo "::error::Prepared release contains protected live configuration/data. Deployment blocked."
+            find "$ROOT" -type f \( -name config.php -o -name .env -o -name ghadir_data.json \) -print
+            exit 1
+          fi
+
+          VERSION_RAW="$(tr -d '\r\n ' < "$ROOT/VERSION.txt")"
+          echo "Release version: $VERSION_RAW"
+
+          python3 - "$VERSION_RAW" <<'PY'
+          import re, sys
+          raw = sys.argv[1]
+          m = re.search(r'V?(\d+)\.(\d+)\.(\d+)\.(\d+)', raw)
+          if not m:
+              raise SystemExit(f"Cannot parse VERSION.txt: {raw}")
+          version = tuple(map(int, m.groups()))
+          minimum = (5, 3, 0, 0)
+          if version < minimum:
+              raise SystemExit(f"BLOCKED: {version} is older than production baseline {minimum}")
+          print("Version gate OK:", version)
+          PY
+
+          echo "Prepared files:"
+          find "$ROOT" -maxdepth 2 -type f | sort
+
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+          echo "zip=$BASE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION_RAW" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy exact release over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          RELEASE_ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+
+          mirror -R --verbose --parallel=2 \
+            --exclude-glob config.php \
+            --exclude-glob partners/config.php \
+            --exclude-glob .env \
+            --exclude-glob .env.* \
+            --exclude-glob storage/** \
+            --exclude-glob '*.sql' \
+            --exclude-glob '*.zip' \
+            "$RELEASE_ROOT/" /
+
+          bye
+          EOF
+
+      - name: Production health check
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking public site..."
+          curl -fsS --retry 2 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/
+          echo "Checking customer portal..."
+          curl -fsS --retry 2 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/partners/
+          echo "Production HTTP checks passed."
+
+      - name: Deployment summary
+        run: |
+          echo "### Safe WEB deployment completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Input ZIP: \`${{ steps.release.outputs.zip }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Mode: \`${{ steps.release.outputs.mode }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${{ steps.release.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- config.php / partners/config.php / storage/**: **protected**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Automatic push deploy: **disabled**" >> "$GITHUB_STEP_SUMMARY"
