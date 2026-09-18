@@ -1,0 +1,124 @@
+name: Build Android V5.4.3.5 Figma Exact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK V5.4.3.5
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Verify uploaded Android source
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="GhadirPartner-Android-V5.4.3.5-FIGMA-EXACT-SOURCE.zip"
+          test -f "$ZIP" || {
+            echo "::error::Missing $ZIP in repository root"
+            exit 1
+          }
+          unzip -t "$ZIP" >/dev/null
+          echo "Android source ZIP OK"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Extract Android source
+        id: project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="GhadirPartner-Android-V5.4.3.5-FIGMA-EXACT-SOURCE.zip"
+
+          rm -rf /tmp/ghadir-android
+          mkdir -p /tmp/ghadir-android
+          unzip -q "$ZIP" -d /tmp/ghadir-android
+
+          ROOT="$(find /tmp/ghadir-android -maxdepth 5 -type f -name settings.gradle -printf '%h\n' | head -n1 || true)"
+
+          test -n "$ROOT" || {
+            echo "::error::settings.gradle not found"
+            find /tmp/ghadir-android -maxdepth 5 -type f | sort | head -200
+            exit 1
+          }
+
+          test -f "$ROOT/app/build.gradle" || {
+            echo "::error::app/build.gradle not found"
+            exit 1
+          }
+
+          grep -Eq "versionName[[:space:]]+['\"]5\.4\.3\.5['\"]" "$ROOT/app/build.gradle" || {
+            echo "::error::Expected Android versionName 5.4.3.5"
+            grep -n "versionName" "$ROOT/app/build.gradle" || true
+            exit 1
+          }
+
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        working-directory: ${{ steps.project.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --console=plain clean assembleDebug --stacktrace
+
+      - name: Prepare APK artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="${{ steps.project.outputs.root }}"
+          SRC="$ROOT/app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$SRC" ]; then
+            echo "::error::Expected APK not found"
+            find "$ROOT/app/build/outputs" -type f 2>/dev/null | sort || true
+            exit 1
+          fi
+
+          mkdir -p /tmp/ghadir-apk
+          cp "$SRC" /tmp/ghadir-apk/GhadirPartner-Portal-V5.4.3.5-INSTALL.apk
+          sha256sum /tmp/ghadir-apk/GhadirPartner-Portal-V5.4.3.5-INSTALL.apk \
+            > /tmp/ghadir-apk/SHA256SUMS.txt
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Portal-APK-v5.4.3.5
+          path: |
+            /tmp/ghadir-apk/GhadirPartner-Portal-V5.4.3.5-INSTALL.apk
+            /tmp/ghadir-apk/SHA256SUMS.txt
+          retention-days: 14
+
+      - name: Build summary
+        run: |
+          echo "### Android build completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: V5.4.3.5" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source: GhadirPartner-Android-V5.4.3.5-FIGMA-EXACT-SOURCE.zip" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: GhadirPartner-Portal-V5.4.3.5-INSTALL.apk" >> "$GITHUB_STEP_SUMMARY"
