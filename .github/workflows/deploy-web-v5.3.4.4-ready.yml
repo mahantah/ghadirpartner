@@ -1,0 +1,134 @@
+name: Deploy Web V5.3.4.4 TSC Marketer READY
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy prebuilt V5.3.4.4
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp php-cli
+
+      - name: Extract ready release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="GhadirPartner-Web-V5.3.4.4-TSC-MARKETER-READY.zip"
+          test -f "$ZIP" || {
+            echo "::error::Upload $ZIP to repository root first"
+            exit 1
+          }
+
+          unzip -t "$ZIP" >/dev/null
+          rm -rf /tmp/ghadir-v5344
+          mkdir -p /tmp/ghadir-v5344
+          unzip -q "$ZIP" -d /tmp/ghadir-v5344
+
+          ROOT="/tmp/ghadir-v5344"
+          test -f "$ROOT/index.php"
+          test -f "$ROOT/app.html"
+          test -f "$ROOT/partners/index.php"
+          test -f "$ROOT/ghadir-print-v5344.css"
+          test -f "$ROOT/ghadir-print-v5344.js"
+
+          grep -q 'V5.3.4.4-TSC-MARKETER-READY' "$ROOT/VERSION.txt"
+          grep -q "function gp_effective_sender" "$ROOT/index.php"
+          grep -q "if(\$p==='/print/order-label')" "$ROOT/index.php"
+          grep -q "if(\$p==='/print/tsc-test')" "$ROOT/index.php"
+          grep -q "ghadir-print-v5344.css" "$ROOT/app.html"
+          grep -q "ghadir-print-v5344.js" "$ROOT/app.html"
+
+          php -l "$ROOT/index.php"
+          php -l "$ROOT/partners/index.php"
+
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Protect production config and data
+        env:
+          ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$ROOT/config.php" "$ROOT/partners/config.php" "$ROOT/.env" "$ROOT/partners/.env"
+          rm -f "$ROOT/storage/ghadir_data.json" 2>/dev/null || true
+
+      - name: Upload prepared release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Web-V5.3.4.4-TSC-MARKETER
+          path: ${{ steps.release.outputs.root }}/
+          retention-days: 7
+
+      - name: Deploy over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -n "${FTP_SERVER:-}" || { echo "::error::FTP_SERVER secret missing"; exit 1; }
+          test -n "${FTP_USERNAME:-}" || { echo "::error::FTP_USERNAME secret missing"; exit 1; }
+          test -n "${FTP_PASSWORD:-}" || { echo "::error::FTP_PASSWORD secret missing"; exit 1; }
+
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 25
+
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+
+          mirror -R --verbose --parallel=2 \
+            --exclude-glob config.php \
+            --exclude-glob partners/config.php \
+            --exclude-glob .env \
+            --exclude-glob .env.* \
+            --exclude-glob storage/** \
+            --exclude-glob '*.sql' \
+            --exclude-glob '*.zip' \
+            "$ROOT/" /
+
+          bye
+          EOF
+
+      - name: Production health check
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/partners/
+
+      - name: Summary
+        run: |
+          echo "### GhadirPartner Web V5.3.4.4" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ready/prebuilt release; no runtime patching in Actions" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base behavior: V5.3.4.3" >> "$GITHUB_STEP_SUMMARY"
+          echo "- TSC TTP-244 Pro print profiles: enabled" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Marketer sender address for subcustomers: enabled" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dark header keys with white text: enabled" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production config/storage: preserved" >> "$GITHUB_STEP_SUMMARY"
