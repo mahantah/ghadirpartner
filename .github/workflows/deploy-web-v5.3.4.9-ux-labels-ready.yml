@@ -1,0 +1,115 @@
+name: Deploy Web V5.3.4.9 UX Labels READY
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy prebuilt V5.3.4.9
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp php-cli
+
+      - name: Extract and validate ready release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="GhadirPartner-Web-V5.3.4.9-UX-LABELS-READY.zip"
+          test -f "$ZIP" || { echo "::error::Upload $ZIP to repository root first"; exit 1; }
+          unzip -t "$ZIP" >/dev/null
+          rm -rf /tmp/ghadir-v5349
+          mkdir -p /tmp/ghadir-v5349
+          unzip -q "$ZIP" -d /tmp/ghadir-v5349
+          ROOT="/tmp/ghadir-v5349"
+
+          test -f "$ROOT/index.php"
+          test -f "$ROOT/app.html"
+          test -f "$ROOT/partners/index.php"
+          test -f "$ROOT/assets/bugfix-v5349.js"
+          test -f "$ROOT/assets/bugfix-v5349.css"
+          test -f "$ROOT/ghadir-print-v5349.js"
+          test -f "$ROOT/lib/labels-v5348.php"
+
+          grep -q 'V5.3.4.9-UX-LABELS-READY' "$ROOT/VERSION.txt"
+          grep -q 'gp_print_carton_labels_three_up' "$ROOT/index.php"
+          test -f "$ROOT/assets/qrcode-v5349.js"
+          grep -q 'qrcode-v5349.js' "$ROOT/lib/labels-v5348.php"
+          grep -q 'openNewOrderFromDashboard' "$ROOT/app.html"
+
+          php -l "$ROOT/index.php"
+          php -l "$ROOT/partners/index.php"
+
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Protect production config and data
+        env:
+          ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$ROOT/config.php" "$ROOT/partners/config.php" "$ROOT/.env" "$ROOT/partners/.env"
+          rm -f "$ROOT/storage/ghadir_data.json" 2>/dev/null || true
+
+      - name: Upload prepared artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Web-V5.3.4.9-UX-LABELS
+          path: ${{ steps.release.outputs.root }}/
+          retention-days: 7
+
+      - name: Deploy over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${FTP_SERVER:-}" || { echo "::error::FTP_SERVER secret missing"; exit 1; }
+          test -n "${FTP_USERNAME:-}" || { echo "::error::FTP_USERNAME secret missing"; exit 1; }
+          test -n "${FTP_PASSWORD:-}" || { echo "::error::FTP_PASSWORD secret missing"; exit 1; }
+
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 25
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mirror -R --verbose --parallel=2 \
+            --exclude-glob config.php \
+            --exclude-glob partners/config.php \
+            --exclude-glob .env \
+            --exclude-glob .env.* \
+            --exclude-glob storage/** \
+            --exclude-glob '*.sql' \
+            --exclude-glob '*.zip' \
+            "$ROOT/" /
+          bye
+          EOF
+
+      - name: Production health check
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/partners/
