@@ -1,0 +1,67 @@
+name: Deploy Web V5.3.4.14 Dispatch Numbers Fix
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp php-cli curl
+      - name: Extract and validate release
+        id: rel
+        run: |
+          set -euo pipefail
+          ZIP="GhadirPartner-Web-V5.3.4.14-DISPATCH-NUMBERS-FIX.zip"
+          test -f "$ZIP" || { echo "::error::Upload $ZIP to repository root first"; exit 1; }
+          unzip -t "$ZIP" >/dev/null
+          rm -rf /tmp/ghp-v53414 && mkdir -p /tmp/ghp-v53414
+          unzip -q "$ZIP" -d /tmp/ghp-v53414
+          ROOT=/tmp/ghp-v53414
+          test -f "$ROOT/index.php"
+          test -f "$ROOT/lib/labels-v5348.php"
+          grep -q 'V5.3.4.14-DISPATCH-NUMBERS-FIX' "$ROOT/VERSION.txt"
+          php -l "$ROOT/index.php"
+          php -l "$ROOT/lib/labels-v5348.php"
+          php -l "$ROOT/partners/index.php"
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+      - name: Protect config and data
+        run: |
+          ROOT='${{ steps.rel.outputs.root }}'
+          rm -f "$ROOT/config.php" "$ROOT/partners/config.php" "$ROOT/.env" "$ROOT/partners/.env"
+          rm -f "$ROOT/storage/ghadir_data.json" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Web-V5.3.4.14-Dispatch-Numbers-Fix
+          path: ${{ steps.rel.outputs.root }}/
+          retention-days: 7
+      - name: Deploy over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ROOT='${{ steps.rel.outputs.root }}'
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mirror -R --verbose --parallel=2 --exclude-glob config.php --exclude-glob partners/config.php --exclude-glob .env --exclude-glob .env.* --exclude-glob storage/** "$ROOT/" /
+          bye
+          EOF
+      - name: Production health check
+        run: |
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/partners/
