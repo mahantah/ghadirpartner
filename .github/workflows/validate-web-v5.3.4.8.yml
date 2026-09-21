@@ -1,0 +1,67 @@
+name: Validate Web V5.3.4.8
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify and extract exact release
+        env:
+          ZIP_NAME: GhadirPartner-Web-V5.3.4.8-FIGMA-DUAL-LABELS.zip
+          EXPECTED_SHA: 23c79a8919e6d6f704aa22cfce12388aea18203197026b78335e3d22318557b6
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'CHECK'
+          import os, hashlib, zipfile, stat
+          from pathlib import Path
+          archive = Path(os.environ['ZIP_NAME'])
+          if not archive.is_file():
+              raise SystemExit('Upload the release ZIP to the repository root first.')
+          if hashlib.sha256(archive.read_bytes()).hexdigest() != os.environ['EXPECTED_SHA']:
+              raise SystemExit('Release ZIP checksum mismatch. Use the original V5.3.4.8 ZIP.')
+          root = Path(os.environ['RUNNER_TEMP']) / 'ghadir-web-5348'
+          root.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(archive) as z:
+              for item in z.infolist():
+                  target = (root / item.filename).resolve()
+                  if not target.is_relative_to(root.resolve()) or stat.S_ISLNK(item.external_attr >> 16):
+                      raise SystemExit('Unsafe archive entry')
+                  if Path(item.filename).name in ('config.php', '.env') or 'storage' in Path(item.filename).parts:
+                      raise SystemExit('Release must not contain production config or data')
+              z.extractall(root)
+          assert (root / 'VERSION.txt').read_text().strip() == 'V5.3.4.8-FIGMA-DUAL-LABELS'
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('RELEASE_ROOT=' + str(root) + '\n')
+          CHECK
+          cd "$RUNNER_TEMP/ghadir-web-5348"
+          sha256sum --check SHA256SUMS.txt
+          find . -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check assets/redesign-v5348.js
+          node --check assets/label-pagination-v5348.js
+          node --check ghadir-print-v5346.js
+          grep -q 'function gp_exit_items' index.php
+          grep -q 'function orderExitItems' app.html
+          grep -q 'gp_label_documents' lib/labels-v5348.php
+      - name: Store verified installation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Web-V5.3.4.8-VERIFIED
+          path: GhadirPartner-Web-V5.3.4.8-FIGMA-DUAL-LABELS.zip
+          retention-days: 14
+      - name: Result
+        run: echo 'V5.3.4.8 package checks passed. No deployment was performed.' >> "$GITHUB_STEP_SUMMARY"

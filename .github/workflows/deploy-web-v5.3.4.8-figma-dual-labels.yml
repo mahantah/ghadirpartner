@@ -1,0 +1,143 @@
+name: Deploy Web V5.3.4.8 Figma Dual Labels
+on:
+  workflow_dispatch:
+    inputs:
+      remote_dir:
+        description: 'FTP web root; keep / if the FTP account already opens the site root'
+        type: string
+        required: true
+        default: '/'
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify and extract exact release
+        env:
+          ZIP_NAME: GhadirPartner-Web-V5.3.4.8-FIGMA-DUAL-LABELS.zip
+          EXPECTED_SHA: 23c79a8919e6d6f704aa22cfce12388aea18203197026b78335e3d22318557b6
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'CHECK'
+          import os, hashlib, zipfile, stat
+          from pathlib import Path
+          archive = Path(os.environ['ZIP_NAME'])
+          if not archive.is_file():
+              raise SystemExit('Upload the release ZIP to the repository root first.')
+          if hashlib.sha256(archive.read_bytes()).hexdigest() != os.environ['EXPECTED_SHA']:
+              raise SystemExit('Release ZIP checksum mismatch. Use the original V5.3.4.8 ZIP.')
+          root = Path(os.environ['RUNNER_TEMP']) / 'ghadir-web-5348'
+          root.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(archive) as z:
+              for item in z.infolist():
+                  target = (root / item.filename).resolve()
+                  if not target.is_relative_to(root.resolve()) or stat.S_ISLNK(item.external_attr >> 16):
+                      raise SystemExit('Unsafe archive entry')
+                  if Path(item.filename).name in ('config.php', '.env') or 'storage' in Path(item.filename).parts:
+                      raise SystemExit('Release must not contain production config or data')
+              z.extractall(root)
+          assert (root / 'VERSION.txt').read_text().strip() == 'V5.3.4.8-FIGMA-DUAL-LABELS'
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('RELEASE_ROOT=' + str(root) + '\n')
+          CHECK
+          cd "$RUNNER_TEMP/ghadir-web-5348"
+          sha256sum --check SHA256SUMS.txt
+          find . -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check assets/redesign-v5348.js
+          node --check assets/label-pagination-v5348.js
+          node --check ghadir-print-v5346.js
+          grep -q 'function gp_exit_items' index.php
+          grep -q 'function orderExitItems' app.html
+          grep -q 'gp_label_documents' lib/labels-v5348.php
+      - name: Upload application through verified FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_DIR: ${{ inputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'UPLOAD'
+          import os, ssl, ftplib, posixpath
+          from pathlib import Path
+          for key in ('FTP_SERVER', 'FTP_USERNAME', 'FTP_PASSWORD', 'FTP_REMOTE_DIR'):
+              if not os.environ.get(key):
+                  raise SystemExit(key + ' is missing')
+          host = os.environ['FTP_SERVER'].strip()
+          if '://' in host or '/' in host:
+              raise SystemExit('FTP_SERVER must be a hostname only, without ftp:// or a path')
+          root = Path(os.environ['RELEASE_ROOT'])
+          remote = os.environ['FTP_REMOTE_DIR']
+          if any(c in remote for c in '\r\n'):
+              raise SystemExit('Invalid FTP directory')
+          def protected(p):
+              return (p.name in ('config.php', '.env') or p.name.startswith('.env.')
+                      or 'storage' in p.parts or p.suffix.lower() in ('.sql', '.zip'))
+          files = [p for p in root.rglob('*') if p.is_file() and not protected(p.relative_to(root))]
+          # Static dependencies first, application entrypoints next, version marker last.
+          def priority(p):
+              rel = p.relative_to(root).as_posix()
+              return (3 if rel == 'VERSION.txt' else 2 if rel in ('index.php','app.html','partners/index.php','partners/portal.html') else 1, rel)
+          ftp = ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=90)
+          ftp.connect(host, 21)
+          ftp.login(os.environ['FTP_USERNAME'], os.environ['FTP_PASSWORD'])
+          ftp.prot_p()
+          ftp.set_pasv(True)
+          ftp.cwd(remote)
+          remote = ftp.pwd()
+          # Refuse a wrong/empty site directory; this is an upgrade of an existing site.
+          existing = {posixpath.basename(n.rstrip('/')) for n in ftp.nlst()}
+          if not {'index.php', 'config.php'}.issubset(existing):
+              raise SystemExit('Selected FTP directory is not the current site root (index.php/config.php missing)')
+          known = {remote}
+          for path in sorted(files, key=priority):
+              rel = path.relative_to(root).as_posix()
+              folder = posixpath.dirname(posixpath.join(remote, rel))
+              parts = folder[len(remote):].strip('/').split('/') if folder != remote else []
+              current = remote
+              for part in parts:
+                  if not part: continue
+                  current = posixpath.join(current, part)
+                  if current not in known:
+                      try: ftp.cwd(current)
+                      except ftplib.error_perm:
+                          ftp.mkd(current)
+                          ftp.cwd(current)
+                      known.add(current)
+              ftp.cwd(folder)
+              # Upload a temporary file before renaming to avoid partially written PHP files.
+              temporary = path.name + '.upload-5348'
+              with path.open('rb') as stream:
+                  ftp.storbinary('STOR ' + temporary, stream)
+              ftp.rename(temporary, path.name)
+              print('Uploaded ' + rel)
+          ftp.quit()
+          UPLOAD
+      - name: Verify live application and new asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 30 -o /dev/null https://ghadirpartner.ir/
+          curl -fsS --retry 3 --retry-delay 2 --max-time 30 -o /dev/null https://ghadirpartner.ir/partners/
+          curl -fsS --retry 3 --retry-delay 2 --max-time 30 'https://ghadirpartner.ir/assets/redesign-v5348.js?v=5348' -o "$RUNNER_TEMP/live-redesign-v5348.js"
+          cmp "$RELEASE_ROOT/assets/redesign-v5348.js" "$RUNNER_TEMP/live-redesign-v5348.js"
+          echo 'Web V5.3.4.8 uploaded; live UI asset verified. Production config and storage were not uploaded or deleted.' >> "$GITHUB_STEP_SUMMARY"
