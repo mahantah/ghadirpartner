@@ -1,0 +1,134 @@
+name: Deploy Web V5.3.4.18 Menu QR READY
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy V5.3.4.18
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install deploy tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp php-cli curl
+
+      - name: Locate release
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_NAME="GhadirPartner-Web-V5.3.4.18-MENU-QR-READY.zip"
+          BUNDLE_NAME="GhadirPartner-V5.3.4.18-GITHUB-BUNDLE.zip"
+          ZIP="$(find . -type f -name "$RELEASE_NAME" -print -quit || true)"
+          if [ -z "$ZIP" ]; then
+            BUNDLE="$(find . -type f -name "$BUNDLE_NAME" -print -quit || true)"
+            if [ -n "$BUNDLE" ]; then
+              rm -rf /tmp/ghadir-bundle-v53418
+              mkdir -p /tmp/ghadir-bundle-v53418
+              unzip -q "$BUNDLE" -d /tmp/ghadir-bundle-v53418
+              ZIP="$(find /tmp/ghadir-bundle-v53418 -type f -name "$RELEASE_NAME" -print -quit || true)"
+            fi
+          fi
+          if [ -z "$ZIP" ] || [ ! -f "$ZIP" ]; then
+            echo "::error::Release ZIP not found. Upload $RELEASE_NAME to repository root."
+            find . -maxdepth 3 -type f | sort | sed -n '1,250p'
+            exit 1
+          fi
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+
+      - name: Extract and validate release
+        id: release
+        shell: bash
+        env:
+          ZIP: ${{ steps.locate.outputs.zip }}
+        run: |
+          set -euo pipefail
+          unzip -t "$ZIP" >/dev/null
+          rm -rf /tmp/ghadir-v53418
+          mkdir -p /tmp/ghadir-v53418
+          unzip -q "$ZIP" -d /tmp/ghadir-v53418
+          ROOT="/tmp/ghadir-v53418"
+          for f in VERSION.txt BUILD.txt index.php app.html partners/index.php lib/labels-v5348.php assets/ui-v53417.css assets/ui-v53417.js assets/carton-static-qr-v53418.png; do
+            test -f "$ROOT/$f" || { echo "::error::Required file missing: $f"; exit 1; }
+          done
+          grep -qx 'V5.3.4.18-MENU-QR-READY' "$ROOT/VERSION.txt" || { echo "::error::VERSION.txt mismatch"; cat "$ROOT/VERSION.txt"; exit 1; }
+          php -l "$ROOT/index.php"
+          php -l "$ROOT/partners/index.php"
+          php -l "$ROOT/lib/labels-v5348.php"
+          node --check "$ROOT/assets/ui-v53417.js"
+          node --check "$ROOT/assets/dispatch-v53417.js"
+          node --check "$ROOT/assets/redesign-v5348.js"
+          node --check "$ROOT/assets/bugfix-v5349.js"
+          node --check "$ROOT/assets/label-pagination-v5348.js"
+          node --check "$ROOT/assets/qrcode-v5349.js"
+          node --check "$ROOT/ghadir-print-v5349.js"
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Protect production config and data
+        env:
+          ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$ROOT/config.php" "$ROOT/partners/config.php" "$ROOT/.env" "$ROOT/partners/.env"
+          rm -rf "$ROOT/storage" 2>/dev/null || true
+
+      - name: Upload validated artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Web-V5.3.4.18-MENU-QR-READY
+          path: ${{ steps.release.outputs.root }}/
+          retention-days: 7
+
+      - name: Deploy over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${FTP_SERVER:-}" || { echo "::error::FTP_SERVER secret missing"; exit 1; }
+          test -n "${FTP_USERNAME:-}" || { echo "::error::FTP_USERNAME secret missing"; exit 1; }
+          test -n "${FTP_PASSWORD:-}" || { echo "::error::FTP_PASSWORD secret missing"; exit 1; }
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 25
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mirror -R --verbose --parallel=2 \
+            --exclude-glob config.php \
+            --exclude-glob partners/config.php \
+            --exclude-glob .env \
+            --exclude-glob .env.* \
+            --exclude-glob storage/** \
+            --exclude-glob backups/** \
+            --exclude-glob '*.sql' \
+            --exclude-glob '*.zip' \
+            "$ROOT/" /
+          bye
+          EOF
+
+      - name: Production health check
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/partners/
