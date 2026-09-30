@@ -43,8 +43,12 @@ jobs:
           get /index.php -o /tmp/index.php
           bye
           EOF
-          grep -q "V39 disabled: retail-warehouse cleanup" /tmp/index.php
-          grep -Fq 'if($oid===-39){$map[$name][\'outgoing\']++;continue;}' /tmp/index.php
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('/tmp/index.php').read_text(encoding='utf-8')
+          assert 'V39 disabled: retail-warehouse cleanup' in s
+          assert "if($oid===-39){$map[$name]['outgoing']++;continue;}" in s
+          PY
           php -l /tmp/index.php
 
       - name: Build guarded repair endpoint from live shipment history
