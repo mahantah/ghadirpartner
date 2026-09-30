@@ -44,7 +44,7 @@ jobs:
           bye
           EOF
           grep -q "V39 disabled: retail-warehouse cleanup" /tmp/index.php
-          grep -Fq "if($oid===-39){$map[$name]['outgoing']++;continue;}" /tmp/index.php
+          grep -Fq 'if($oid===-39){$map[$name][\'outgoing\']++;continue;}' /tmp/index.php
           php -l /tmp/index.php
 
       - name: Build guarded repair endpoint from live shipment history
