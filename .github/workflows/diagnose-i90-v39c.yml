@@ -1,0 +1,211 @@
+name: Diagnose I90 Stock V39C
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "diagnose-i90-v39c.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-i90-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl jq
+
+      - name: Build diagnostic endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          echo "::add-mask::$TOKEN"
+          echo "DIAG_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          cat > /tmp/diag-i90-v39c.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          const DIAG_TOKEN='__TOKEN__';
+          header('Content-Type: application/json; charset=utf-8');
+
+          function out(array $x,int $code=200):void{
+              http_response_code($code);
+              echo json_encode($x,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+              exit;
+          }
+          function is_i90($v):bool{
+              $v=strtr(trim((string)$v),['ك'=>'ک','ي'=>'ی','ى'=>'ی','ـ'=>'']);
+              $k=preg_replace('/[^a-z0-9]/i','',strtolower($v))??'';
+              return strpos($k,'i90')!==false;
+          }
+          function pdo_from_config(array $cfg):PDO{
+              $m=$cfg['mysql']??[];
+              $dsn='mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4');
+              return new PDO($dsn,$m['username']??'',$m['password']??'',[
+                  PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+                  PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+                  PDO::ATTR_EMULATE_PREPARES=>false
+              ]);
+          }
+          if(!hash_equals(DIAG_TOKEN,(string)($_SERVER['HTTP_X_DIAG_TOKEN']??'')))out(['ok'=>false,'error'=>'forbidden'],403);
+          $cfg=require __DIR__.'/config.php';
+          $pdo=pdo_from_config($cfg);
+          $row=$pdo->query('SELECT state_json,revision,updated_at FROM ghadir_state WHERE id=1')->fetch();
+          if(!$row)out(['ok'=>false,'error'=>'state_missing'],500);
+          $s=json_decode((string)$row['state_json'],true);
+          if(!is_array($s))out(['ok'=>false,'error'=>'state_invalid'],500);
+
+          $orders=[];foreach($s['orders']??[] as $o)$orders[(int)($o['id']??0)]=$o;
+          $cartons=[];foreach($s['cartons']??[] as $c)if(is_i90($c['product']??''))$cartons[(int)($c['id']??0)]=$c;
+
+          $rows=[];$serialGroups=[];$freeRows=[];$assignedRows=[];
+          foreach($s['inventory']??[] as $i=>$iv){
+              if(!is_i90($iv['product']??''))continue;
+              $sn=strtoupper(trim((string)($iv['serial']??'')));
+              $x=[
+                'i'=>$i,'id'=>(int)($iv['id']??0),'serial'=>$sn,
+                'order_id'=>(int)($iv['order_id']??0),'order_number'=>(string)($iv['order_number']??''),
+                'carton_id'=>(int)($iv['carton_id']??0),'carton_code'=>(string)($iv['carton_code']??''),
+                'shelf_level'=>(int)($iv['shelf_level']??0),'added_by'=>(string)($iv['added_by']??''),
+                'added_at'=>(string)($iv['added_at']??$iv['created_at']??'')
+              ];
+              $rows[]=$x;
+              if($sn!=='')$serialGroups[$sn][]=$x;
+              if($x['order_id']===0)$freeRows[]=$x;else$assignedRows[]=$x;
+          }
+
+          $dupSerials=[];$dupExtraRows=0;$freeDupRows=[];$freeWithAssignedTwin=[];$freeWithFreeTwin=[];
+          foreach($serialGroups as $sn=>$g){
+              if(count($g)<2)continue;
+              $dupSerials[$sn]=count($g);
+              $dupExtraRows+=count($g)-1;
+              $hasAssigned=false;$free=[];
+              foreach($g as $x){if($x['order_id']!==0)$hasAssigned=true;else$free[]=$x;}
+              foreach($free as $x){
+                  $freeDupRows[]=$x;
+                  if($hasAssigned)$freeWithAssignedTwin[]=$x;
+                  elseif(count($free)>1)$freeWithFreeTwin[]=$x;
+              }
+          }
+
+          $freeByCarton=[];$freeByShelf=[];$freeNoCarton=0;
+          foreach($freeRows as $x){
+              $cc=$x['carton_code']!==''?$x['carton_code']:($x['carton_id']?'#'.$x['carton_id']:'بدون کارتن');
+              $freeByCarton[$cc]=($freeByCarton[$cc]??0)+1;
+              $sh=(string)$x['shelf_level'];$freeByShelf[$sh]=($freeByShelf[$sh]??0)+1;
+              if($x['carton_id']===0&&$x['carton_code']==='')$freeNoCarton++;
+          }
+          arsort($freeByCarton);arsort($freeByShelf);
+
+          $cartonStats=[];$cartonInventoryCounts=[];
+          foreach($rows as $x)if($x['carton_id']>0)$cartonInventoryCounts[$x['carton_id']]=($cartonInventoryCounts[$x['carton_id']]??0)+1;
+          foreach($cartons as $id=>$c){
+              $declared=count($c['serials']??[]);
+              $invCount=$cartonInventoryCounts[$id]??0;
+              if($declared!==$invCount){
+                  $cartonStats[]=[
+                    'id'=>$id,'code'=>$c['code']??'','capacity'=>(int)($c['capacity']??0),
+                    'declared_serials'=>$declared,'inventory_rows'=>$invCount,'diff'=>$invCount-$declared
+                  ];
+              }
+          }
+
+          $statusCounts=[];$outgoing=0;$reserved=0;
+          foreach($assignedRows as $x){
+              $o=$orders[$x['order_id']]??null;
+              $st=$o?(string)($o['status']??''):'missing_order';
+              $statusCounts[$st]=($statusCounts[$st]??0)+1;
+              if($o&&in_array($st,['ارسال شد','تحویل شد'],true))$outgoing++;else$reserved++;
+          }
+          arsort($statusCounts);
+
+          $topDup=[];
+          foreach(array_slice($dupSerials,0,30,true) as $sn=>$n){
+              $topDup[]=['serial'=>$sn,'rows'=>$n,'detail'=>$serialGroups[$sn]];
+          }
+
+          out([
+            'ok'=>true,
+            'revision'=>(int)$row['revision'],'updated_at'=>$row['updated_at'],
+            'i90'=>[
+              'inventory_rows'=>count($rows),
+              'unique_nonempty_serials'=>count($serialGroups),
+              'duplicate_serial_values'=>count($dupSerials),
+              'duplicate_extra_rows'=>$dupExtraRows,
+              'free_rows'=>count($freeRows),
+              'assigned_rows'=>count($assignedRows),
+              'outgoing_rows'=>$outgoing,
+              'reserved_or_orphan_rows'=>$reserved,
+              'free_duplicate_rows'=>count($freeDupRows),
+              'free_with_assigned_twin'=>count($freeWithAssignedTwin),
+              'free_with_free_twin'=>count($freeWithFreeTwin),
+              'free_without_carton'=>$freeNoCarton,
+              'free_by_shelf'=>$freeByShelf,
+              'top_free_cartons'=>array_slice($freeByCarton,0,40,true),
+              'carton_count'=>count($cartons),
+              'carton_mismatch_count'=>count($cartonStats),
+              'carton_mismatches'=>array_slice($cartonStats,0,40),
+              'assigned_status_counts'=>$statusCounts,
+              'duplicate_examples'=>$topDup
+            ]
+          ]);
+          PHP
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/diag-i90-v39c.php
+          php -l /tmp/diag-i90-v39c.php
+
+      - name: Upload diagnostic endpoint
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/diag-i90-v39c.php -o /diag-i90-v39c.php
+          bye
+          EOF
+
+      - name: Run diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESP="$(curl -sS --max-time 90 -H "X-Diag-Token: $DIAG_TOKEN" https://ghadirpartner.ir/diag-i90-v39c.php)"
+          echo "$RESP" | jq .
+          test "$(echo "$RESP" | jq -r '.ok // false')" = "true"
+
+      - name: Cleanup endpoint
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /diag-i90-v39c.php
+          bye
+          EOF
+          true
