@@ -1,0 +1,284 @@
+name: Repair I90 Stock V39B
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "repair-i90-v39b.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-i90-stock-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli curl jq
+
+      - name: Verify production patch is present
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/index.php
+          bye
+          EOF
+          grep -q "V39 disabled: retail-warehouse cleanup" /tmp/index.php
+          grep -Fq "if($oid===-39){$map[$name]['outgoing']++;continue;}" /tmp/index.php
+          php -l /tmp/index.php
+
+      - name: Build guarded repair endpoint from live shipment history
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          echo "::add-mask::$TOKEN"
+          echo "REPAIR_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+          cat > /tmp/repair-i90-stock-v39b.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          const REPAIR_TOKEN='__TOKEN__';
+          const EXPECT_TOTAL=7362;
+          const EXPECT_FREE_BEFORE=654;
+          const EXPECT_RESERVED_BEFORE=0;
+          const EXPECT_OUTGOING_BEFORE=6708;
+          const EXPECT_CANDIDATES=300;
+          const EXPECT_FREE_AFTER=354;
+          const HISTORICAL_ORDER_ID=-39;
+
+          header('Content-Type: application/json; charset=utf-8');
+          function done(array $x,int $code=200):void{
+              http_response_code($code);
+              echo json_encode($x,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+              exit;
+          }
+          function is_i90($v):bool{
+              $v=strtr(trim((string)$v),['ك'=>'ک','ي'=>'ی','ى'=>'ی','ـ'=>'']);
+              $k=preg_replace('/[^a-z0-9]/i','',strtolower($v))??'';
+              return strpos($k,'i90')!==false;
+          }
+          function pdo_from_config(array $cfg):PDO{
+              $m=$cfg['mysql']??[];
+              $dsn='mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4');
+              return new PDO($dsn,$m['username']??'',$m['password']??'',[
+                  PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+                  PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+                  PDO::ATTR_EMULATE_PREPARES=>false
+              ]);
+          }
+          function load_state(PDO $pdo,bool $lock=false):array{
+              $row=$pdo->query('SELECT state_json,revision FROM ghadir_state WHERE id=1'.($lock?' FOR UPDATE':''))->fetch();
+              if(!$row)throw new RuntimeException('state row missing');
+              $s=json_decode((string)$row['state_json'],true);
+              if(!is_array($s))throw new RuntimeException('state_json invalid');
+              return [$row,$s];
+          }
+          function stats(array $s):array{
+              $orders=[];foreach($s['orders']??[] as $o)$orders[(int)($o['id']??0)]=$o;
+              $total=$free=$reserved=$outgoing=0;
+              foreach($s['inventory']??[] as $iv){
+                  if(!is_i90($iv['product']??''))continue;
+                  $total++;
+                  $oid=(int)($iv['order_id']??0);
+                  if($oid===0){$free++;continue;}
+                  if($oid===HISTORICAL_ORDER_ID){$outgoing++;continue;}
+                  $o=$orders[$oid]??null;
+                  if($o&&in_array((string)($o['status']??''),['ارسال شد','تحویل شد'],true))$outgoing++;else$reserved++;
+              }
+              return compact('total','free','reserved','outgoing');
+          }
+          function free_i90_map(array $s):array{
+              $out=[];
+              foreach($s['inventory']??[] as $i=>$iv){
+                  if(!is_i90($iv['product']??'')||(int)($iv['order_id']??0)!==0)continue;
+                  $sn=strtoupper(trim((string)($iv['serial']??'')));
+                  if($sn!=='')$out[$sn]=$i;
+              }
+              return $out;
+          }
+          function add_hist(array &$hist,array $free,$serial,array $o,string $product):void{
+              if(!is_i90($product))return;
+              $sn=strtoupper(trim((string)$serial));
+              if($sn===''||!isset($free[$sn]))return;
+              $oid=(int)($o['id']??0);$on=(string)($o['number']??'');
+              if(!isset($hist[$sn]))$hist[$sn]=['inventory_index'=>$free[$sn],'orders'=>[]];
+              $hist[$sn]['orders'][$oid]=$on;
+          }
+          function candidates_from_live_history(array $s):array{
+              $free=free_i90_map($s);$hist=[];
+              foreach($s['orders']??[] as $o){
+                  if(!in_array((string)($o['status']??''),['ارسال شد','تحویل شد'],true))continue;
+
+                  foreach($o['exit_items']??[] as $it){
+                      $p=(string)($it['product']??'');
+                      foreach($it['serials']??[] as $sn)add_hist($hist,$free,$sn,$o,$p);
+                  }
+                  foreach($o['shipment_batches']??[] as $batch){
+                      foreach($batch['items']??[] as $it){
+                          $p=(string)($it['product']??'');
+                          foreach($it['serials']??[] as $sn)add_hist($hist,$free,$sn,$o,$p);
+                      }
+                  }
+              }
+              return $hist;
+          }
+
+          if(!hash_equals(REPAIR_TOKEN,(string)($_SERVER['HTTP_X_REPAIR_TOKEN']??'')))done(['ok'=>false,'error'=>'forbidden'],403);
+          $cfg=require __DIR__.'/config.php';
+          date_default_timezone_set($cfg['timezone']??'Asia/Tehran');
+          $pdo=pdo_from_config($cfg);
+
+          $pdo->beginTransaction();
+          try{
+              [$row,$s]=load_state($pdo,true);
+              $before=stats($s);
+
+              if($before['total']===EXPECT_TOTAL&&$before['free']===EXPECT_FREE_AFTER){
+                  $pdo->rollBack();
+                  done(['ok'=>true,'applied'=>false,'already_fixed'=>true,'before'=>$before,'after'=>$before]);
+              }
+              $expected=['total'=>EXPECT_TOTAL,'free'=>EXPECT_FREE_BEFORE,'reserved'=>EXPECT_RESERVED_BEFORE,'outgoing'=>EXPECT_OUTGOING_BEFORE];
+              if($before!==$expected){
+                  $pdo->rollBack();
+                  done(['ok'=>false,'error'=>'guard_mismatch','before'=>$before,'expected'=>$expected],409);
+              }
+
+              $cand=candidates_from_live_history($s);
+              if(count($cand)!==EXPECT_CANDIDATES){
+                  $pdo->rollBack();
+                  $multi=0;foreach($cand as $c)if(count($c['orders'])>1)$multi++;
+                  done([
+                      'ok'=>false,'error'=>'candidate_count_mismatch',
+                      'candidate_count'=>count($cand),'expected'=>EXPECT_CANDIDATES,
+                      'multiple_order_matches'=>$multi,
+                      'sample'=>array_slice(array_keys($cand),0,25)
+                  ],409);
+              }
+
+              $backupDir=__DIR__.'/storage/Backups';
+              if(!is_dir($backupDir)&&!@mkdir($backupDir,0750,true))$backupDir=__DIR__.'/storage/backups';
+              if(!is_dir($backupDir)&&!@mkdir($backupDir,0750,true))throw new RuntimeException('cannot create backup directory');
+              $backupFile=$backupDir.'/pre-i90-reconcile-v39b-'.date('Ymd-His').'.json';
+              $backupJson=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE);
+              if($backupJson===false||@file_put_contents($backupFile,$backupJson,LOCK_EX)===false)throw new RuntimeException('backup write failed');
+
+              $changed=0;
+              foreach($cand as $sn=>$c){
+                  $i=(int)$c['inventory_index'];
+                  if(!isset($s['inventory'][$i]))throw new RuntimeException('inventory index missing');
+                  if((int)($s['inventory'][$i]['order_id']??0)!==0)throw new RuntimeException('candidate changed: '.$sn);
+                  $orders=$c['orders'];
+                  $sourceId=(int)array_key_first($orders);
+                  $s['inventory'][$i]['order_id']=HISTORICAL_ORDER_ID;
+                  $s['inventory'][$i]['order_number']='خروج تاریخی';
+                  $s['inventory'][$i]['repair_source_order_id']=$sourceId;
+                  $s['inventory'][$i]['repair_source_order_number']=(string)($orders[$sourceId]??'');
+                  $s['inventory'][$i]['repair_at']=date('Y-m-d H:i:s');
+                  $s['inventory'][$i]['repair_note']='I90 v39b: free serial found in confirmed shipment history';
+                  $changed++;
+              }
+
+              $after=stats($s);
+              $expectedAfter=['total'=>EXPECT_TOTAL,'free'=>EXPECT_FREE_AFTER,'reserved'=>EXPECT_RESERVED_BEFORE,'outgoing'=>EXPECT_OUTGOING_BEFORE+EXPECT_CANDIDATES];
+              if($changed!==EXPECT_CANDIDATES||$after!==$expectedAfter){
+                  throw new RuntimeException('post verification failed: '.json_encode($after,JSON_UNESCAPED_UNICODE));
+              }
+
+              if(!isset($s['settings'])||!is_array($s['settings']))$s['settings']=[];
+              $s['settings']['repair_i90_stock_v39b']=[
+                  'at'=>date('Y-m-d H:i:s'),'changed'=>$changed,'before'=>$before,'after'=>$after,
+                  'method'=>'free I90 serial matched against exit_items/shipment_batches'
+              ];
+
+              $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+              if($encoded===false)throw new RuntimeException('encode failed');
+              $revision=(int)$row['revision']+1;$checksum=hash('sha256',$encoded);
+              $st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+              $st->execute([$encoded,$revision,$checksum]);
+              $pdo->exec("CREATE TABLE IF NOT EXISTS ghadir_state_audit (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,revision BIGINT UNSIGNED NOT NULL,checksum CHAR(64) NOT NULL,bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_revision (revision),INDEX idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+              $st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+              $st->execute([$revision,$checksum,strlen($encoded)]);
+              $pdo->commit();
+              done(['ok'=>true,'applied'=>true,'changed'=>$changed,'before'=>$before,'after'=>$after,'backup'=>basename($backupFile)]);
+          }catch(Throwable $e){
+              if($pdo->inTransaction())$pdo->rollBack();
+              done(['ok'=>false,'error'=>'exception','message'=>$e->getMessage()],500);
+          }
+          PHP
+
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/repair-i90-stock-v39b.php
+          php -l /tmp/repair-i90-stock-v39b.php
+
+      - name: Upload repair endpoint
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/repair-i90-stock-v39b.php -o /repair-i90-stock-v39b.php
+          bye
+          EOF
+
+      - name: Run guarded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESP="$(curl -sS --max-time 90 -H "X-Repair-Token: $REPAIR_TOKEN" https://ghadirpartner.ir/repair-i90-stock-v39b.php)"
+          echo "$RESP" | jq .
+          test "$(echo "$RESP" | jq -r '.ok // false')" = "true"
+          test "$(echo "$RESP" | jq -r '.after.free // -1')" = "354"
+
+      - name: Cleanup temporary endpoint
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /repair-i90-stock-v39b.php
+          bye
+          EOF
+          true
+
+      - name: Verify site
+        run: |
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 -o /dev/null https://ghadirpartner.ir/partners/
