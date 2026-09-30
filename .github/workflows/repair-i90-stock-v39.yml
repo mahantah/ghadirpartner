@@ -301,7 +301,6 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          mkdir -p /backups
           put /tmp/index.pre-i90-v39.php -o /backups/index-pre-i90-v39-$STAMP.php
           put /tmp/index.php -o /index.php
           put /tmp/repair-i90-stock-v39.php -o /repair-i90-stock-v39.php
@@ -337,6 +336,7 @@ jobs:
           rm /repair-i90-stock-v39.php
           bye
           EOF
+          true
 
       - name: Verify site
         run: |
