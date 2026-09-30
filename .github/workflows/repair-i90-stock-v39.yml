@@ -90,8 +90,8 @@ jobs:
           const REPAIR_TOKEN='__TOKEN__';
           const EXPECT_TOTAL=7362;
           const EXPECT_FREE_BEFORE=654;
-          const EXPECT_RESERVED_BEFORE=1;
-          const EXPECT_OUTGOING_BEFORE=6707;
+          const EXPECT_RESERVED_BEFORE=0;
+          const EXPECT_OUTGOING_BEFORE=6708;
           const EXPECT_CANDIDATES=300;
           const EXPECT_FREE_AFTER=354;
           const HISTORICAL_ORDER_ID=-39;
