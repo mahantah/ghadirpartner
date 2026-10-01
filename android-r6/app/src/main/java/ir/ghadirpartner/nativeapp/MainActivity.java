@@ -6,6 +6,7 @@ import android.app.DownloadManager;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
@@ -38,6 +39,8 @@ public class MainActivity extends Activity {
     private static final String HOME = "https://ghadirpartner.ir/partners/";
     private static final int FILE_CHOOSER = 1001;
     private static final int DEVICE_AUTH = 1002;
+    private static final String PREFS = "ghadirpartner_security";
+    private static final String PREF_UNLOCK_DONE = "device_unlock_completed";
 
     private WebView webView;
     private ProgressBar progress;
