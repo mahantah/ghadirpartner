@@ -135,7 +135,7 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setUserAgentString(s.getUserAgentString() + " GhadirPartner-R6/6.0.0");
+        s.setUserAgentString(s.getUserAgentString() + " GhadirPartner-R7/7.0.0");
 
         CookieManager.getInstance().setAcceptCookie(true);
         if (Build.VERSION.SDK_INT >= 21) {
@@ -246,9 +246,15 @@ public class MainActivity extends Activity {
 
     private void requestSingleUnlockIfAvailable() {
         if (authenticatedThisProcess) return;
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (prefs.getBoolean(PREF_UNLOCK_DONE, false)) {
+            authenticatedThisProcess = true;
+            return;
+        }
         KeyguardManager km = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         if (km == null || !km.isDeviceSecure()) {
             authenticatedThisProcess = true;
+            prefs.edit().putBoolean(PREF_UNLOCK_DONE, true).apply();
             return;
         }
         Intent intent = km.createConfirmDeviceCredentialIntent(
@@ -315,6 +321,10 @@ public class MainActivity extends Activity {
         if (requestCode == DEVICE_AUTH) {
             if (resultCode == RESULT_OK) {
                 authenticatedThisProcess = true;
+                getSharedPreferences(PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(PREF_UNLOCK_DONE, true)
+                        .apply();
             } else {
                 new AlertDialog.Builder(this)
                         .setTitle("ورود به قدیر پارتنر")
