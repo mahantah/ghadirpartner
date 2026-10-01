@@ -291,7 +291,7 @@ public class MainActivity extends Activity {
         if (contentDisposition == null) return fallback;
         int p = contentDisposition.indexOf("filename=");
         if (p < 0) return fallback;
-        String v = contentDisposition.substring(p + 9).replace("\\\"", "").trim();
+        String v = contentDisposition.substring(p + 9).replace(String.valueOf((char)34), "").trim();
         return v.isEmpty() ? fallback : v;
     }
 
