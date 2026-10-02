@@ -1,0 +1,168 @@
+name: Configure Homa Service Sender
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "configure-homa-service-sender.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli
+
+      - name: Download live Homa runtime files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/homa-live
+          mkdir -p /tmp/homa-live/partners
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /config.php -o /tmp/homa-live/config.php
+          get /index.php -o /tmp/homa-live/index.php
+          get /partners/index.php -o /tmp/homa-live/partners/index.php
+          get /config.example.php -o /tmp/homa-live/config.example.php
+          bye
+          EOF
+
+      - name: Patch senderId and new Homa endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          root=Path('/tmp/homa-live')
+          sender='989982007480'
+          endpoint='https://www.homacrm.com/api/v1/external/messaging/send'
+
+          cfg=root/'config.php'
+          text=cfg.read_text()
+
+          def set_php_key(src,key,value):
+              pat=rf"(['\"]{re.escape(key)}['\"]\s*=>\s*)['\"][^'\"]*['\"]"
+              repl=rf"\1'{value}'"
+              if re.search(pat,src):
+                  return re.sub(pat,repl,src,count=1)
+              pos=src.rfind('];')
+              if pos<0:
+                  raise SystemExit(f'Cannot insert {key} into config.php')
+              return src[:pos]+f"    '{key}' => '{value}',\n"+src[pos:]
+
+          text=set_php_key(text,'homa_api_endpoint',endpoint)
+          text=set_php_key(text,'homa_sender_id',sender)
+          cfg.write_text(text)
+
+          for rel in ['index.php','partners/index.php','config.example.php']:
+              p=root/rel
+              s=p.read_text()
+              s=s.replace('50004310005294',sender)
+              s=s.replace('https://api.homais.com','https://www.homacrm.com/api/v1/external')
+              p.write_text(s)
+          PY
+
+          php -l /tmp/homa-live/config.php
+          php -l /tmp/homa-live/index.php
+          php -l /tmp/homa-live/partners/index.php
+
+          grep -q "homa_api_endpoint.*https://www.homacrm.com/api/v1/external/messaging/send" /tmp/homa-live/config.php
+          grep -q "homa_sender_id.*989982007480" /tmp/homa-live/config.php
+          grep -q "989982007480" /tmp/homa-live/index.php
+          grep -q "989982007480" /tmp/homa-live/partners/index.php
+          ! grep -q "api.homais.com" /tmp/homa-live/index.php
+          ! grep -q "api.homais.com" /tmp/homa-live/partners/index.php
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          t=Path('/tmp/homa-live/config.php').read_text()
+          m=re.search(r"['\"]homa_api_token['\"]\s*=>\s*['\"]([^'\"]*)['\"]",t)
+          if not m or not m.group(1).strip():
+              raise SystemExit('Homa API token is not configured in live config.php')
+          print('Live Homa token present: yes')
+          print('Sender ID configured: 989982007480')
+          print('Endpoint configured: new HomaCRM external API')
+          PY
+
+      - name: Upload patched live files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put -O / /tmp/homa-live/config.php
+          put -O / /tmp/homa-live/index.php
+          put -O /partners /tmp/homa-live/partners/index.php
+          put -O / /tmp/homa-live/config.example.php
+          bye
+          EOF
+
+      - name: Verify live sender config without exposing token
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/homa-check
+          mkdir -p /tmp/homa-check/partners
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /config.php -o /tmp/homa-check/config.php
+          get /index.php -o /tmp/homa-check/index.php
+          get /partners/index.php -o /tmp/homa-check/partners/index.php
+          bye
+          EOF
+          grep -q "homa_sender_id.*989982007480" /tmp/homa-check/config.php
+          grep -q "homa_api_endpoint.*https://www.homacrm.com/api/v1/external/messaging/send" /tmp/homa-check/config.php
+          grep -q "989982007480" /tmp/homa-check/index.php
+          grep -q "989982007480" /tmp/homa-check/partners/index.php
+          ! grep -q "api.homais.com" /tmp/homa-check/index.php
+          ! grep -q "api.homais.com" /tmp/homa-check/partners/index.php
+          echo "Homa service sender configuration verified."
