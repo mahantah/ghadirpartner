@@ -1,0 +1,213 @@
+name: Deploy V5.3.4.38 Toman Session Fix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "deploy-v53438-session-toman.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip zip lftp php-cli curl nodejs
+
+      - name: Extract and patch exact V5.3.4.38
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="GhadirPartner-Web-V5.3.4.38-INVENTORY-LAZY-API-FIX.zip"
+          test -f "$ZIP" || { echo "::error::Original V5.3.4.38 ZIP not found"; exit 1; }
+
+          rm -rf /tmp/v53438-original /tmp/v53438-patched
+          mkdir -p /tmp/v53438-original /tmp/v53438-patched
+          unzip -q "$ZIP" -d /tmp/v53438-original
+          cp -a /tmp/v53438-original/. /tmp/v53438-patched/
+
+          ROOT="/tmp/v53438-patched"
+          if [[ ! -f "$ROOT/index.php" ]]; then
+            mapfile -t D < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d)
+            if [[ "${#D[@]}" -eq 1 && -f "${D[0]}/index.php" ]]; then
+              ROOT="${D[0]}"
+            fi
+          fi
+          test -f "$ROOT/index.php"
+          test -f "$ROOT/app.html"
+          grep -qx 'V5.3.4.38-INVENTORY-LAZY-API-FIX' "$ROOT/VERSION.txt"
+
+          python3 - "$ROOT" <<'PY'
+          from pathlib import Path
+          import sys
+          root=Path(sys.argv[1])
+          idx=(root/'index.php').read_text()
+          app=(root/'app.html').read_text()
+
+          old_idx="""ini_set('session.use_strict_mode','1');ini_set('session.cookie_httponly','1');ini_set('session.cookie_samesite','Lax');if(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')ini_set('session.cookie_secure','1');
+          session_name('ghadir_session');session_start();if(!empty($_SESSION['last_seen'])&&time()-$_SESSION['last_seen']>1800){session_unset();session_destroy();session_start();}$_SESSION['last_seen']=time();"""
+          new_idx="""$sessionLifetime=86400;
+          ini_set('session.use_strict_mode','1');ini_set('session.cookie_httponly','1');ini_set('session.cookie_samesite','Lax');ini_set('session.gc_maxlifetime',(string)$sessionLifetime);ini_set('session.cookie_lifetime',(string)$sessionLifetime);if(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')ini_set('session.cookie_secure','1');
+          $sessionSecure=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off';session_name('ghadir_session');session_set_cookie_params(['lifetime'=>$sessionLifetime,'path'=>'/','secure'=>$sessionSecure,'httponly'=>true,'samesite'=>'Lax']);session_start();if(!empty($_SESSION['last_seen'])&&time()-$_SESSION['last_seen']>$sessionLifetime){session_unset();session_destroy();session_start();}if(session_status()===PHP_SESSION_ACTIVE&&!headers_sent())setcookie(session_name(),session_id(),['expires'=>time()+$sessionLifetime,'path'=>'/','secure'=>$sessionSecure,'httponly'=>true,'samesite'=>'Lax']);$_SESSION['last_seen']=time();"""
+          if idx.count(old_idx)!=1:
+              raise SystemExit('Session block mismatch in exact release')
+          idx=idx.replace(old_idx,new_idx)
+
+          old_global="const $=id=>document.getElementById(id);window.refreshCustomerSerialFilters=window.refreshCustomerSerialFilters||function(){if(typeof window.refreshSerialDownloadFilters==='function')return window.refreshSerialDownloadFilters()};let ME=null,CUST=[],ORD=[],PROD=[],INV=[],USERS=[],WH={cartons:[],inventory:[]},lastNotif=0;"
+          new_global="const $=id=>document.getElementById(id);window.refreshCustomerSerialFilters=window.refreshCustomerSerialFilters||function(){if(typeof window.refreshSerialDownloadFilters==='function')return window.refreshSerialDownloadFilters()};let ME=null,CUST=[],ORD=[],PROD=[],INV=[],USERS=[],WH={cartons:[],inventory:[]},lastNotif=0,SESSION_EXPIRED_HANDLED=false;"
+          if app.count(old_global)!=1:
+              raise SystemExit('Global session state block mismatch')
+          app=app.replace(old_global,new_global)
+
+          old_req="""function isViewOnly(){return ME&&ME.roles.includes('viewer')}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}async function req(url,opt={}){let r=await fetch(url,opt);if(!r.ok)throw new Error(await r.text());let ct=r.headers.get('content-type')||'';return ct.includes('json')?r.json():r.text()}function has(r){if(!ME)return false;"""
+          new_req="""function isViewOnly(){return ME&&ME.roles.includes('viewer')}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function showSessionExpired(){if(!SESSION_EXPIRED_HANDLED){SESSION_EXPIRED_HANDLED=true;ME=null;$('app')?.classList.add('hidden');$('login')?.classList.remove('hidden');if($('lmsg'))$('lmsg').textContent='نشست شما پس از ۲۴ ساعت منقضی شده است؛ دوباره وارد شوید.'}}async function req(url,opt={}){opt={credentials:'same-origin',...opt};let r=await fetch(url,opt);if(r.status===401&&!String(url).startsWith('/api/login')&&(ME||SESSION_EXPIRED_HANDLED)){showSessionExpired();return await new Promise(()=>{})}if(!r.ok)throw new Error(await r.text());let ct=r.headers.get('content-type')||'';return ct.includes('json')?r.json():r.text()}function has(r){if(!ME)return false;"""
+          if app.count(old_req)!=1:
+              raise SystemExit('Request wrapper mismatch')
+          app=app.replace(old_req,new_req)
+
+          old_login="""async function doLogin(){try{await req('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({Username:$('lu').value,Password:$('lp').value})});await boot()}catch(e){$('lmsg').textContent=e.message}}"""
+          new_login="""async function doLogin(){try{await req('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({Username:$('lu').value,Password:$('lp').value})});SESSION_EXPIRED_HANDLED=false;$('lmsg').textContent='';await boot()}catch(e){$('lmsg').textContent=e.message}}"""
+          if app.count(old_login)!=1:
+              raise SystemExit('Login block mismatch')
+          app=app.replace(old_login,new_login)
+
+          old_hint="$('salesChartHint').textContent=hint;renderSalesChart(r.series||[],'salesChartWrap');"
+          new_hint="$('salesChartHint').textContent=(hint?hint+' · ':'')+'مبالغ به تومان';renderSalesChart(r.series||[],'salesChartWrap');"
+          if app.count(old_hint)!=1:
+              raise SystemExit('Sales hint block mismatch')
+          app=app.replace(old_hint,new_hint)
+
+          old_pad="pad={l:54,r:20,t:24,b:58}"
+          new_pad="pad={l:122,r:20,t:24,b:58}"
+          if app.count(old_pad)!=1:
+              raise SystemExit('Sales chart padding block mismatch')
+          app=app.replace(old_pad,new_pad)
+
+          old_compact="function compactNum(n){n=Number(n||0);if(n>=1e9)return(n/1e9).toFixed(n>=1e10?0:1)+'B';if(n>=1e6)return(n/1e6).toFixed(n>=1e7?0:1)+'M';if(n>=1e3)return(n/1e3).toFixed(n>=1e4?0:1)+'K';return String(Math.round(n))}"
+          new_compact="function compactNum(n){n=Math.max(0,Number(n||0));let value=n,unit='تومان';if(n>=1e9){value=n/1e9;unit='میلیارد تومان'}else if(n>=1e6){value=n/1e6;unit='میلیون تومان'}else if(n>=1e3){value=n/1e3;unit='هزار تومان'}return value.toLocaleString('fa-IR',{maximumFractionDigits:1})+' '+unit}"
+          if app.count(old_compact)!=1:
+              raise SystemExit('compactNum block mismatch')
+          app=app.replace(old_compact,new_compact)
+
+          (root/'index.php').write_text(idx)
+          (root/'app.html').write_text(app)
+          PY
+
+          php -l "$ROOT/index.php"
+          grep -q 'sessionLifetime=86400' "$ROOT/index.php"
+          grep -q '۲۴ ساعت' "$ROOT/app.html"
+          grep -q 'میلیارد تومان' "$ROOT/app.html"
+          grep -q 'میلیون تومان' "$ROOT/app.html"
+          grep -q 'هزار تومان' "$ROOT/app.html"
+          ! grep -q "toFixed(n>=1e10?0:1)+'B'" "$ROOT/app.html"
+
+          node - "$ROOT/app.html" <<'NODE'
+          const fs=require('fs');
+          const file=process.argv[2];
+          const html=fs.readFileSync(file,'utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
+          let m,count=0;
+          while((m=re.exec(html))){new Function(m[1]);count++}
+          if(!count)throw new Error('No script blocks found');
+          console.log('Inline JS syntax OK:',count);
+          NODE
+
+          PATCHED_ZIP="$RUNNER_TEMP/GhadirPartner-Web-V5.3.4.38-INVENTORY-LAZY-API-FIX-TOMAN-SESSION24H.zip"
+          (cd "$ROOT" && zip -qr "$PATCHED_ZIP" .)
+          sha256sum "$PATCHED_ZIP" > "$RUNNER_TEMP/GhadirPartner-Web-V5.3.4.38-INVENTORY-LAZY-API-FIX-TOMAN-SESSION24H-SHA256.txt"
+
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+          echo "zip=$PATCHED_ZIP" >> "$GITHUB_OUTPUT"
+
+      - name: Upload patched exact release
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Web-V5.3.4.38-TOMAN-SESSION24H
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/GhadirPartner-Web-V5.3.4.38-INVENTORY-LAZY-API-FIX-TOMAN-SESSION24H.zip
+            ${{ runner.temp }}/GhadirPartner-Web-V5.3.4.38-INVENTORY-LAZY-API-FIX-TOMAN-SESSION24H-SHA256.txt
+
+      - name: Deploy exact patched release over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ROOT: ${{ steps.release.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mirror -R --verbose --parallel=2 \
+            --exclude-glob config.php \
+            --exclude-glob partners/config.php \
+            --exclude-glob .env \
+            --exclude-glob .env.* \
+            --exclude-glob storage/** \
+            --exclude-glob '*.sql' \
+            --exclude-glob '*.zip' \
+            "$ROOT/" /
+          bye
+          EOF
+
+      - name: Verify live runtime over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/v53438-live
+          mkdir -p /tmp/v53438-live
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/v53438-live/index.php
+          get /app.html -o /tmp/v53438-live/app.html
+          get /VERSION.txt -o /tmp/v53438-live/VERSION.txt
+          bye
+          EOF
+          grep -qx 'V5.3.4.38-INVENTORY-LAZY-API-FIX' /tmp/v53438-live/VERSION.txt
+          grep -q 'sessionLifetime=86400' /tmp/v53438-live/index.php
+          grep -q '۲۴ ساعت' /tmp/v53438-live/app.html
+          grep -q 'میلیارد تومان' /tmp/v53438-live/app.html
+          grep -q 'میلیون تومان' /tmp/v53438-live/app.html
+          grep -q 'هزار تومان' /tmp/v53438-live/app.html
+
+      - name: Production HTTP health check
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 https://ghadirpartner.ir/ -o /tmp/site.html
+          grep -q 'میلیارد تومان' /tmp/site.html
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 https://ghadirpartner.ir/partners/ -o /dev/null
+          echo "Exact V5.3.4.38 patched release is live."
