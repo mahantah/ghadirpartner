@@ -1,0 +1,143 @@
+name: Build V5.3.4.38 Final Configurable
+
+on:
+  push:
+    branches:
+      - package-v53438-final-homa-20261002
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip zip php-cli nodejs
+
+      - name: Build exact configurable release
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="GhadirPartner-Web-V5.3.4.38-INVENTORY-LAZY-API-FIX.zip"
+          OUT="/tmp/GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE"
+          rm -rf /tmp/build-v53438 "$OUT"
+          mkdir -p /tmp/build-v53438
+          unzip -q "$SRC" -d /tmp/build-v53438
+          ROOT="/tmp/build-v53438"
+          if [[ ! -f "$ROOT/index.php" ]]; then
+            mapfile -t D < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d)
+            if [[ "${#D[@]}" -eq 1 && -f "${D[0]}/index.php" ]]; then ROOT="${D[0]}"; fi
+          fi
+          test -f "$ROOT/index.php"
+          test -f "$ROOT/app.html"
+
+          python3 - "$ROOT" <<'PY'
+          from pathlib import Path
+          import sys,re
+          root=Path(sys.argv[1])
+          idx=(root/'index.php').read_text()
+          app=(root/'app.html').read_text()
+
+          old_idx="""ini_set('session.use_strict_mode','1');ini_set('session.cookie_httponly','1');ini_set('session.cookie_samesite','Lax');if(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')ini_set('session.cookie_secure','1');
+          session_name('ghadir_session');session_start();if(!empty($_SESSION['last_seen'])&&time()-$_SESSION['last_seen']>1800){session_unset();session_destroy();session_start();}$_SESSION['last_seen']=time();"""
+          new_idx="""$sessionLifetime=86400;
+          ini_set('session.use_strict_mode','1');ini_set('session.cookie_httponly','1');ini_set('session.cookie_samesite','Lax');ini_set('session.gc_maxlifetime',(string)$sessionLifetime);ini_set('session.cookie_lifetime',(string)$sessionLifetime);if(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')ini_set('session.cookie_secure','1');
+          $sessionSecure=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off';session_name('ghadir_session');session_set_cookie_params(['lifetime'=>$sessionLifetime,'path'=>'/','secure'=>$sessionSecure,'httponly'=>true,'samesite'=>'Lax']);session_start();if(!empty($_SESSION['last_seen'])&&time()-$_SESSION['last_seen']>$sessionLifetime){session_unset();session_destroy();session_start();}if(session_status()===PHP_SESSION_ACTIVE&&!headers_sent())setcookie(session_name(),session_id(),['expires'=>time()+$sessionLifetime,'path'=>'/','secure'=>$sessionSecure,'httponly'=>true,'samesite'=>'Lax']);$_SESSION['last_seen']=time();"""
+          if old_idx in idx:
+              idx=idx.replace(old_idx,new_idx,1)
+
+          old_global="const $=id=>document.getElementById(id);window.refreshCustomerSerialFilters=window.refreshCustomerSerialFilters||function(){if(typeof window.refreshSerialDownloadFilters==='function')return window.refreshSerialDownloadFilters()};let ME=null,CUST=[],ORD=[],PROD=[],INV=[],USERS=[],WH={cartons:[],inventory:[]},lastNotif=0;"
+          new_global="const $=id=>document.getElementById(id);window.refreshCustomerSerialFilters=window.refreshCustomerSerialFilters||function(){if(typeof window.refreshSerialDownloadFilters==='function')return window.refreshSerialDownloadFilters()};let ME=null,CUST=[],ORD=[],PROD=[],INV=[],USERS=[],WH={cartons:[],inventory:[]},lastNotif=0,SESSION_EXPIRED_HANDLED=false;"
+          if old_global in app: app=app.replace(old_global,new_global,1)
+
+          old_req="""function isViewOnly(){return ME&&ME.roles.includes('viewer')}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}async function req(url,opt={}){let r=await fetch(url,opt);if(!r.ok)throw new Error(await r.text());let ct=r.headers.get('content-type')||'';return ct.includes('json')?r.json():r.text()}function has(r){if(!ME)return false;"""
+          new_req="""function isViewOnly(){return ME&&ME.roles.includes('viewer')}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function showSessionExpired(){if(!SESSION_EXPIRED_HANDLED){SESSION_EXPIRED_HANDLED=true;ME=null;$('app')?.classList.add('hidden');$('login')?.classList.remove('hidden');if($('lmsg'))$('lmsg').textContent='نشست شما پس از ۲۴ ساعت منقضی شده است؛ دوباره وارد شوید.'}}async function req(url,opt={}){opt={credentials:'same-origin',...opt};let r=await fetch(url,opt);if(r.status===401&&!String(url).startsWith('/api/login')&&(ME||SESSION_EXPIRED_HANDLED)){showSessionExpired();return await new Promise(()=>{})}if(!r.ok)throw new Error(await r.text());let ct=r.headers.get('content-type')||'';return ct.includes('json')?r.json():r.text()}function has(r){if(!ME)return false;"""
+          if old_req in app: app=app.replace(old_req,new_req,1)
+
+          old_login="""async function doLogin(){try{await req('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({Username:$('lu').value,Password:$('lp').value})});await boot()}catch(e){$('lmsg').textContent=e.message}}"""
+          new_login="""async function doLogin(){try{await req('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({Username:$('lu').value,Password:$('lp').value})});SESSION_EXPIRED_HANDLED=false;$('lmsg').textContent='';await boot()}catch(e){$('lmsg').textContent=e.message}}"""
+          if old_login in app: app=app.replace(old_login,new_login,1)
+
+          app=app.replace("$('salesChartHint').textContent=hint;renderSalesChart(r.series||[],'salesChartWrap');",
+                          "$('salesChartHint').textContent=(hint?hint+' · ':'')+'مبالغ به تومان';renderSalesChart(r.series||[],'salesChartWrap');",1)
+          app=app.replace("pad={l:54,r:20,t:24,b:58}","pad={l:122,r:20,t:24,b:58}",1)
+          app=app.replace("function compactNum(n){n=Number(n||0);if(n>=1e9)return(n/1e9).toFixed(n>=1e10?0:1)+'B';if(n>=1e6)return(n/1e6).toFixed(n>=1e7?0:1)+'M';if(n>=1e3)return(n/1e3).toFixed(n>=1e4?0:1)+'K';return String(Math.round(n))}",
+                          "function compactNum(n){n=Math.max(0,Number(n||0));let value=n,unit='تومان';if(n>=1e9){value=n/1e9;unit='میلیارد تومان'}else if(n>=1e6){value=n/1e6;unit='میلیون تومان'}else if(n>=1e3){value=n/1e3;unit='هزار تومان'}return value.toLocaleString('fa-IR',{maximumFractionDigits:1})+' '+unit}",1)
+
+          for p in [root/'index.php',root/'partners/index.php']:
+              if p.exists():
+                  s=p.read_text()
+                  s=s.replace('50004310005294','989982007480')
+                  s=s.replace('https://api.homais.com','https://www.homacrm.com/api/v1/external')
+                  p.write_text(s)
+
+          for p in [root/'config.example.php',root/'partners/config.example.php']:
+              if not p.exists(): continue
+              s=p.read_text()
+              def setkey(s,key,val):
+                  pat=rf"(['\"]{re.escape(key)}['\"]\s*=>\s*)['\"][^'\"]*['\"]"
+                  if re.search(pat,s):
+                      return re.sub(pat,rf"\1'{val}'",s,count=1)
+                  pos=s.rfind('];')
+                  if pos<0:return s
+                  return s[:pos]+f"    '{key}' => '{val}',\n"+s[pos:]
+              s=setkey(s,'homa_api_endpoint','https://www.homacrm.com/api/v1/external/messaging/send')
+              s=setkey(s,'homa_sender_id','989982007480')
+              p.write_text(s)
+
+          (root/'index.php').write_text(idx)
+          (root/'app.html').write_text(app)
+          PY
+
+          php -l "$ROOT/index.php"
+          if [[ -f "$ROOT/partners/index.php" ]]; then php -l "$ROOT/partners/index.php"; fi
+          grep -q 'sessionLifetime=86400' "$ROOT/index.php"
+          grep -q 'میلیارد تومان' "$ROOT/app.html"
+          grep -q '989982007480' "$ROOT/index.php"
+
+          node - "$ROOT/app.html" <<'NODE'
+          const fs=require('fs');const html=fs.readFileSync(process.argv[2],'utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;let m,n=0;
+          while((m=re.exec(html))){new Function(m[1]);n++}
+          if(!n)throw new Error('No scripts');
+          NODE
+
+          mkdir -p "$OUT"
+          cp -a "$ROOT"/. "$OUT"/
+
+          cat > "$OUT/README-CONFIG-HOMA.txt" <<'TXT'
+          تنظیمات هما برای خط خدماتی:
+          senderId = 989982007480
+          endpoint = https://www.homacrm.com/api/v1/external/messaging/send
+
+          نکته امنیتی:
+          توکن API داخل این بسته قرار داده نشده است.
+          مقدار homa_api_token را فقط در config.php خصوصی سرور تنظیم کنید.
+          از api.homais.com استفاده نکنید.
+
+          اصلاحات این نسخه:
+          - Session اتوماسیون: 24 ساعت
+          - رفع تکرار «ورود الزامی است»
+          - نمایش مبلغ نمودارها به تومان
+          - آماده‌سازی خط خدماتی هما
+          TXT
+
+          ZIPOUT="/tmp/GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE.zip"
+          (cd /tmp && zip -qr "$ZIPOUT" "$(basename "$OUT")")
+          sha256sum "$ZIPOUT" > /tmp/GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE-SHA256.txt
+
+      - name: Upload final package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Web-V5.3.4.38-FINAL-HOMA
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            /tmp/GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE.zip
+            /tmp/GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE-SHA256.txt
