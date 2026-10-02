@@ -1,0 +1,45 @@
+name: Inspect V5.3.4.38 Original
+
+on:
+  push:
+    branches:
+      - inspect-v53438-20261002
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Extract exact release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="GhadirPartner-Web-V5.3.4.38-INVENTORY-LAZY-API-FIX.zip"
+          test -f "$ZIP"
+          rm -rf /tmp/v53438
+          mkdir -p /tmp/v53438
+          unzip -q "$ZIP" -d /tmp/v53438
+          ROOT="/tmp/v53438"
+          if [[ ! -f "$ROOT/index.php" ]]; then
+            D="$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+            if [[ -n "$D" && -f "$D/index.php" ]]; then ROOT="$D"; fi
+          fi
+          test -f "$ROOT/index.php"
+          test -f "$ROOT/app.html"
+          mkdir -p extracted
+          cp "$ROOT/index.php" extracted/index.php
+          cp "$ROOT/app.html" extracted/app.html
+          find "$ROOT" -maxdepth 2 -type f | sort > extracted/file-list.txt
+          grep -nE "session_start|last_seen|1800|86400|ورود الزامی" "$ROOT/index.php" > extracted/session-context.txt || true
+          grep -nEi "chart|نمودار|فروش هفتگی|فروش ماهانه|فروش سالانه|مبلغ فروش|revenue|sales" "$ROOT/app.html" > extracted/chart-context.txt || true
+          sha256sum "$ZIP" > extracted/original-zip-sha256.txt
+      - name: Upload extracted runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: V53438-Original-Runtime
+          retention-days: 7
+          path: extracted/
