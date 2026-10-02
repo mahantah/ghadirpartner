@@ -1,0 +1,78 @@
+name: Build Automation R8 Patch
+
+on:
+  push:
+    branches:
+      - automation-r8-package-20261002
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate PHP
+        run: php -l index.php
+
+      - name: Validate inline JavaScript
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('app.html','utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
+          let m,count=0;
+          while((m=re.exec(html))){ new Function(m[1]); count++; }
+          if(!count) throw new Error('No inline script found');
+          console.log('JavaScript syntax OK:',count,'block(s)');
+          NODE
+
+      - name: Verify R8 changes
+        shell: bash
+        run: |
+          grep -q "sessionLifetime=86400" index.php
+          grep -q "نمودار مبلغ فروش" app.html
+          grep -q "میلیون تومان" app.html
+          grep -q "میلیارد تومان" app.html
+          grep -q "پس از یک روز منقضی شده است" app.html
+
+      - name: Build patch package
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="GhadirPartner-Automation-R8-20261002-PATCH"
+          mkdir -p "$NAME"
+          cp index.php app.html "$NAME/"
+          cat > "$NAME/README-APPLY.txt" <<'TXT'
+          GhadirPartner Automation R8
+          Date: 2026-10-02
+          Scope: Web automation only (no APK/Android changes)
+
+          Changes:
+          - Login/session lifetime: 24 hours
+          - Graceful redirect to login after expired session
+          - Sales amount chart with weekly/monthly/yearly ranges
+          - Currency labels in Iranian Toman (هزار/میلیون/میلیارد تومان)
+          - Cancelled orders excluded from sales amount chart
+
+          Apply:
+          Replace index.php and app.html in the automation web root.
+          Keep config.php and storage/ unchanged.
+          TXT
+          zip -qr "$NAME.zip" "$NAME"
+          sha256sum "$NAME.zip" > "$NAME-SHA256.txt"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-Automation-R8-20261002
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            GhadirPartner-Automation-R8-20261002-PATCH.zip
+            GhadirPartner-Automation-R8-20261002-PATCH-SHA256.txt
