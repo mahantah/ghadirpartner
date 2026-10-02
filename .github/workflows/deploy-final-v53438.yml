@@ -1,0 +1,135 @@
+name: Deploy Final V5.3.4.38
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "deploy-final-v53438.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip lftp php-cli curl nodejs
+
+      - name: Prepare final release
+        id: rel
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE.zip"
+          test -f "$ZIP" || { echo "::error::Final release ZIP not found"; exit 1; }
+          rm -rf /tmp/ghadir-final
+          mkdir -p /tmp/ghadir-final
+          unzip -q "$ZIP" -d /tmp/ghadir-final
+          ROOT="$(find /tmp/ghadir-final -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+          if [[ -z "$ROOT" || ! -f "$ROOT/index.php" ]]; then ROOT="/tmp/ghadir-final"; fi
+          test -f "$ROOT/index.php"
+          test -f "$ROOT/app.html"
+          php -l "$ROOT/index.php"
+          if [[ -f "$ROOT/partners/index.php" ]]; then php -l "$ROOT/partners/index.php"; fi
+          grep -q "sessionLifetime=86400" "$ROOT/index.php"
+          grep -q "میلیارد تومان" "$ROOT/app.html"
+          grep -q "989982007480" "$ROOT/index.php"
+          if grep -R "api.homais.com" "$ROOT/index.php" "$ROOT/partners/index.php" 2>/dev/null; then
+            echo "::error::Old Homa endpoint found"
+            exit 1
+          fi
+          rm -f "$ROOT/config.php" "$ROOT/partners/config.php" "$ROOT/.env" "$ROOT/partners/.env"
+          rm -rf "$ROOT/storage" 2>/dev/null || true
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ROOT: ${{ steps.rel.outputs.root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mirror -R --verbose --parallel=2             --exclude-glob config.php             --exclude-glob partners/config.php             --exclude-glob .env             --exclude-glob .env.*             --exclude-glob storage/**             --exclude-glob backups/**             --exclude-glob '*.sql'             --exclude-glob '*.zip'             "$ROOT/" /
+          bye
+          EOF
+
+      - name: Ensure Homa live config
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/homa-live
+          mkdir -p /tmp/homa-live
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /config.php -o /tmp/homa-live/config.php
+          bye
+          EOF
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('/tmp/homa-live/config.php')
+          s=p.read_text()
+          def setkey(s,key,val):
+              pat=rf"(['\"]{re.escape(key)}['\"]\s*=>\s*)['\"][^'\"]*['\"]"
+              if re.search(pat,s):
+                  return re.sub(pat,rf"\1'{val}'",s,count=1)
+              pos=s.rfind('];')
+              if pos<0: raise SystemExit('config.php format unsupported')
+              return s[:pos]+f"    '{key}' => '{val}',\n"+s[pos:]
+          s=setkey(s,'homa_api_endpoint','https://www.homacrm.com/api/v1/external/messaging/send')
+          s=setkey(s,'homa_sender_id','989982007480')
+          p.write_text(s)
+          PY
+          php -l /tmp/homa-live/config.php
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put -O / /tmp/homa-live/config.php
+          bye
+          EOF
+
+      - name: Health check
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 https://ghadirpartner.ir/ -o /tmp/site.html
+          grep -q "میلیارد تومان" /tmp/site.html
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 https://ghadirpartner.ir/partners/ -o /dev/null
+          echo "Final V5.3.4.38 deployment passed."
