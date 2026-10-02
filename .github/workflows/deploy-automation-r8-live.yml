@@ -1,0 +1,105 @@
+name: Deploy Automation R8 Live
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "deploy-automation-r8-live.trigger"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+
+      - name: Validate R8 automation files
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l index.php
+          grep -q "sessionLifetime=86400" index.php
+          grep -q "نمودار مبلغ فروش" app.html
+          grep -q "میلیون تومان" app.html
+          grep -q "میلیارد تومان" app.html
+          grep -q "پس از یک روز منقضی شده است" app.html
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('app.html','utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
+          let m,count=0;
+          while((m=re.exec(html))){ new Function(m[1]); count++; }
+          if(!count) throw new Error('No inline script found');
+          console.log('JavaScript syntax OK:',count,'block(s)');
+          NODE
+
+      - name: Install FTPS client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl
+
+      - name: Deploy only automation runtime files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put -O / app.html
+          put -O / index.php
+          bye
+          EOF
+
+      - name: Verify deployed files through FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/r8-verify
+          mkdir -p /tmp/r8-verify
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/r8-verify/index.php
+          get /app.html -o /tmp/r8-verify/app.html
+          bye
+          EOF
+          grep -q "sessionLifetime=86400" /tmp/r8-verify/index.php
+          grep -q "نمودار مبلغ فروش" /tmp/r8-verify/app.html
+          grep -q "میلیون تومان" /tmp/r8-verify/app.html
+          grep -q "میلیارد تومان" /tmp/r8-verify/app.html
+
+      - name: Production HTTP check
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 25 https://ghadirpartner.ir/ -o /tmp/live.html
+          grep -q "نمودار مبلغ فروش" /tmp/live.html
+          echo "Automation R8 is live."
