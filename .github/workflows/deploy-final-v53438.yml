@@ -129,7 +129,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS --retry 3 --retry-delay 2 --max-time 25 https://ghadirpartner.ir/ -o /tmp/site.html
-          grep -q "میلیارد تومان" /tmp/site.html
-          curl -fsS --retry 3 --retry-delay 2 --max-time 25 https://ghadirpartner.ir/partners/ -o /dev/null
+          ok=0
+          for i in {1..12}; do
+            code="$(curl -sS --max-time 25 -D /tmp/root.headers -o /tmp/site.html -w '%{http_code}' https://ghadirpartner.ir/ || true)"
+            echo "Root check $i: HTTP $code"
+            if [[ "$code" == "200" ]] && grep -q "میلیارد تومان" /tmp/site.html; then
+              pcode="$(curl -sS --max-time 25 -o /dev/null -w '%{http_code}' https://ghadirpartner.ir/partners/ || true)"
+              echo "Partners check: HTTP $pcode"
+              if [[ "$pcode" == "200" ]]; then ok=1; break; fi
+            fi
+            sleep 5
+          done
+          if [[ "$ok" != "1" ]]; then
+            echo "::error::Production health check failed"
+            echo "--- response headers ---"
+            cat /tmp/root.headers || true
+            echo "--- response body (first 4000 bytes) ---"
+            head -c 4000 /tmp/site.html || true
+            exit 1
+          fi
           echo "Final V5.3.4.38 deployment passed."
