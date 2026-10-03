@@ -90,8 +90,8 @@ jobs:
           for route in addresses purchased-devices notifications; do
             code=$(curl -sS --retry 2 --max-time 25 -o /tmp/r51-response.json -w '%{http_code}' "https://ghadirpartner.ir/partners/api/$route")
             test "$code" = 401
-            python3 -c 'import json; json.load(open("/tmp/r51-response.json"))'
-            echo "Protected $route API: HTTP $code, valid JSON"
+            test "$(cat /tmp/r51-response.json)" = 'ورود الزامی است'
+            echo "Protected $route API: HTTP $code, expected authentication response"
           done
           trap - ERR
           echo 'R5.1 compatibility installed; source hash and public/protected health checks passed.'
