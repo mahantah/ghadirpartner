@@ -1,0 +1,97 @@
+name: Apply Native R5.1 Compatibility
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/deploy-r51-20261003]
+    paths: [native-r51-deploy/**, .github/workflows/deploy-native-r51.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install deployment tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp php-cli
+      - name: Download and validate live source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/r51-before /tmp/r51-after
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /partners/index.php -o /tmp/r51-before/index.php
+          bye
+          EOF
+          echo '8f812df7efe48f8e9151899a1972aeed37b714518f714ca43e28a2cef567da24  /tmp/r51-before/index.php' | sha256sum --check
+          cp /tmp/r51-before/index.php /tmp/r51-after/index.php
+          python3 native-r51-deploy/patch.py /tmp/r51-after/index.php
+          echo '56ceb154b66deeaa08ed0507b213c5ee379863e2b4b3d7acef90366c18b8031c  /tmp/r51-after/index.php' | sha256sum --check
+          cp native-r51-deploy/native-r51-*.php /tmp/r51-after/
+          for f in /tmp/r51-after/*.php; do php -l "$f"; done
+      - name: Save original code for rollback
+        uses: actions/upload-artifact@v4
+        with:
+          name: R51-Original-Portal-Code
+          path: /tmp/r51-before/index.php
+          retention-days: 30
+          if-no-files-found: error
+      - name: Install patch and verify health
+        shell: bash
+        run: |
+          set -euo pipefail
+          ftp() {
+            { printf '%s\n' 'set cmd:fail-exit yes' 'set ftp:ssl-force true' 'set ftp:ssl-protect-data true' 'set ssl:verify-certificate yes' 'set net:max-retries 2' 'set net:timeout 20'; printf 'open -p 21 "%s"\nuser "%s" "%s"\n' "$FTP_SERVER" "$FTP_USERNAME" "$FTP_PASSWORD"; cat; printf 'bye\n'; } | lftp
+          }
+          # Recheck immediately before mutation to avoid overwriting a concurrent change.
+          ftp <<EOF
+          get /partners/index.php -o /tmp/r51-before/latest.php
+          EOF
+          cmp /tmp/r51-before/index.php /tmp/r51-before/latest.php
+          rollback() {
+            trap - ERR
+            echo 'Restoring original portal after deployment or health-check failure'
+            ftp <<EOF
+          put /tmp/r51-before/index.php -o /partners/native-r51-rollback.php
+          mv /partners/native-r51-rollback.php /partners/index.php
+          EOF
+            exit 1
+          }
+          trap rollback ERR
+          ftp <<EOF
+          put /tmp/r51-after/native-r51-core.php -o /partners/native-r51-core.php
+          put /tmp/r51-after/native-r51-inbox.php -o /partners/native-r51-inbox.php
+          put /tmp/r51-after/index.php -o /partners/native-r51-next.php
+          mv /partners/native-r51-next.php /partners/index.php
+          get /partners/index.php -o /tmp/r51-verified.php
+          EOF
+          cmp /tmp/r51-after/index.php /tmp/r51-verified.php
+          for route in / /partners/; do
+            code=$(curl -sS --retry 2 --max-time 25 -o /tmp/r51-page -w '%{http_code}' "https://ghadirpartner.ir$route")
+            test "$code" = 200
+            echo "$route HTTP $code"
+          done
+          for route in addresses purchased-devices notifications; do
+            code=$(curl -sS --retry 2 --max-time 25 -o /tmp/r51-response.json -w '%{http_code}' "https://ghadirpartner.ir/partners/api/$route")
+            test "$code" = 401
+            python3 -c 'import json; json.load(open("/tmp/r51-response.json"))'
+            echo "Protected $route API: HTTP $code, valid JSON"
+          done
+          trap - ERR
+          echo 'R5.1 compatibility installed; source hash and public/protected health checks passed.'
