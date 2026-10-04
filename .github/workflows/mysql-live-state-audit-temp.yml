@@ -1,0 +1,110 @@
+name: Audit Existing MySQL State Safely
+
+on:
+  push:
+    branches:
+      - mysql-live-state-audit-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl php-cli
+
+      - name: Audit MySQL through one-time protected endpoint
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_mysql_audit_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          declare(strict_types=1);
+          header('Content-Type: application/json; charset=utf-8');
+          $expected='__TOKEN__';
+          if(!hash_equals($expected,(string)($_GET['token']??''))){http_response_code(403);echo '{}';exit;}
+          $cfg=require __DIR__.'/config.php';
+          try{
+            $m=$cfg['mysql']??[];
+            $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
+            $row=$pdo->query("SELECT state_json,revision,checksum,updated_at,LENGTH(state_json) bytes FROM ghadir_state WHERE id=1")->fetch();
+            if(!$row)throw new RuntimeException('state_missing');
+            $s=json_decode((string)$row['state_json'],true);if(!is_array($s))throw new RuntimeException('state_invalid');
+            $wanted=[97,98,99,100,101,102,103,109,110,111,112,113,114,115,116,123,124,125];
+            $wanted=array_fill_keys($wanted,true);
+            $orders=$s['orders']??[];$inv=$s['inventory']??[];$cartons=$s['cartons']??[];
+            $orderById=[];foreach($orders as $o)$orderById[(int)($o['id']??0)]=$o;
+            $target=[];
+            foreach($cartons as $c){
+              $vals=[(string)($c['id']??''),(string)($c['code']??''),(string)($c['manufacturer_box_no']??'')];
+              $hit=false;
+              foreach($vals as $v){preg_match_all('/\d+/',$v,$mm);foreach($mm[0] as $n)if(isset($wanted[(int)$n])){$hit=true;break 2;}}
+              if(!$hit)continue;
+              $cid=(int)($c['id']??0);$code=(string)($c['code']??'');$items=[];
+              foreach($inv as $x)if((int)($x['carton_id']??0)===$cid||(string)($x['carton_code']??'')===$code)$items[]=$x;
+              $owners=[];$seen=[];
+              foreach($items as $x){$oid=(int)($x['order_id']??0);if($oid<1||isset($seen[$oid]))continue;$seen[$oid]=1;$o=$orderById[$oid]??[];$owners[]=['order_id'=>$oid,'number'=>$o['number']??'','customer_name'=>$o['customer_name']??'','status'=>$o['status']??'MISSING'];}
+              $target[]=['carton_id'=>$cid,'code'=>$code,'manufacturer_box_no'=>(string)($c['manufacturer_box_no']??''),'product'=>(string)($c['product']??''),'serial_count'=>count($c['serials']??[]),'inventory_rows'=>count($items),'free'=>count(array_filter($items,fn($x)=>(int)($x['order_id']??0)===0)),'assigned'=>count(array_filter($items,fn($x)=>(int)($x['order_id']??0)>0)),'owners'=>$owners];
+            }
+            $histOrders=[];$histIds=[];
+            foreach($orders as $o){
+              $blob=(string)($o['number']??'').' '.(string)($o['customer_name']??'').' '.(string)($o['notes']??'');
+              foreach($o['history']??[] as $h)$blob.=' '.(string)($h['action']??'');
+              if(mb_strpos($blob,'خروج تاریخی')!==false){$oid=(int)($o['id']??0);$histIds[$oid]=1;$its=[];foreach($o['items']??[] as $it)$its[]=['product'=>$it['product']??'','qty'=>(int)($it['qty']??0),'serials'=>count($it['serials']??[])];$histOrders[]=['id'=>$oid,'number'=>$o['number']??'','customer_name'=>$o['customer_name']??'','status'=>$o['status']??'','items'=>$its];}
+            }
+            $histCustomers=[];
+            foreach($s['customers']??[] as $x){$blob=implode(' ',[(string)($x['name']??''),(string)($x['code']??''),(string)($x['company']??''),(string)($x['notes']??'')]);if(mb_strpos($blob,'خروج تاریخی')!==false)$histCustomers[]=['id'=>$x['id']??0,'name'=>$x['name']??'','code'=>$x['code']??'','company'=>$x['company']??''];}
+            $histByProduct=[];$histInv=0;$histCartons=[];
+            foreach($inv as $x){$oid=(int)($x['order_id']??0);if(isset($histIds[$oid])||mb_strpos((string)($x['order_number']??''),'خروج تاریخی')!==false){$histInv++;$p=(string)($x['product']??'');$histByProduct[$p]=($histByProduct[$p]??0)+1;if(!empty($x['carton_id']))$histCartons[(int)$x['carton_id']]=1;}}
+            $byProduct=[];foreach($inv as $x){$p=(string)($x['product']??'');$byProduct[$p]=($byProduct[$p]??0)+1;}arsort($byProduct);
+            $i90=[];foreach($byProduct as $p=>$n)if(stripos($p,'I90')!==false)$i90[$p]=$n;
+            echo json_encode(['ok'=>true,'revision'=>(int)$row['revision'],'updated_at'=>$row['updated_at'],'counts'=>['users'=>count($s['users']??[]),'customers'=>count($s['customers']??[]),'orders'=>count($orders),'inventory'=>count($inv),'cartons'=>count($cartons),'products'=>count($s['products']??[])],'i90_by_product'=>$i90,'target_number_matches'=>$target,'historical_exit'=>['orders'=>$histOrders,'customers'=>$histCustomers,'inventory_count'=>$histInv,'carton_ids'=>array_keys($histCartons),'by_product'=>$histByProduct]],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          }catch(Throwable $e){http_response_code(500);echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);}
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE";s=open(p).read().replace('__TOKEN__',"$TOKEN");open(p,'w').write(s)
+          PY
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          RESP="$(curl -fsS --retry 3 --retry-delay 2 --max-time 30 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          echo "$RESP" > /tmp/mysql-audit.json
+          php -r '$x=json_decode(file_get_contents("/tmp/mysql-audit.json"),true);if(!is_array($x)||empty($x["ok"]))exit(2);echo json_encode($x,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT),"\n";'
+
+      - name: Upload sanitized audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: mysql-live-state-audit
+          retention-days: 7
+          path: /tmp/mysql-audit.json
