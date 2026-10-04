@@ -1,0 +1,107 @@
+name: Inspect Target I90 Cartons in MySQL
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-target-i90-mysql.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp jq curl
+
+      - name: Inspect target cartons on production MySQL
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/i90
+          TOKEN="$(openssl rand -hex 24)"
+          cat > /tmp/i90/__ghadir_i90_diag.php <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['k']??''))){http_response_code(404);exit;}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.($m['port']??3306).';dbname='.($m['database']??'').';charset=utf8mb4',(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+          $row=$pdo->query('SELECT state_json,revision,checksum,updated_at FROM ghadir_state WHERE id=1')->fetch();
+          $s=json_decode((string)$row['state_json'],true);
+          $targets=array_flip([97,98,99,100,101,102,103,109,110,111,112,113,114,115,116,123,124,125]);
+          $orders=[];foreach($s['orders']??[] as $o)$orders[(int)($o['id']??0)]=$o;
+          $out=['revision'=>(int)$row['revision'],'updated_at'=>$row['updated_at'],'targets'=>[],'historical_orders'=>[]];
+          foreach($s['orders']??[] as $o){
+            $blob=json_encode($o,JSON_UNESCAPED_UNICODE);
+            if(strpos($blob,'خروج تاریخی')!==false)$out['historical_orders'][]=['id'=>$o['id']??0,'number'=>$o['number']??'','customer_name'=>$o['customer_name']??'','status'=>$o['status']??'','created_by'=>$o['created_by']??'','created_at'=>$o['created_at']??'','updated_at'=>$o['updated_at']??''];
+          }
+          foreach($s['cartons']??[] as $c){
+            $p=strtoupper(str_replace(' ','',(string)($c['product']??'')));
+            if(strpos($p,'I90')===false)continue;
+            $box=(int)($c['manufacturer_box_no']??0);
+            if(!isset($targets[$box]))continue;
+            $cid=(int)($c['id']??0);$code=(string)($c['code']??'');
+            $items=[];foreach($s['inventory']??[] as $iv){
+              if((int)($iv['carton_id']??0)===$cid || ($code!==''&&(string)($iv['carton_code']??'')===$code))$items[]=$iv;
+            }
+            $assigned=array_values(array_filter($items,fn($x)=>(int)($x['order_id']??0)>0));
+            $free=array_values(array_filter($items,fn($x)=>(int)($x['order_id']??0)===0));
+            $oids=[];foreach($assigned as $iv)$oids[(int)$iv['order_id']]=true;
+            $oi=[];foreach(array_keys($oids) as $oid){$o=$orders[$oid]??null;if(!$o){$oi[]=['id'=>$oid,'missing'=>true];continue;}$blob=json_encode($o,JSON_UNESCAPED_UNICODE);$oi[]=['id'=>$oid,'number'=>$o['number']??'','customer_name'=>$o['customer_name']??'','status'=>$o['status']??'','created_by'=>$o['created_by']??'','created_at'=>$o['created_at']??'','updated_at'=>$o['updated_at']??'','is_historical'=>strpos($blob,'خروج تاریخی')!==false];}
+            $out['targets'][]=['manufacturer_box_no'=>$box,'carton_id'=>$cid,'code'=>$code,'product'=>$c['product']??'','capacity'=>$c['capacity']??null,'carton_serial_count'=>count($c['serials']??[]),'inventory_count'=>count($items),'free_count'=>count($free),'assigned_count'=>count($assigned),'orders'=>$oi];
+          }
+          usort($out['targets'],fn($a,$b)=>$a['manufacturer_box_no']<=>$b['manufacturer_box_no']);
+          echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          ?>
+          PHP
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/i90/__ghadir_i90_diag.php
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/i90/__ghadir_i90_diag.php -o /__ghadir_i90_diag.php
+          bye
+          EOF
+          code="$(curl -sS --max-time 30 -o /tmp/i90/report.json -w '%{http_code}' "https://ghadirpartner.ir/__ghadir_i90_diag.php?k=$TOKEN" || true)"
+          test "$code" = "200"
+          jq . /tmp/i90/report.json
+
+      - name: Cleanup temporary endpoint
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          lftp <<EOF
+          set cmd:fail-exit no
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /__ghadir_i90_diag.php
+          bye
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: target-i90-mysql-report
+          retention-days: 3
+          path: /tmp/i90/report.json
