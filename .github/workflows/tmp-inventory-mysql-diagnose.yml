@@ -68,7 +68,6 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          mkdir -p /storage/Backups
           put /tmp/ghadir-diag/ghadir_data.json -o "$BACKUP"
           bye
           EOF
