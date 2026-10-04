@@ -1,0 +1,35 @@
+name: Inspect Exact V5.3.4.38 Hooks
+
+on:
+  push:
+    branches:
+      - inspect-v53438-hooks-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Inspect exact base hooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/base && mkdir -p /tmp/base
+          unzip -q GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE.zip -d /tmp/base
+          ROOT="$(find /tmp/base -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+          if [[ -z "$ROOT" || ! -f "$ROOT/index.php" ]]; then ROOT=/tmp/base; fi
+          echo "=== INDEX DB / INIT ==="
+          grep -n -A25 -B15 "function db" "$ROOT/index.php" | head -n 120 || true
+          echo "=== INDEX STATUS ==="
+          grep -n -A18 -B8 "api/order/status\|api/orders/status\|ارسال شد" "$ROOT/index.php" | head -n 240 || true
+          echo "=== INDEX WAREHOUSE ==="
+          grep -n -A14 -B5 "api/warehouse\|api/inventory" "$ROOT/index.php" | head -n 320 || true
+          echo "=== APP NAV ==="
+          grep -n -A20 -B10 "data-tab=.*warehouse\|مخزن\|انبار" "$ROOT/app.html" | head -n 220 || true
+          echo "=== APP ORDER DETAIL ==="
+          grep -n -A25 -B15 "openOrderDetails\|renderOrder\|جزئیات سفارش" "$ROOT/app.html" | head -n 350 || true
+          echo "=== APP END ==="
+          tail -n 80 "$ROOT/app.html"
