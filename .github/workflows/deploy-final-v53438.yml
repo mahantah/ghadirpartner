@@ -180,8 +180,12 @@ jobs:
           put "/tmp/$FILE" -o "/$FILE"
           bye
           EOF
-          RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
-          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"]))exit(2);if(($x["counts"]["inventory"]??0)<13289||($x["counts"]["cartons"]??0)<364||($x["warehouses"]??0)!==2)exit(3);echo json_encode($x,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT),"\n";'
+          HTTP="$(curl -sS --max-time 40 -o /tmp/warehouse-migrate-response.json -w '%{http_code}' "https://ghadirpartner.ir/$FILE?token=$TOKEN" || true)"
+          echo "Migration HTTP $HTTP"
+          cat /tmp/warehouse-migrate-response.json || true
+          echo
+          [[ "$HTTP" == "200" ]] || exit 2
+          php -r '$x=json_decode(file_get_contents("/tmp/warehouse-migrate-response.json"),true);if(empty($x["ok"]))exit(2);if(($x["counts"]["inventory"]??0)<13289||($x["counts"]["cartons"]??0)<364||($x["warehouses"]??0)!==2)exit(3);echo "warehouse migration verified\n";'
 
       - name: Deploy feature files only
         env:
