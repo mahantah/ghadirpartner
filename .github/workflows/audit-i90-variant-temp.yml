@@ -14,7 +14,7 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y lftp python3
-      - name: Inspect latest MySQL snapshot counts
+      - name: Inspect I90 counts from latest MySQL snapshot
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -30,6 +30,28 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          cls -1 /storage/Backups
+          get /storage/Backups/ghadir-mysql-pre-exact-v53438-20261004-154338.json -o /tmp/i90/state.json
           bye
           EOF
+          python3 - <<'PY'
+          import json,re
+          s=json.load(open('/tmp/i90/state.json'))
+          rows=[]
+          for x in s.get('inventory',[]):
+              p=str(x.get('product',''))
+              if 'I90' not in p.upper():
+                  continue
+              rows.append(x)
+          by={}
+          for x in rows:
+              key=(str(x.get('product','')),int(x.get('warehouse_id',0) or 0),int(x.get('order_id',0) or 0)>0)
+              by[key]=by.get(key,0)+1
+          print('I90 total rows:',len(rows))
+          print('I90 grouped by exact product / warehouse / reserved:')
+          for k,v in sorted(by.items(),key=lambda kv:(kv[0][0],kv[0][1],kv[0][2])):
+              print(repr(k[0]),'warehouse=',k[1],'reserved=',k[2],'count=',v)
+          print('I90 in warehouse1=',sum(1 for x in rows if int(x.get('warehouse_id',0) or 0)==1))
+          print('I90 warehouse1 free=',sum(1 for x in rows if int(x.get('warehouse_id',0) or 0)==1 and int(x.get('order_id',0) or 0)<=0))
+          print('I90 warehouse1 reserved=',sum(1 for x in rows if int(x.get('warehouse_id',0) or 0)==1 and int(x.get('order_id',0) or 0)>0))
+          print('I90 warehouse0=',sum(1 for x in rows if int(x.get('warehouse_id',0) or 0)==0))
+          PY
