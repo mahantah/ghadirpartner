@@ -14,8 +14,110 @@ function ghadir_storage_driver(): string {
     return 'mysql';
 }
 
+function ghadir_warehouse_prepare_state(array &$s): void {
+    if (!isset($s['warehouses']) || !is_array($s['warehouses']) || count($s['warehouses']) < 2) {
+        $s['warehouses'] = [
+            ['id'=>1,'code'=>'WHOLESALE','name'=>'انبار عمده','active'=>true],
+            ['id'=>2,'code'=>'TEHRANPARS_RETAIL','name'=>'انبار خرده تهرانپارس','active'=>true],
+        ];
+    }
+    if (!isset($s['warehouse_movements']) || !is_array($s['warehouse_movements'])) $s['warehouse_movements'] = [];
+    if (!isset($s['next_warehouse_movement'])) {
+        $mx=0; foreach($s['warehouse_movements'] as $m) $mx=max($mx,(int)($m['id']??0));
+        $s['next_warehouse_movement']=$mx+1;
+    }
+
+    $orderStatus=[];
+    foreach($s['orders']??[] as $o) $orderStatus[(int)($o['id']??0)] = (string)($o['status']??'');
+    foreach($s['inventory']??[] as &$iv) {
+        if (!array_key_exists('warehouse_id',$iv)) {
+            $oid=(int)($iv['order_id']??0);
+            $out = $oid < 0 || ($oid > 0 && in_array($orderStatus[$oid]??'', ['ارسال شد','تحویل شد'], true));
+            $iv['warehouse_id']=$out ? 0 : 1;
+        } else {
+            $iv['warehouse_id']=(int)$iv['warehouse_id'];
+        }
+    }
+    unset($iv);
+
+    foreach($s['cartons']??[] as &$ct) {
+        if (!array_key_exists('warehouse_id',$ct)) {
+            $ids=[];
+            foreach($s['inventory']??[] as $iv) {
+                if ((int)($iv['carton_id']??0)===(int)($ct['id']??0) && (int)($iv['warehouse_id']??0)>0) $ids[(int)$iv['warehouse_id']]=1;
+            }
+            $ct['warehouse_id']=count($ids)===1 ? (int)array_key_first($ids) : (count($ids)>1 ? 0 : 1);
+        } else {
+            $ct['warehouse_id']=(int)$ct['warehouse_id'];
+        }
+    }
+    unset($ct);
+
+    if (empty($s['warehouse_activated_at'])) $s['warehouse_activated_at']=date('Y-m-d H:i:s');
+    if (!isset($s['warehouse_baseline']) || !is_array($s['warehouse_baseline'])) {
+        $counts=[];
+        foreach($s['inventory']??[] as $iv) {
+            $wid=(int)($iv['warehouse_id']??0);
+            if ($wid<1) continue;
+            $p=(string)($iv['product']??'نامشخص');
+            $k=$wid.'|'.$p;
+            if(!isset($counts[$k])) $counts[$k]=['warehouse_id'=>$wid,'product'=>$p,'qty'=>0];
+            $counts[$k]['qty']++;
+        }
+        $s['warehouse_baseline']=array_values($counts);
+    }
+}
+
+function ghadir_warehouse_record(array &$s,string $type,string $product,array $serials,int $fromWarehouse,int $toWarehouse,string $by,int $orderId=0,string $orderNumber='',string $note=''): array {
+    ghadir_warehouse_prepare_state($s);
+    $serials=array_values(array_unique(array_filter(array_map(fn($v)=>trim((string)$v),$serials),fn($v)=>$v!=='')));
+    $row=[
+        'id'=>$s['next_warehouse_movement']++,
+        'type'=>$type,
+        'product'=>$product,
+        'qty'=>count($serials),
+        'serials'=>$serials,
+        'from_warehouse_id'=>$fromWarehouse,
+        'to_warehouse_id'=>$toWarehouse,
+        'order_id'=>$orderId,
+        'order_number'=>$orderNumber,
+        'note'=>$note,
+        'created_at'=>date('Y-m-d H:i:s'),
+        'created_by'=>$by,
+    ];
+    $s['warehouse_movements'][]=$row;
+    return $row;
+}
+
+function ghadir_warehouse_exit_order(array &$s,array &$order,string $by): int {
+    ghadir_warehouse_prepare_state($s);
+    $groups=[];$n=0;
+    foreach($order['items']??[] as $it) {
+        $product=(string)($it['product']??'');
+        foreach(array_unique($it['serials']??[]) as $sn) {
+            foreach($s['inventory'] as &$iv) {
+                if (strcasecmp((string)($iv['serial']??''),(string)$sn)!==0) continue;
+                $wid=(int)($iv['warehouse_id']??0);
+                if ($wid<1) break;
+                $key=$wid.'|'.$product;
+                if(!isset($groups[$key])) $groups[$key]=['warehouse_id'=>$wid,'product'=>$product,'serials'=>[]];
+                $groups[$key]['serials'][]=(string)$iv['serial'];
+                $iv['warehouse_id']=0;
+                $iv['warehouse_last_moved_at']=date('Y-m-d H:i:s');
+                $n++;
+                break;
+            }
+            unset($iv);
+        }
+    }
+    foreach($groups as $g) ghadir_warehouse_record($s,'sale_out',$g['product'],$g['serials'],$g['warehouse_id'],0,$by,(int)($order['id']??0),(string)($order['number']??''),'خروج سفارش');
+    if($n>0) $order['warehouse_exit_at']=date('Y-m-d H:i:s');
+    return $n;
+}
+
 function ghadir_state_prepare(array &$s): void {
     foreach (init_state() as $k => $v) if (!array_key_exists($k, $s)) $s[$k] = $v;
+    ghadir_warehouse_prepare_state($s);
     foreach (['sms_outbox','payment_transactions','registration_requests','password_reset_requests','staff_password_reset_requests','special_offers','offer_usages'] as $k) {
         if (!isset($s[$k]) || !is_array($s[$k])) $s[$k] = [];
     }
