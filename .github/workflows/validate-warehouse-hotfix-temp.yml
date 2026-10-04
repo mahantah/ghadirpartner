@@ -1,0 +1,38 @@
+name: Validate Warehouse Hotfix
+
+on:
+  push:
+    branches:
+      - hotfix-warehouse-deploy-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - name: PHP syntax
+        run: |
+          php -l index.php
+          php -l partners/index.php
+          php -l lib/storage.php
+      - name: JavaScript syntax
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('app.html','utf8'),re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
+          let m,n=0;while((m=re.exec(html))){new Function(m[1]);n++}
+          if(!n)throw new Error('No inline script');
+          console.log('JS syntax OK',n);
+          NODE
+      - name: Feature checks
+        run: |
+          grep -q "ghadir_warehouse_prepare_state" lib/storage.php
+          grep -q "foreach(\$s\['inventory'\] as &\$iv)" lib/storage.php
+          grep -q "dirname(__DIR__) . '/config.php'" lib/storage.php
+          grep -q "خارج واقعی" app.html
+          grep -q "/api/order/return" index.php
+          grep -q "/api/warehouse/transfer" index.php
