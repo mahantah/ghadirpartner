@@ -54,4 +54,21 @@ jobs:
           print('I90 warehouse1 free=',sum(1 for x in rows if int(x.get('warehouse_id',0) or 0)==1 and int(x.get('order_id',0) or 0)<=0))
           print('I90 warehouse1 reserved=',sum(1 for x in rows if int(x.get('warehouse_id',0) or 0)==1 and int(x.get('order_id',0) or 0)>0))
           print('I90 warehouse0=',sum(1 for x in rows if int(x.get('warehouse_id',0) or 0)==0))
+          target=[x for x in rows if int(x.get('warehouse_id',0) or 0)==0 and int(x.get('order_id',0) or 0)<=0]
+          carts={int(c.get('id',0) or 0):c for c in s.get('cartons',[])}
+          print('orphan-free candidates=',len(target))
+          for x in target:
+              cid=int(x.get('carton_id',0) or 0); ct=carts.get(cid,{})
+              print({
+                  'inventory_id':x.get('id'),
+                  'carton_id':cid,
+                  'carton_code':x.get('carton_code',''),
+                  'carton_exists':bool(ct),
+                  'carton_warehouse_id':ct.get('warehouse_id'),
+                  'order_id':x.get('order_id'),
+                  'order_number':x.get('order_number',''),
+                  'returned_from_order_id':x.get('returned_from_order_id'),
+                  'added_by':x.get('added_by',''),
+                  'shelf_level':x.get('shelf_level',0)
+              })
           PY
