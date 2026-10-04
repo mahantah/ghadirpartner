@@ -1,1 +1,1 @@
-inspect target I90 cartons in mysql
+reinspect target I90 historical allocations
