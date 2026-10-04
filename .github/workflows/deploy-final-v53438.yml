@@ -111,15 +111,17 @@ jobs:
             ];
             if(!isset($s['warehouse_movements'])||!is_array($s['warehouse_movements']))$s['warehouse_movements']=[];
             if(!isset($s['next_warehouse_movement'])){$mx=0;foreach($s['warehouse_movements'] as $x)$mx=max($mx,(int)($x['id']??0));$s['next_warehouse_movement']=$mx+1;}
+            if(!isset($s['inventory'])||!is_array($s['inventory']))$s['inventory']=[];
+            if(!isset($s['cartons'])||!is_array($s['cartons']))$s['cartons']=[];
             $status=[];foreach($s['orders']??[] as $o)$status[(int)($o['id']??0)]=(string)($o['status']??'');
-            foreach($s['inventory']??[] as &$iv){
+            foreach($s['inventory'] as &$iv){
               if(!array_key_exists('warehouse_id',$iv)){
                 $oid=(int)($iv['order_id']??0);
                 $out=$oid<0||($oid>0&&in_array($status[$oid]??'',['ارسال شد','تحویل شد'],true));
                 $iv['warehouse_id']=$out?0:1;
               }else $iv['warehouse_id']=(int)$iv['warehouse_id'];
             }unset($iv);
-            foreach($s['cartons']??[] as &$ct){
+            foreach($s['cartons'] as &$ct){
               if(!array_key_exists('warehouse_id',$ct)){
                 $ids=[];foreach($s['inventory']??[] as $iv)if((int)($iv['carton_id']??0)===(int)($ct['id']??0)&&(int)($iv['warehouse_id']??0)>0)$ids[(int)$iv['warehouse_id']]=1;
                 $ct['warehouse_id']=count($ids)===1?(int)array_key_first($ids):(count($ids)>1?0:1);
