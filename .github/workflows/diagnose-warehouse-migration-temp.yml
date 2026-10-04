@@ -1,0 +1,108 @@
+name: Diagnose Warehouse Migration
+
+on:
+  push:
+    branches:
+      - hotfix-warehouse-deploy-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl php-cli
+      - name: Read-only migration diagnostics
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_wh_diag_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          declare(strict_types=1);
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          try{
+            $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
+            $row=$pdo->query("SELECT state_json,revision,updated_at FROM ghadir_state WHERE id=1")->fetch();
+            if(!$row)throw new RuntimeException('state_missing');
+            $s=json_decode((string)$row['state_json'],true);
+            if(!is_array($s))throw new RuntimeException('state_invalid');
+            $status=[];foreach($s['orders']??[] as $o)$status[(int)($o['id']??0)]=(string)($o['status']??'');
+            $targets=['I90-097','I90-098','I90-099','I90-100','I90-101','I90-102','I90-103','I90-109','I90-110','I90-111','I90-112','I90-113','I90-114','I90-115','I90-116','I90-123','I90-124','I90-125'];
+            $cart=[];foreach($s['cartons']??[] as $ct)$cart[(string)($ct['code']??'')]=$ct;
+            $checks=[];
+            foreach($targets as $code){
+              $ct=$cart[$code]??null;
+              if(!$ct){$checks[$code]=['exists'=>false];continue;}
+              $cid=(int)($ct['id']??0);
+              $rows=array_values(array_filter($s['inventory']??[],fn($iv)=>(int)($iv['carton_id']??0)===$cid||(string)($iv['carton_code']??'')===$code));
+              $plainFree=count(array_filter($rows,fn($iv)=>(int)($iv['order_id']??0)===0));
+              $wouldWholesale=0;
+              foreach($rows as $iv){
+                $wid=array_key_exists('warehouse_id',$iv)?(int)$iv['warehouse_id']:(((int)($iv['order_id']??0)<0||((int)($iv['order_id']??0)>0&&in_array($status[(int)$iv['order_id']]??'',['ارسال شد','تحویل شد'],true)))?0:1);
+                if((int)($iv['order_id']??0)===0&&$wid===1)$wouldWholesale++;
+              }
+              $checks[$code]=['exists'=>true,'rows'=>count($rows),'free'=>$plainFree,'would_be_wholesale_free'=>$wouldWholesale];
+            }
+            $backupDir=__DIR__.'/storage/Backups';
+            $probe=$backupDir.'/.__wh_write_probe_'.bin2hex(random_bytes(4));
+            $backupWritable=@file_put_contents($probe,'ok',LOCK_EX)!==false;
+            if($backupWritable)@unlink($probe);
+            echo json_encode([
+              'ok'=>true,
+              'php'=>PHP_VERSION,
+              'revision'=>(int)$row['revision'],
+              'updated_at'=>$row['updated_at'],
+              'counts'=>['inventory'=>count($s['inventory']??[]),'cartons'=>count($s['cartons']??[]),'orders'=>count($s['orders']??[]),'customers'=>count($s['customers']??[])],
+              'has_warehouses'=>isset($s['warehouses'])&&is_array($s['warehouses']),
+              'warehouse_count'=>is_array($s['warehouses']??null)?count($s['warehouses']):0,
+              'has_baseline'=>isset($s['warehouse_baseline'])&&is_array($s['warehouse_baseline']),
+              'backup_writable'=>$backupWritable,
+              'targets'=>$checks
+            ],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          }catch(Throwable $e){
+            http_response_code(500);
+            echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);
+          }
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE";s=open(p).read().replace('__TOKEN__',"$TOKEN");open(p,'w').write(s)
+          PY
+          cleanup(){ lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          code="$(curl -sS --max-time 40 -o /tmp/diag.json -w '%{http_code}' "https://ghadirpartner.ir/$FILE?token=$TOKEN" || true)"
+          echo "HTTP $code"
+          cat /tmp/diag.json
+          echo
+          [[ "$code" == "200" ]]
