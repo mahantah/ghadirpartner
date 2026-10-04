@@ -1,0 +1,103 @@
+name: Hotfix V5.3.4.38 Live 415
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "hotfix-live415.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp nodejs
+
+      - name: Download deployed warehouse script
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/live415
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /assets/warehouse-v53438.js -o /tmp/live415/warehouse-v53438.js
+          bye
+          EOF
+
+      - name: Patch live inventory and future days
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/live415/warehouse-v53438.js')
+          s=p.read_text()
+          old1="  let body=products.map(prod=>{let start=base.get(`${wid}|${prod}`)||0,cells=[];for(let day=1;day<=days;day++){let iso=whIsoDate(jy,jm,day),jdate=`${jy}/${whPad(jm)}/${whPad(day)}`,end=iso+' 23:59:59',before=activation&&iso<activation.slice(0,10),net=0,changed=false;if(!before){for(let mv of moves){if(String(mv.product)!==String(prod)||String(mv.created_at)>end)continue;let delta=whMovementNet(mv,wid);if(delta){net+=delta;if(String(mv.created_at).slice(0,10)===iso)changed=true}}}let val=start+net;cells.push(`<td class=\"${before?'before-activation ':''}${jdate===today?'today-cell ':''}${changed?'changed-cell ':''}${val===0?'zero':''}\">${before?'—':Number(val).toLocaleString('fa-IR')}</td>`)}return `<tr><td class=\"model-cell\">${esc(prod)}</td>${cells.join('')}</tr>`}).join('');"
+          old2="  let current=d.current?.[wid]||{},free=d.free?.[wid]||{},reserved=d.reserved?.[wid]||{},total=Object.values(current).reduce((a,b)=>a+Number(b||0),0),freeN=Object.values(free).reduce((a,b)=>a+Number(b||0),0),resN=Object.values(reserved).reduce((a,b)=>a+Number(b||0),0);"
+          new1="  let current=d.current?.[wid]||{},free=d.free?.[wid]||{},reserved=d.reserved?.[wid]||{};\n  let body=products.map(prod=>{let start=base.get(`${wid}|${prod}`)||0,cells=[];for(let day=1;day<=days;day++){let iso=whIsoDate(jy,jm,day),jdate=`${jy}/${whPad(jm)}/${whPad(day)}`,end=iso+' 23:59:59',before=activation&&iso<activation.slice(0,10),future=jdate>today,net=0,changed=false;if(!before&&!future){for(let mv of moves){if(String(mv.product)!==String(prod)||String(mv.created_at)>end)continue;let delta=whMovementNet(mv,wid);if(delta){net+=delta;if(String(mv.created_at).slice(0,10)===iso)changed=true}}}let val=jdate===today?Number(current[prod]||0):start+net;cells.push(`<td class=\"${before?'before-activation ':''}${future?'future-cell ':''}${jdate===today?'today-cell ':''}${changed?'changed-cell ':''}${val===0?'zero':''}\">${before||future?'':Number(val).toLocaleString('fa-IR')}</td>`)}return `<tr><td class=\"model-cell\">${esc(prod)}</td>${cells.join('')}</tr>`}).join('');"
+          new2="  let total=Object.values(current).reduce((a,b)=>a+Number(b||0),0),freeN=Object.values(free).reduce((a,b)=>a+Number(b||0),0),resN=Object.values(reserved).reduce((a,b)=>a+Number(b||0),0);"
+          if "future=jdate>today" in s and "jdate===today?Number(current[prod]||0)" in s:
+              print("already fixed")
+          else:
+              if old1 not in s or old2 not in s:
+                  raise SystemExit("expected deployed V5.3.4.38 ledger block not found")
+              s=s.replace(old1,new1,1).replace(old2,new2,1)
+              p.write_text(s)
+          PY
+          node --check /tmp/live415/warehouse-v53438.js
+          grep -q "future=jdate>today" /tmp/live415/warehouse-v53438.js
+          grep -q "jdate===today?Number(current\[prod\]||0)" /tmp/live415/warehouse-v53438.js
+
+      - name: Upload hotfix
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/live415/warehouse-v53438.js -o /assets/warehouse-v53438.js
+          bye
+          EOF
+
+      - name: Verify deployed file
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /assets/warehouse-v53438.js -o /tmp/live415/verify.js
+          bye
+          EOF
+          node --check /tmp/live415/verify.js
+          grep -q "future=jdate>today" /tmp/live415/verify.js
+          grep -q "jdate===today?Number(current\[prod\]||0)" /tmp/live415/verify.js
