@@ -1,0 +1,27 @@
+name: Extract Exact V5.3.4.38 Base
+
+on:
+  push:
+    branches:
+      - extract-v53438-base-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf extracted
+          mkdir extracted
+          unzip -q GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE.zip -d extracted
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-v53438-base
+          retention-days: 3
+          path: extracted/
