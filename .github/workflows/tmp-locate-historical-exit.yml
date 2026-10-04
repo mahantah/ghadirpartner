@@ -1,0 +1,94 @@
+name: Locate Historical Exit in MySQL
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-locate-historical-exit.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp jq curl
+      - name: Locate historical markers and I90 box numbers
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hist
+          TOKEN="$(openssl rand -hex 24)"
+          cat > /tmp/hist/__ghadir_hist_diag.php <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['k']??''))){http_response_code(404);exit;}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.($m['port']??3306).';dbname='.($m['database']??'').';charset=utf8mb4',(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+          $row=$pdo->query('SELECT state_json,revision,updated_at FROM ghadir_state WHERE id=1')->fetch();
+          $s=json_decode((string)$row['state_json'],true);
+          $hits=[];
+          $walk=function($v,$path='$') use (&$walk,&$hits){
+            if(is_array($v)){foreach($v as $k=>$x)$walk($x,$path.(is_int($k)?'['.$k.']':'.'.$k));return;}
+            if(strpos((string)$v,'خروج تاریخی')!==false)$hits[]=['path'=>$path,'value'=>mb_substr((string)$v,0,300)];
+          };
+          $walk($s);
+          $i90=[];
+          foreach($s['cartons']??[] as $c){
+            $p=strtoupper(str_replace(' ','',(string)($c['product']??'')));
+            if(strpos($p,'I90')===false)continue;
+            $i90[]=['id'=>$c['id']??0,'code'=>$c['code']??'','manufacturer_box_no'=>$c['manufacturer_box_no']??null,'capacity'=>$c['capacity']??null,'serial_count'=>count($c['serials']??[])];
+          }
+          usort($i90,fn($a,$b)=>(int)($a['manufacturer_box_no']??0)<=>(int)($b['manufacturer_box_no']??0));
+          echo json_encode(['revision'=>(int)$row['revision'],'updated_at'=>$row['updated_at'],'historical_hits'=>$hits,'i90_cartons'=>$i90],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          ?>
+          PHP
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/hist/__ghadir_hist_diag.php
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/hist/__ghadir_hist_diag.php -o /__ghadir_hist_diag.php
+          bye
+          EOF
+          code="$(curl -sS --max-time 30 -o /tmp/hist/report.json -w '%{http_code}' "https://ghadirpartner.ir/__ghadir_hist_diag.php?k=$TOKEN" || true)"
+          test "$code" = "200"
+          jq . /tmp/hist/report.json
+      - name: Cleanup
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          lftp <<EOF
+          set cmd:fail-exit no
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /__ghadir_hist_diag.php
+          bye
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mysql-historical-exit-location
+          retention-days: 3
+          path: /tmp/hist/report.json
