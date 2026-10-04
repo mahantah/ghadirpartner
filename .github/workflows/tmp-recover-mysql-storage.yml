@@ -1,0 +1,49 @@
+name: Recover Previous MySQL Storage Code
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-recover-mysql-storage.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Recover V5.3.4.37 release from repository history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 7bbba0a2be92976044f522d4146690df0ea19ef8
+          git show 7bbba0a2be92976044f522d4146690df0ea19ef8:GhadirPartner-Web-V5.3.4.37-PERFORMANCE-FOLLOWUP-BALE-COMPANY.zip > /tmp/v37.zip
+          unzip -t /tmp/v37.zip >/dev/null
+          rm -rf /tmp/v37
+          mkdir -p /tmp/v37
+          unzip -q /tmp/v37.zip -d /tmp/v37
+          ROOT=/tmp/v37
+          if [ ! -f "$ROOT/index.php" ]; then
+            D="$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+            if [ -n "$D" ] && [ -f "$D/index.php" ]; then ROOT="$D"; fi
+          fi
+          test -f "$ROOT/index.php"
+          mkdir -p /tmp/recovered
+          cp "$ROOT/index.php" /tmp/recovered/index-v37.php
+          cp "$ROOT/partners/index.php" /tmp/recovered/partners-index-v37.php
+          if [ -f "$ROOT/lib/storage.php" ]; then cp "$ROOT/lib/storage.php" /tmp/recovered/storage-v37.php; fi
+          if [ -f "$ROOT/config.mysql.example.php" ]; then cp "$ROOT/config.mysql.example.php" /tmp/recovered/config-mysql-v37.php; fi
+          if [ -f "$ROOT/VERSION.txt" ]; then cp "$ROOT/VERSION.txt" /tmp/recovered/VERSION-v37.txt; fi
+          grep -n -E "storage_driver|ghadir_storage|function db\(|PDO|ghadir_state" "$ROOT/index.php" > /tmp/recovered/index-storage-lines.txt || true
+          if [ -f "$ROOT/lib/storage.php" ]; then grep -n -E "function|PDO|ghadir_state|audit|backup|mysql" "$ROOT/lib/storage.php" > /tmp/recovered/storage-lines.txt || true; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recovered-v53437-mysql-storage
+          retention-days: 3
+          path: /tmp/recovered/
