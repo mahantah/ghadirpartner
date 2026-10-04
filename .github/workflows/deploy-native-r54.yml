@@ -1,0 +1,97 @@
+name: Apply Native R5.4 Compatibility
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/deploy-r54-20261004]
+    paths: [native-r54-deploy/**, .github/workflows/deploy-native-r54.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install deployment tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp php-cli php-mbstring
+      - name: Download and validate live source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/r54-before /tmp/r54-after
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /partners/index.php -o /tmp/r54-before/index.php
+          bye
+          EOF
+          echo '56ceb154b66deeaa08ed0507b213c5ee379863e2b4b3d7acef90366c18b8031c  /tmp/r54-before/index.php' | sha256sum --check
+          cp /tmp/r54-before/index.php /tmp/r54-after/index.php
+          python3 native-r54-deploy/patch.py /tmp/r54-after/index.php
+          echo '7a89d3adfc9c41dda364c89f2bae0004edf4c6717a28c2fd58bd8d0e8515c54a  /tmp/r54-after/index.php' | sha256sum --check
+          cp native-r54-deploy/native-r54.php /tmp/r54-after/
+          for f in /tmp/r54-after/*.php; do php -l "$f"; done
+          php native-r54-deploy/test.php
+      - name: Save original code for rollback
+        uses: actions/upload-artifact@v4
+        with:
+          name: R54-Original-Portal-Code
+          path: /tmp/r54-before/index.php
+          retention-days: 30
+          if-no-files-found: error
+      - name: Install patch and verify health
+        shell: bash
+        run: |
+          set -euo pipefail
+          ftp() {
+            { printf '%s\n' 'set cmd:fail-exit yes' 'set ftp:ssl-force true' 'set ftp:ssl-protect-data true' 'set ssl:verify-certificate yes' 'set net:max-retries 2' 'set net:timeout 20'; printf 'open -p 21 "%s"\nuser "%s" "%s"\n' "$FTP_SERVER" "$FTP_USERNAME" "$FTP_PASSWORD"; cat; printf 'bye\n'; } | lftp
+          }
+          # Recheck immediately before mutation to avoid overwriting a concurrent change.
+          ftp <<EOF
+          get /partners/index.php -o /tmp/r54-before/latest.php
+          EOF
+          cmp /tmp/r54-before/index.php /tmp/r54-before/latest.php
+          rollback() {
+            trap - ERR
+            echo 'Restoring original portal after deployment or health-check failure'
+            ftp <<EOF
+          put /tmp/r54-before/index.php -o /partners/native-r54-rollback.php
+          mv /partners/native-r54-rollback.php /partners/index.php
+          EOF
+            exit 1
+          }
+          trap rollback ERR
+          ftp <<EOF
+          put /tmp/r54-after/native-r54.php -o /partners/native-r54.php
+          put /tmp/r54-after/index.php -o /partners/native-r54-next.php
+          mv /partners/native-r54-next.php /partners/index.php
+          get /partners/index.php -o /tmp/r54-verified.php
+          EOF
+          cmp /tmp/r54-after/index.php /tmp/r54-verified.php
+          for route in / /partners/; do
+            code=$(curl -sS --retry 2 --max-time 25 -o /tmp/r54-page -w '%{http_code}' "https://ghadirpartner.ir$route")
+            test "$code" = 200
+            echo "$route HTTP $code"
+          done
+          for route in addresses purchased-devices notifications native/credit; do
+            code=$(curl -sS --retry 2 --max-time 25 -o /tmp/r54-response.json -w '%{http_code}' "https://ghadirpartner.ir/partners/api/$route")
+            test "$code" = 401
+            test "$(cat /tmp/r54-response.json)" = 'ورود الزامی است'
+            echo "Protected $route API: HTTP $code, expected authentication response"
+          done
+          trap - ERR
+          echo 'R5.4 compatibility installed; source hash and public/protected health checks passed.'
