@@ -1,1 +1,1 @@
-run safe live inventory and mysql diagnostic
+rerun safe live inventory and mysql diagnostic
