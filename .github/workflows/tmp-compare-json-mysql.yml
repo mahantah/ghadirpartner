@@ -1,0 +1,100 @@
+name: Compare Live JSON and MySQL State
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-compare-json-mysql.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp jq curl
+      - name: Compare server JSON and MySQL canonical state
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cmp
+          TOKEN="$(openssl rand -hex 24)"
+          cat > /tmp/cmp/__ghadir_compare.php <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['k']??''))){http_response_code(404);exit;}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          $json=json_decode((string)file_get_contents(__DIR__.'/storage/ghadir_data.json'),true);
+          $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.($m['port']??3306).';dbname='.($m['database']??'').';charset=utf8mb4',(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+          $row=$pdo->query('SELECT state_json,revision,updated_at FROM ghadir_state WHERE id=1')->fetch();$sql=json_decode((string)$row['state_json'],true);
+          $index=function($arr,$fn){$o=[];foreach($arr??[] as $v){$k=(string)$fn($v);if($k!=='')$o[$k]=$v;}return $o;};
+          $jo=$index($json['orders']??[],fn($x)=>$x['number']??'');$mo=$index($sql['orders']??[],fn($x)=>$x['number']??'');
+          $jc=$index($json['customers']??[],fn($x)=>trim((string)($x['code']??''))!==''?$x['code']:($x['mobile']??''));$mc=$index($sql['customers']??[],fn($x)=>trim((string)($x['code']??''))!==''?$x['code']:($x['mobile']??''));
+          $ji=$index($json['inventory']??[],fn($x)=>strtoupper(trim((string)($x['serial']??''))));$mi=$index($sql['inventory']??[],fn($x)=>strtoupper(trim((string)($x['serial']??''))));
+          $jb=$index($json['cartons']??[],fn($x)=>$x['code']??'');$mb=$index($sql['cartons']??[],fn($x)=>$x['code']??'');
+          $only=function($a,$b){return array_values(array_diff(array_keys($a),array_keys($b)));};
+          $jsonOnlyOrders=$only($jo,$mo);$jsonOnlyCustomers=$only($jc,$mc);$jsonOnlyInv=$only($ji,$mi);$jsonOnlyCartons=$only($jb,$mb);
+          $prod=[];foreach($jsonOnlyInv as $sn){$p=$ji[$sn]['product']??'نامشخص';$prod[$p]=($prod[$p]??0)+1;}
+          $out=[
+            'mysql_revision'=>(int)$row['revision'],'mysql_updated_at'=>$row['updated_at'],
+            'json_counts'=>['customers'=>count($json['customers']??[]),'orders'=>count($json['orders']??[]),'inventory'=>count($json['inventory']??[]),'cartons'=>count($json['cartons']??[])],
+            'mysql_counts'=>['customers'=>count($sql['customers']??[]),'orders'=>count($sql['orders']??[]),'inventory'=>count($sql['inventory']??[]),'cartons'=>count($sql['cartons']??[])],
+            'json_only'=>[
+              'orders_count'=>count($jsonOnlyOrders),'orders'=>$jsonOnlyOrders,
+              'customers_count'=>count($jsonOnlyCustomers),'customers'=>$jsonOnlyCustomers,
+              'inventory_count'=>count($jsonOnlyInv),'inventory_by_product'=>$prod,
+              'cartons_count'=>count($jsonOnlyCartons),'cartons'=>$jsonOnlyCartons
+            ]
+          ];
+          echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          ?>
+          PHP
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/cmp/__ghadir_compare.php
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/cmp/__ghadir_compare.php -o /__ghadir_compare.php
+          bye
+          EOF
+          code="$(curl -sS --max-time 30 -o /tmp/cmp/report.json -w '%{http_code}' "https://ghadirpartner.ir/__ghadir_compare.php?k=$TOKEN" || true)"
+          test "$code" = "200"
+          jq . /tmp/cmp/report.json
+      - name: Cleanup
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          lftp <<EOF
+          set cmd:fail-exit no
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /__ghadir_compare.php
+          bye
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: json-mysql-comparison
+          retention-days: 3
+          path: /tmp/cmp/report.json
