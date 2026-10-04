@@ -1,0 +1,182 @@
+name: Deep Inventory and MySQL Diagnostic
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-deep-inventory-mysql.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp jq php-cli curl
+
+      - name: Download live state and config
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/ghadir-deep
+          mkdir -p /tmp/ghadir-deep
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /storage/ghadir_data.json -o /tmp/ghadir-deep/ghadir_data.json
+          get /config.php -o /tmp/ghadir-deep/config.php
+          bye
+          EOF
+          test -s /tmp/ghadir-deep/ghadir_data.json
+          php -l /tmp/ghadir-deep/config.php
+
+      - name: Search historical exit markers and I90 carton identities
+        shell: bash
+        run: |
+          python3 <<'PY'
+          import json,re
+          from pathlib import Path
+          data=json.loads(Path('/tmp/ghadir-deep/ghadir_data.json').read_text())
+          hits=[]
+          def walk(v,path='$'):
+              if isinstance(v,dict):
+                  for k,x in v.items(): walk(x,path+'.'+str(k))
+              elif isinstance(v,list):
+                  for i,x in enumerate(v): walk(x,path+'['+str(i)+']')
+              elif 'خروج تاریخی' in str(v):
+                  hits.append({'path':path,'value':str(v)[:300]})
+          walk(data)
+          i90=[]
+          for c in data.get('cartons') or []:
+              product=str(c.get('product') or '')
+              if 'I90' in product.upper().replace(' ',''):
+                  i90.append({
+                      'id':c.get('id'),'code':c.get('code'),'product':product,
+                      'capacity':c.get('capacity'),'serial_count':len(c.get('serials') or []),
+                      'keys':sorted(c.keys())
+                  })
+          keys={
+              'carton_keys':sorted({k for c in (data.get('cartons') or []) for k in c.keys()}),
+              'inventory_keys':sorted({k for x in (data.get('inventory') or []) for k in x.keys()}),
+              'order_keys':sorted({k for o in (data.get('orders') or []) for k in o.keys()})
+          }
+          out={'historical_text_hits':hits,'i90_cartons':i90,'schema_keys':keys}
+          Path('/tmp/ghadir-deep/deep-json-report.json').write_text(json.dumps(out,ensure_ascii=False,indent=2))
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Check live MySQL on production server
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          cat > /tmp/ghadir-deep/__ghadir_mysql_diag_20261004.php <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          $expected='__TOKEN__';
+          if(!hash_equals($expected,(string)($_GET['k']??''))){http_response_code(404);exit;}
+          $cfg=require __DIR__.'/config.php';
+          $m=$cfg['mysql']??[];
+          $out=['connected'=>false,'tables'=>[],'table_counts'=>[],'state_tables'=>[],'error_class'=>null];
+          try{
+            $dsn='mysql:host='.($m['host']??'localhost').';port='.($m['port']??3306).';dbname='.($m['database']??'').';charset=utf8mb4';
+            $pdo=new PDO($dsn,(string)($m['username']??''),(string)($m['password']??''),[
+              PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+              PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+            ]);
+            $out['connected']=true;
+            $tables=$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+            $out['tables']=$tables;
+            foreach($tables as $t){
+              if(!preg_match('/^[A-Za-z0-9_]+$/',$t))continue;
+              if(preg_match('/ghadir|state|inventory|carton|order|customer|serial/i',$t)){
+                try{$out['table_counts'][$t]=(int)$pdo->query('SELECT COUNT(*) FROM '.$t)->fetchColumn();}catch(Throwable $e){}
+              }
+              try{$cols=$pdo->query('SHOW COLUMNS FROM '.$t)->fetchAll();}catch(Throwable $e){continue;}
+              $names=array_map(fn($x)=>$x['Field']??'', $cols);
+              foreach(['state_json','data_json','payload','json_data'] as $candidate){
+                if(!in_array($candidate,$names,true))continue;
+                try{
+                  $row=$pdo->query('SELECT '.$candidate.' AS j FROM '.$t.' LIMIT 1')->fetch();
+                  $j=json_decode((string)($row['j']??''),true);
+                  if(is_array($j)){
+                    $encoded=json_encode($j,JSON_UNESCAPED_UNICODE);
+                    $out['state_tables'][]=[
+                      'table'=>$t,'column'=>$candidate,
+                      'customers'=>count($j['customers']??[]),'orders'=>count($j['orders']??[]),
+                      'inventory'=>count($j['inventory']??[]),'cartons'=>count($j['cartons']??[]),
+                      'contains_historical_exit'=>strpos($encoded,'خروج تاریخی')!==false
+                    ];
+                  }
+                }catch(Throwable $e){}
+              }
+            }
+          }catch(Throwable $e){$out['error_class']=get_class($e);}
+          echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          ?>
+          PHP
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/ghadir-deep/__ghadir_mysql_diag_20261004.php
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/ghadir-deep/__ghadir_mysql_diag_20261004.php -o /__ghadir_mysql_diag_20261004.php
+          bye
+          EOF
+          code="$(curl -sS --max-time 30 -o /tmp/ghadir-deep/mysql-server-report.json -w '%{http_code}' "https://ghadirpartner.ir/__ghadir_mysql_diag_20261004.php?k=$TOKEN" || true)"
+          test "$code" = "200"
+          jq . /tmp/ghadir-deep/mysql-server-report.json
+
+      - name: Remove temporary MySQL endpoint
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          lftp <<EOF
+          set cmd:fail-exit no
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /__ghadir_mysql_diag_20261004.php
+          bye
+          EOF
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghadir-deep-inventory-mysql-diagnostic
+          retention-days: 3
+          path: |
+            /tmp/ghadir-deep/deep-json-report.json
+            /tmp/ghadir-deep/mysql-server-report.json
