@@ -56,6 +56,35 @@ jobs:
               }
               $checks[$code]=['exists'=>true,'rows'=>count($rows),'free'=>$plainFree,'would_be_wholesale_free'=>$wouldWholesale];
             }
+            // Run the exact warehouse initialization in memory only.
+            $dry=$s;
+            if(!isset($dry['warehouses'])||!is_array($dry['warehouses'])||count($dry['warehouses'])<2)$dry['warehouses']=[
+              ['id'=>1,'code'=>'WHOLESALE','name'=>'انبار عمده','active'=>true],
+              ['id'=>2,'code'=>'TEHRANPARS_RETAIL','name'=>'انبار خرده تهرانپارس','active'=>true]
+            ];
+            if(!isset($dry['warehouse_movements'])||!is_array($dry['warehouse_movements']))$dry['warehouse_movements']=[];
+            if(!isset($dry['next_warehouse_movement'])){$mx=0;foreach($dry['warehouse_movements'] as $x)$mx=max($mx,(int)($x['id']??0));$dry['next_warehouse_movement']=$mx+1;}
+            foreach($dry['inventory']??[] as &$iv){
+              if(!array_key_exists('warehouse_id',$iv)){
+                $oid=(int)($iv['order_id']??0);
+                $out=$oid<0||($oid>0&&in_array($status[$oid]??'',['ارسال شد','تحویل شد'],true));
+                $iv['warehouse_id']=$out?0:1;
+              }else $iv['warehouse_id']=(int)$iv['warehouse_id'];
+            }unset($iv);
+            foreach($dry['cartons']??[] as &$ct){
+              if(!array_key_exists('warehouse_id',$ct)){
+                $ids=[];foreach($dry['inventory']??[] as $iv)if((int)($iv['carton_id']??0)===(int)($ct['id']??0)&&(int)($iv['warehouse_id']??0)>0)$ids[(int)$iv['warehouse_id']]=1;
+                $ct['warehouse_id']=count($ids)===1?(int)array_key_first($ids):(count($ids)>1?0:1);
+              }else $ct['warehouse_id']=(int)$ct['warehouse_id'];
+            }unset($ct);
+            if(empty($dry['warehouse_activated_at']))$dry['warehouse_activated_at']=date('Y-m-d H:i:s');
+            if(!isset($dry['warehouse_baseline'])||!is_array($dry['warehouse_baseline'])){
+              $counts=[];foreach($dry['inventory']??[] as $iv){$wid=(int)($iv['warehouse_id']??0);if($wid<1)continue;$p=(string)($iv['product']??'نامشخص');$k=$wid.'|'.$p;if(!isset($counts[$k]))$counts[$k]=['warehouse_id'=>$wid,'product'=>$p,'qty'=>0];$counts[$k]['qty']++;}$dry['warehouse_baseline']=array_values($counts);
+            }
+            $dryEncoded=json_encode($dry,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            if($dryEncoded===false)throw new RuntimeException('dry_encode_failed: '.json_last_error_msg());
+            $dryCounts=['inventory'=>count($dry['inventory']??[]),'cartons'=>count($dry['cartons']??[]),'orders'=>count($dry['orders']??[]),'customers'=>count($dry['customers']??[])];
+
             $backupDir=__DIR__.'/storage/Backups';
             $probe=$backupDir.'/.__wh_write_probe_'.bin2hex(random_bytes(4));
             $backupWritable=@file_put_contents($probe,'ok',LOCK_EX)!==false;
@@ -70,6 +99,10 @@ jobs:
               'warehouse_count'=>is_array($s['warehouses']??null)?count($s['warehouses']):0,
               'has_baseline'=>isset($s['warehouse_baseline'])&&is_array($s['warehouse_baseline']),
               'backup_writable'=>$backupWritable,
+              'dry_counts'=>$dryCounts,
+              'dry_bytes'=>strlen($dryEncoded),
+              'dry_warehouses'=>count($dry['warehouses']??[]),
+              'dry_baseline_rows'=>count($dry['warehouse_baseline']??[]),
               'targets'=>$checks
             ],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
           }catch(Throwable $e){
