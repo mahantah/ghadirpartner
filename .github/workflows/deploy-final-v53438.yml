@@ -207,7 +207,6 @@ jobs:
           put index.php -o /index.php
           put app.html -o /app.html
           put partners/index.php -o /partners/index.php
-          mkdir -p /lib
           put lib/storage.php -o /lib/storage.php
           bye
           EOF
