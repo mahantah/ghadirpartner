@@ -1,0 +1,199 @@
+name: Diagnose Inventory and MySQL Safely
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-inventory-mysql-diagnose.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp jq php-cli
+
+      - name: Download live data and config
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/ghadir-diag
+          mkdir -p /tmp/ghadir-diag
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /storage/ghadir_data.json -o /tmp/ghadir-diag/ghadir_data.json
+          get /config.php -o /tmp/ghadir-diag/config.php
+          cls -1 / > /tmp/ghadir-diag/root-listing.txt
+          bye
+          EOF
+          test -s /tmp/ghadir-diag/ghadir_data.json
+          php -l /tmp/ghadir-diag/config.php
+
+      - name: Create immutable pre-migration backup on server
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TS="$(date -u +%Y%m%d-%H%M%S)"
+          BACKUP="/storage/Backups/pre-mysql-${TS}-ghadir_data.json"
+          sha256sum /tmp/ghadir-diag/ghadir_data.json > /tmp/ghadir-diag/pre-migration-sha256.txt
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mkdir -p /storage/Backups
+          put /tmp/ghadir-diag/ghadir_data.json -o "$BACKUP"
+          bye
+          EOF
+          echo "$BACKUP" > /tmp/ghadir-diag/backup-path.txt
+
+      - name: Inspect config capabilities without exposing secrets
+        shell: bash
+        run: |
+          php <<'PHP' > /tmp/ghadir-diag/config-report.json
+          <?php
+          $cfg=require '/tmp/ghadir-diag/config.php';
+          $out=['top_level_keys'=>array_keys($cfg),'storage_driver'=>$cfg['storage_driver']??null,'mysql_like_keys'=>[]];
+          $walk=function($a,$prefix='') use (&$walk,&$out){
+            if(!is_array($a)) return;
+            foreach($a as $k=>$v){
+              $path=$prefix===''?(string)$k:$prefix.'.'.$k;
+              if(preg_match('/mysql|database|db_|dsn|host|user|pass|port/i',(string)$k)){
+                $out['mysql_like_keys'][]=['key'=>$path,'configured'=>is_scalar($v)&&trim((string)$v)!==''||is_array($v)&&count($v)>0];
+              }
+              if(is_array($v))$walk($v,$path);
+            }
+          };
+          $walk($cfg);
+          echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          PHP
+
+      - name: Diagnose I90 cartons and historical assignments
+        shell: bash
+        run: |
+          python3 <<'PY'
+          import json,re,collections,hashlib
+          from pathlib import Path
+          p=Path('/tmp/ghadir-diag/ghadir_data.json')
+          data=json.loads(p.read_text())
+          targets={97,98,99,100,101,102,103,109,110,111,112,113,114,115,116,123,124,125}
+          cartons=data.get('cartons') or []
+          inv=data.get('inventory') or []
+          orders=data.get('orders') or []
+          customers=data.get('customers') or []
+          order_by_id={int(o.get('id') or 0):o for o in orders}
+          customer_by_id={int(c.get('id') or 0):c for c in customers}
+
+          def trailing_num(v):
+              s=str(v or '')
+              m=re.search(r'(\d+)\s*$',s)
+              return int(m.group(1)) if m else None
+          def is_i90(s):
+              s=str(s or '').upper().replace(' ','')
+              return 'I90' in s or 'I-90' in s
+
+          matched=[]
+          for c in cartons:
+              cid=int(c.get('id') or 0)
+              code=c.get('code') or ''
+              num=trailing_num(code)
+              if not is_i90(c.get('product')): continue
+              if cid not in targets and num not in targets: continue
+              items=[x for x in inv if int(x.get('carton_id') or 0)==cid or (code and str(x.get('carton_code') or '')==str(code))]
+              assigned=[x for x in items if int(x.get('order_id') or 0)>0]
+              free=[x for x in items if int(x.get('order_id') or 0)==0]
+              order_ids=sorted({int(x.get('order_id') or 0) for x in assigned if int(x.get('order_id') or 0)>0})
+              order_info=[]
+              for oid in order_ids:
+                  o=order_by_id.get(oid)
+                  if not o:
+                      order_info.append({'id':oid,'missing':True})
+                      continue
+                  cust=customer_by_id.get(int(o.get('customer_id') or 0),{})
+                  text=' '.join(map(str,[o.get('number',''),o.get('customer_name',''),cust.get('name',''),cust.get('company','')]))
+                  hist=[h for h in (o.get('history') or []) if 'خروج تاریخی' in str(h.get('action',''))]
+                  order_info.append({
+                      'id':oid,'number':o.get('number'),'status':o.get('status'),
+                      'payment_status':o.get('payment_status'),'customer_name':o.get('customer_name'),
+                      'historical_text':('خروج تاریخی' in text),'historical_history_count':len(hist),
+                      'created_at':o.get('created_at'),'updated_at':o.get('updated_at')
+                  })
+              matched.append({
+                  'carton_id':cid,'code':code,'product':c.get('product'),
+                  'capacity':c.get('capacity'),'carton_serial_count':len(c.get('serials') or []),
+                  'inventory_count':len(items),'free_count':len(free),'assigned_count':len(assigned),
+                  'assigned_order_ids':order_ids,'orders':order_info
+              })
+
+          historical_orders=[]
+          for o in orders:
+              cust=customer_by_id.get(int(o.get('customer_id') or 0),{})
+              text=' '.join(map(str,[o.get('number',''),o.get('customer_name',''),cust.get('name',''),cust.get('company',''),o.get('notes','')]))
+              hist=[h for h in (o.get('history') or []) if 'خروج تاریخی' in str(h.get('action',''))]
+              if 'خروج تاریخی' in text or hist:
+                  historical_orders.append({
+                      'id':o.get('id'),'number':o.get('number'),'status':o.get('status'),
+                      'customer_name':o.get('customer_name'),'items':len(o.get('items') or []),
+                      'history_hits':len(hist),'created_at':o.get('created_at'),'updated_at':o.get('updated_at')
+                  })
+
+          serial_counts=collections.Counter(str(x.get('serial') or '').strip().upper() for x in inv if str(x.get('serial') or '').strip())
+          duplicates=[s for s,n in serial_counts.items() if n>1]
+          orphan_assign=[x for x in inv if int(x.get('order_id') or 0)>0 and int(x.get('order_id') or 0) not in order_by_id]
+          carton_ids={int(c.get('id') or 0) for c in cartons}
+          bad_carton_ref=[x for x in inv if int(x.get('carton_id') or 0)>0 and int(x.get('carton_id') or 0) not in carton_ids]
+
+          report={
+              'counts':{'customers':len(customers),'orders':len(orders),'inventory':len(inv),'cartons':len(cartons)},
+              'target_requested':sorted(targets),
+              'target_matched_count':len(matched),
+              'target_cartons':matched,
+              'historical_orders':historical_orders,
+              'integrity':{
+                  'duplicate_serial_values':len(duplicates),
+                  'orphan_assigned_inventory':len(orphan_assign),
+                  'inventory_with_missing_carton':len(bad_carton_ref)
+              },
+              'state_sha256':hashlib.sha256(p.read_bytes()).hexdigest()
+          }
+          Path('/tmp/ghadir-diag/inventory-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Package diagnostic report only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghadir-inventory-mysql-diagnostic
+          retention-days: 3
+          path: |
+            /tmp/ghadir-diag/inventory-report.json
+            /tmp/ghadir-diag/config-report.json
+            /tmp/ghadir-diag/backup-path.txt
+            /tmp/ghadir-diag/pre-migration-sha256.txt
