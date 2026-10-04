@@ -50,17 +50,20 @@ jobs:
           foreach($s['cartons']??[] as $c){
             $p=strtoupper(str_replace(' ','',(string)($c['product']??'')));
             if(strpos($p,'I90')===false)continue;
-            $box=(int)($c['manufacturer_box_no']??0);
+            $boxRaw=(string)($c['manufacturer_box_no']??$c['code']??'');
+            $box=0;if(preg_match('/(\\d+)$/',$boxRaw,$mm))$box=(int)$mm[1];
             if(!isset($targets[$box]))continue;
             $cid=(int)($c['id']??0);$code=(string)($c['code']??'');
             $items=[];foreach($s['inventory']??[] as $iv){
               if((int)($iv['carton_id']??0)===$cid || ($code!==''&&(string)($iv['carton_code']??'')===$code))$items[]=$iv;
             }
-            $assigned=array_values(array_filter($items,fn($x)=>(int)($x['order_id']??0)>0));
-            $free=array_values(array_filter($items,fn($x)=>(int)($x['order_id']??0)===0));
+            $historical=array_values(array_filter($items,fn($x)=>(string)($x['order_number']??'')==='خروج تاریخی'));
+            $assigned=array_values(array_filter($items,fn($x)=>(int)($x['order_id']??0)>0&&(string)($x['order_number']??'')!=='خروج تاریخی'));
+            $free=array_values(array_filter($items,fn($x)=>(int)($x['order_id']??0)===0&&(string)($x['order_number']??'')!=='خروج تاریخی'));
+            $histOrderIds=array_values(array_unique(array_map(fn($x)=>(int)($x['order_id']??0),$historical)));
             $oids=[];foreach($assigned as $iv)$oids[(int)$iv['order_id']]=true;
             $oi=[];foreach(array_keys($oids) as $oid){$o=$orders[$oid]??null;if(!$o){$oi[]=['id'=>$oid,'missing'=>true];continue;}$blob=json_encode($o,JSON_UNESCAPED_UNICODE);$oi[]=['id'=>$oid,'number'=>$o['number']??'','customer_name'=>$o['customer_name']??'','status'=>$o['status']??'','created_by'=>$o['created_by']??'','created_at'=>$o['created_at']??'','updated_at'=>$o['updated_at']??'','is_historical'=>strpos($blob,'خروج تاریخی')!==false];}
-            $out['targets'][]=['manufacturer_box_no'=>$box,'carton_id'=>$cid,'code'=>$code,'product'=>$c['product']??'','capacity'=>$c['capacity']??null,'carton_serial_count'=>count($c['serials']??[]),'inventory_count'=>count($items),'free_count'=>count($free),'assigned_count'=>count($assigned),'orders'=>$oi];
+            $out['targets'][]=['manufacturer_box_no'=>$box,'carton_id'=>$cid,'code'=>$code,'product'=>$c['product']??'','capacity'=>$c['capacity']??null,'carton_serial_count'=>count($c['serials']??[]),'inventory_count'=>count($items),'free_count'=>count($free),'historical_count'=>count($historical),'historical_order_ids'=>$histOrderIds,'assigned_count'=>count($assigned),'orders'=>$oi];
           }
           usort($out['targets'],fn($a,$b)=>$a['manufacturer_box_no']<=>$b['manufacturer_box_no']);
           echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
