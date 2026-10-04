@@ -1,0 +1,40 @@
+name: Compare Exact V5.3.4.38 Base
+
+on:
+  push:
+    branches:
+      - verify-exact-v53438-base-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Extract exact V5.3.4.38 final base
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE.zip"
+          test -f "$ZIP"
+          rm -rf /tmp/base
+          mkdir -p /tmp/base
+          unzip -q "$ZIP" -d /tmp/base
+          ROOT="$(find /tmp/base -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+          if [[ -z "$ROOT" || ! -f "$ROOT/index.php" ]]; then ROOT=/tmp/base; fi
+          echo "BASE_VERSION:"
+          cat "$ROOT/VERSION.txt" || true
+          echo "CURRENT_VERSION:"
+          cat VERSION.txt || true
+          for f in index.php app.html partners/index.php; do
+            echo "===== $f ====="
+            wc -l "$ROOT/$f" "$f"
+            diff -U0 "$ROOT/$f" "$f" | grep -E '^[+-][^+-]' | wc -l || true
+          done
+          echo "KEYS IN BASE:"
+          grep -q "/api/order/return" "$ROOT/index.php" && echo "return=yes" || echo "return=no"
+          grep -q "warehouseDaily" "$ROOT/app.html" && echo "daily=yes" || echo "daily=no"
+          grep -q "sessionLifetime=86400" "$ROOT/index.php" && echo "24h=yes" || echo "24h=no"
+          grep -q "میلیارد تومان" "$ROOT/app.html" && echo "toman=yes" || echo "toman=no"
