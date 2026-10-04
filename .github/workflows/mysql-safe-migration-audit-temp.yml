@@ -106,11 +106,48 @@ jobs:
               'username':bool(re.search(r"['\"]username['\"]\s*=>\s*['\"][^'\"]+['\"]",cfg)),
               'password_key':bool(re.search(r"['\"]password['\"]\s*=>",cfg)),
           }
+          # Expanded audit: match target numbers against carton id/code/manufacturer box no,
+          # and locate any synthetic/legacy "خروج تاریخی" ownership without exposing serial values.
+          expanded=[]
+          for c in cartons:
+              fields=[str(c.get('id','')),str(c.get('code','')),str(c.get('manufacturer_box_no',''))]
+              nums=set()
+              for v in fields:
+                  nums.update(int(x) for x in re.findall(r'\\d+',v))
+              if not (nums & wanted): continue
+              cid=int(c.get('id',0) or 0); code=str(c.get('code',''))
+              items=[x for x in inv if int(x.get('carton_id',0) or 0)==cid or str(x.get('carton_code',''))==code]
+              oids=sorted({int(x.get('order_id',0) or 0) for x in items if int(x.get('order_id',0) or 0)>0})
+              owners=[]
+              for oid in oids:
+                  o=order_by_id.get(oid,{})
+                  owners.append({'order_id':oid,'number':o.get('number',''),'customer_name':o.get('customer_name',''),'status':o.get('status','MISSING')})
+              expanded.append({
+                  'carton_id':cid,'code':code,'manufacturer_box_no':str(c.get('manufacturer_box_no','')),
+                  'product':str(c.get('product','')),'serial_count':len(c.get('serials') or []),
+                  'inventory_rows':len(items),'free':sum(1 for x in items if not int(x.get('order_id',0) or 0)),
+                  'assigned':sum(1 for x in items if int(x.get('order_id',0) or 0)>0),'owners':owners
+              })
+          historical_orders=[]
+          for o in orders:
+              blob=' '.join([str(o.get('number','')),str(o.get('customer_name','')),str(o.get('notes',''))]+[str(h.get('action','')) for h in (o.get('history') or [])])
+              if 'خروج تاریخی' in blob:
+                  historical_orders.append({'id':o.get('id'),'number':o.get('number'),'customer_name':o.get('customer_name'),'status':o.get('status'),'items':[(it.get('product'),it.get('qty'),len(it.get('serials') or [])) for it in (o.get('items') or [])]})
+          historical_customers=[{'id':x.get('id'),'name':x.get('name'),'code':x.get('code'),'company':x.get('company')} for x in s.get('customers',[]) if 'خروج تاریخی' in ' '.join(map(str,[x.get('name',''),x.get('code',''),x.get('company',''),x.get('notes','')]))]
+          historical_inv_count=0
+          historical_by_product={}
+          hist_order_ids={int(x.get('id',0) or 0) for x in orders if 'خروج تاریخی' in ' '.join([str(x.get('number','')),str(x.get('customer_name','')),str(x.get('notes',''))]+[str(h.get('action','')) for h in (x.get('history') or [])])}
+          for x in inv:
+              if int(x.get('order_id',0) or 0) in hist_order_ids or 'خروج تاریخی' in ' '.join(map(str,[x.get('order_number',''),x.get('added_by','')])):
+                  historical_inv_count+=1
+                  p=str(x.get('product',''));historical_by_product[p]=historical_by_product.get(p,0)+1
           report={
               'state_sha256':hashlib.sha256(Path('/tmp/ghadir-audit/ghadir_data.json').read_bytes()).hexdigest(),
               'counts':{k:len(s.get(k,[])) if isinstance(s.get(k),list) else None for k in ['users','customers','orders','inventory','cartons','products']},
               'mysql_config_presence':mysql_keys,
-              'i90_target_cartons':rows
+              'i90_target_cartons':rows,
+              'target_number_matches':expanded,
+              'historical_exit':{'orders':historical_orders,'customers':historical_customers,'inventory_count':historical_inv_count,'by_product':historical_by_product}
           }
           Path('/tmp/ghadir-audit/audit-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
           print(json.dumps(report,ensure_ascii=False,indent=2))
