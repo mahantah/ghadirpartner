@@ -1,0 +1,189 @@
+<?php
+declare(strict_types=1);
+
+/*
+ * Ghadir Partner storage adapter.
+ * Production is MySQL-only; never fall back to legacy JSON.
+ * MySQL mode stores the canonical state transactionally in InnoDB.
+ */
+
+function ghadir_storage_driver(): string {
+    global $cfg;
+    $d = strtolower(trim((string)($cfg['storage_driver'] ?? 'mysql')));
+    if ($d !== 'mysql') fail('این نسخه فقط با MySQL اجرا می‌شود؛ تنظیم storage_driver را بررسی کنید', 503);
+    return 'mysql';
+}
+
+function ghadir_state_prepare(array &$s): void {
+    foreach (init_state() as $k => $v) if (!array_key_exists($k, $s)) $s[$k] = $v;
+    foreach (['sms_outbox','payment_transactions','registration_requests','password_reset_requests','staff_password_reset_requests','special_offers','offer_usages'] as $k) {
+        if (!isset($s[$k]) || !is_array($s[$k])) $s[$k] = [];
+    }
+    foreach (['next_registration','next_password_reset','next_staff_password_reset','next_offer'] as $k) {
+        if (!isset($s[$k])) $s[$k] = 1;
+    }
+    if (function_exists('normalize_state_users')) normalize_state_users($s);
+    if (isset($s['orders']) && is_array($s['orders'])) {
+        foreach ($s['orders'] as &$o) if (($o['payment_status'] ?? '') === 'پرداخت جزئی') $o['payment_status'] = 'بیعانه';
+        unset($o);
+    }
+}
+
+function ghadir_json_decode_state(string $raw): array {
+    if ($raw === '') return init_state();
+    $s = json_decode($raw, true);
+    if (!is_array($s)) fail('فایل داده نامعتبر است؛ برای جلوگیری از حذف اطلاعات، نوشتن متوقف شد و باید از بکاپ بازیابی شود', 500);
+    ghadir_state_prepare($s);
+    return $s;
+}
+
+function ghadir_json_db(bool $write, callable $fn) {
+    global $file;
+    $h = fopen($file, 'c+');
+    if (!$h) fail('پوشه storage قابل نوشتن نیست', 500);
+    if (!flock($h, $write ? LOCK_EX : LOCK_SH)) { fclose($h); fail('قفل داده قابل دریافت نیست', 503); }
+    rewind($h);
+    $raw = (string)stream_get_contents($h);
+    $s = ghadir_json_decode_state($raw);
+    $r = $fn($s);
+    if ($write) {
+        $encoded = json_encode($s, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($encoded === false) { flock($h, LOCK_UN); fclose($h); fail('رمزگذاری داده ناموفق بود', 500); }
+        rewind($h); ftruncate($h, 0);
+        $written = fwrite($h, $encoded);
+        if ($written === false || $written < strlen($encoded)) { flock($h, LOCK_UN); fclose($h); fail('نوشتن داده کامل نشد', 500); }
+        fflush($h);
+        if (function_exists('fsync')) @fsync($h);
+    }
+    flock($h, LOCK_UN); fclose($h);
+    return $r;
+}
+
+function ghadir_mysql_cfg(): array {
+    global $cfg;
+    $m = is_array($cfg['mysql'] ?? null) ? $cfg['mysql'] : [];
+    return array_merge([
+        'host' => 'localhost', 'port' => 3306, 'database' => '', 'username' => '', 'password' => '', 'charset' => 'utf8mb4',
+        'auto_migrate_from_json' => false,
+    ], $m);
+}
+
+function ghadir_mysql_pdo(): PDO {
+    static $pdo = null;
+    if ($pdo instanceof PDO) return $pdo;
+    if (!extension_loaded('pdo_mysql')) fail('افزونه pdo_mysql روی هاست فعال نیست', 500);
+    $m = ghadir_mysql_cfg();
+    foreach (['database','username'] as $k) if (trim((string)$m[$k]) === '') fail('تنظیمات MySQL در config.php کامل نیست', 503);
+    $dsn = 'mysql:host=' . $m['host'] . ';port=' . (int)$m['port'] . ';dbname=' . $m['database'] . ';charset=' . $m['charset'];
+    try {
+        $pdo = new PDO($dsn, (string)$m['username'], (string)$m['password'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_TIMEOUT => 5,
+        ]);
+        $pdo->exec("SET time_zone = '+03:30'");
+    } catch (Throwable $e) {
+        fail('اتصال MySQL برقرار نشد. تنظیمات config.php را بررسی کنید.', 503);
+    }
+    return $pdo;
+}
+
+function ghadir_mysql_ensure_schema(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ghadir_state (
+        id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+        state_json LONGTEXT NOT NULL,
+        revision BIGINT UNSIGNED NOT NULL DEFAULT 1,
+        checksum CHAR(64) NOT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ghadir_state_audit (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        revision BIGINT UNSIGNED NOT NULL,
+        checksum CHAR(64) NOT NULL,
+        bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_revision (revision), INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function ghadir_state_counts(array $s): array {
+    $keys = ['users','customers','orders','inventory','cartons','products','notifications','sms_outbox','payment_transactions'];
+    $out = [];
+    foreach ($keys as $k) $out[$k] = isset($s[$k]) && is_array($s[$k]) ? count($s[$k]) : 0;
+    return $out;
+}
+
+function ghadir_mysql_bootstrap(PDO $pdo): void {
+    ghadir_mysql_ensure_schema($pdo);
+    $exists = (int)$pdo->query('SELECT COUNT(*) FROM ghadir_state WHERE id=1')->fetchColumn();
+    if ($exists > 0) return;
+    fail('داده اصلی MySQL پیدا نشد؛ برای حفاظت از اطلاعات، بازیابی خودکار JSON متوقف است', 503);
+}
+
+function ghadir_mysql_db(bool $write, callable $fn) {
+    static $readCache = null;
+    $pdo = ghadir_mysql_pdo();
+    ghadir_mysql_bootstrap($pdo);
+    try {
+        if (!$write && is_array($readCache)) {
+            $s = $readCache;
+            if (isset($s['products']) && is_array($s['products'])) $GLOBALS['PRODUCTS'] = $s['products'];
+            return $fn($s);
+        }
+        if ($write) $pdo->beginTransaction();
+        $sql = 'SELECT state_json,revision FROM ghadir_state WHERE id=1' . ($write ? ' FOR UPDATE' : '');
+        $row = $pdo->query($sql)->fetch();
+        if (!$row) throw new RuntimeException('state missing');
+        $s = json_decode((string)$row['state_json'], true);
+        if (!is_array($s)) throw new RuntimeException('state invalid');
+        ghadir_state_prepare($s);
+        if (isset($s['products']) && is_array($s['products'])) $GLOBALS['PRODUCTS'] = $s['products'];
+        if (!$write) $readCache = $s;
+        $r = $fn($s);
+        if ($write) {
+            $encoded = json_encode($s, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+            if ($encoded === false) throw new RuntimeException('encode failed');
+            $checksum = hash('sha256', $encoded);
+            $revision = (int)$row['revision'] + 1;
+            $st = $pdo->prepare('UPDATE ghadir_state SET state_json=?, revision=?, checksum=?, updated_at=NOW() WHERE id=1');
+            $st->execute([$encoded, $revision, $checksum]);
+            $st = $pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+            $st->execute([$revision, $checksum, strlen($encoded)]);
+            $pdo->commit();
+            $readCache = $s;
+            if (isset($s['products']) && is_array($s['products'])) $GLOBALS['PRODUCTS'] = $s['products'];
+        }
+        return $r;
+    } catch (Throwable $e) {
+        if ($write && $pdo->inTransaction()) $pdo->rollBack();
+        fail('خطای تراکنش MySQL؛ هیچ تغییر ناقصی ذخیره نشد', 500);
+    }
+}
+
+function ghadir_db(bool $write, callable $fn) {
+    ghadir_storage_driver();
+    return ghadir_mysql_db($write, $fn);
+}
+
+function ghadir_backup_snapshot(): string {
+    global $backups;
+    @mkdir($backups, 0750, true);
+    $to = $backups . '/ghadir-backup-' . date('Ymd-His') . '.json';
+    $state = ghadir_db(false, fn($s) => $s);
+    $raw = json_encode($state, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($raw === false || @file_put_contents($to, $raw, LOCK_EX) === false) fail('ساخت بکاپ ممکن نشد', 500);
+    return 'storage/Backups/' . basename($to);
+}
+
+function ghadir_storage_info(): array {
+    global $dir;
+    $info = ['driver' => ghadir_storage_driver(), 'mysql_migrated' => is_file($dir . '/.mysql-migrated.json')];
+    if ($info['driver'] === 'mysql') {
+        $pdo = ghadir_mysql_pdo();
+        ghadir_mysql_bootstrap($pdo);
+        $row = $pdo->query('SELECT revision,checksum,updated_at,LENGTH(state_json) bytes FROM ghadir_state WHERE id=1')->fetch();
+        $info['mysql'] = $row ?: null;
+    }
+    return $info;
+}
