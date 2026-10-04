@@ -1,0 +1,131 @@
+name: Seed Live MySQL From JSON Safely
+
+on:
+  push:
+    branches:
+      - mysql-safe-migration-seed-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl php-cli
+
+      - name: Upload one-time migration endpoint and seed
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_mysql_seed_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          declare(strict_types=1);
+          header('Content-Type: application/json; charset=utf-8');
+          $expected='__TOKEN__';
+          if (!hash_equals($expected,(string)($_GET['token']??''))) { http_response_code(403); echo json_encode(['ok'=>false]); exit; }
+          $cfg=require __DIR__.'/config.php';
+          $json=__DIR__.'/storage/ghadir_data.json';
+          $raw=@file_get_contents($json);
+          $state=json_decode((string)$raw,true);
+          if(!is_array($state)){http_response_code(500);echo json_encode(['ok'=>false,'stage'=>'json']);exit;}
+          $m=is_array($cfg['mysql']??null)?$cfg['mysql']:[];
+          $driver=strtolower(trim((string)($cfg['storage_driver']??'')));
+          try{
+            if(!extension_loaded('pdo_mysql')) throw new RuntimeException('pdo_mysql_missing');
+            foreach(['database','username'] as $k) if(trim((string)($m[$k]??''))==='') throw new RuntimeException('mysql_config_incomplete');
+            $host=(string)($m['host']??'localhost');$port=(int)($m['port']??3306);$charset=(string)($m['charset']??'utf8mb4');
+            $pdo=new PDO("mysql:host=$host;port=$port;dbname=".$m['database'].";charset=$charset",(string)$m['username'],(string)($m['password']??''),[
+              PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+              PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+              PDO::ATTR_EMULATE_PREPARES=>false
+            ]);
+            $pdo->exec("CREATE TABLE IF NOT EXISTS ghadir_state (
+              id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+              state_json LONGTEXT NOT NULL,
+              revision BIGINT UNSIGNED NOT NULL DEFAULT 1,
+              checksum CHAR(64) NOT NULL,
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            $pdo->exec("CREATE TABLE IF NOT EXISTS ghadir_state_audit (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+              revision BIGINT UNSIGNED NOT NULL,
+              checksum CHAR(64) NOT NULL,
+              bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_revision (revision), INDEX idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            $encoded=json_encode($state,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            if($encoded===false) throw new RuntimeException('encode_failed');
+            $checksum=hash('sha256',$encoded);
+            $existing=$pdo->query("SELECT state_json,revision,checksum FROM ghadir_state WHERE id=1")->fetch();
+            $action='';
+            if(!$existing){
+              $pdo->beginTransaction();
+              $st=$pdo->prepare("INSERT INTO ghadir_state (id,state_json,revision,checksum) VALUES (1,?,1,?)");
+              $st->execute([$encoded,$checksum]);
+              $pdo->prepare("INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (1,?,?)")->execute([$checksum,strlen($encoded)]);
+              $pdo->commit();$action='inserted';
+            }else{
+              $mysqlState=json_decode((string)$existing['state_json'],true);
+              $mysqlEncoded=json_encode($mysqlState,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+              $mysqlChecksum=hash('sha256',(string)$mysqlEncoded);
+              if($mysqlChecksum!==$checksum){
+                echo json_encode(['ok'=>false,'stage'=>'existing_mysql_differs','driver'=>$driver,
+                  'json_counts'=>['inventory'=>count($state['inventory']??[]),'cartons'=>count($state['cartons']??[]),'orders'=>count($state['orders']??[])],
+                  'mysql_counts'=>['inventory'=>count($mysqlState['inventory']??[]),'cartons'=>count($mysqlState['cartons']??[]),'orders'=>count($mysqlState['orders']??[])]],JSON_UNESCAPED_UNICODE);
+                exit;
+              }
+              $action='already_identical';
+            }
+            $row=$pdo->query("SELECT state_json,revision,checksum,LENGTH(state_json) bytes FROM ghadir_state WHERE id=1")->fetch();
+            $verify=json_decode((string)$row['state_json'],true);
+            echo json_encode(['ok'=>true,'action'=>$action,'driver'=>$driver,'pdo_mysql'=>true,
+              'counts'=>['users'=>count($verify['users']??[]),'customers'=>count($verify['customers']??[]),'orders'=>count($verify['orders']??[]),'inventory'=>count($verify['inventory']??[]),'cartons'=>count($verify['cartons']??[]),'products'=>count($verify['products']??[])],
+              'checksum_match'=>hash('sha256',json_encode($verify,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE))===$checksum,
+              'revision'=>(int)$row['revision'],'bytes'=>(int)$row['bytes']],JSON_UNESCAPED_UNICODE);
+          }catch(Throwable $e){
+            if(isset($pdo)&&$pdo instanceof PDO&&$pdo->inTransaction())$pdo->rollBack();
+            http_response_code(500);echo json_encode(['ok'=>false,'stage'=>'mysql','error'=>$e->getMessage(),'driver'=>$driver],JSON_UNESCAPED_UNICODE);
+          }
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE"
+          s=open(p).read().replace('__TOKEN__',"$TOKEN")
+          open(p,'w').write(s)
+          PY
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          RESP="$(curl -fsS --retry 3 --retry-delay 2 --max-time 30 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true); if(!is_array($x)){exit(2);} echo json_encode($x,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT),"\n"; if(empty($x["ok"])||empty($x["checksum_match"]))exit(3);'
