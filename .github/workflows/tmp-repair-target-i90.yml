@@ -1,0 +1,185 @@
+name: Backup and Repair Target I90 Historical Allocation
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-repair-target-i90.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp jq curl
+
+      - name: Backup canonical MySQL state and repair only target legacy allocations
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/i90repair
+          TOKEN="$(openssl rand -hex 24)"
+          cat > /tmp/i90repair/__ghadir_i90_repair.php <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['k']??''))){http_response_code(404);exit;}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          $pdo=new PDO(
+            'mysql:host='.($m['host']??'localhost').';port='.($m['port']??3306).';dbname='.($m['database']??'').';charset=utf8mb4',
+            (string)($m['username']??''),(string)($m['password']??''),
+            [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]
+          );
+          $targets=array_flip(['I90-097','I90-098','I90-099','I90-100','I90-101','I90-102','I90-103','I90-109','I90-110','I90-111','I90-112','I90-113','I90-114','I90-115','I90-116','I90-123','I90-124','I90-125']);
+          $pdo->beginTransaction();
+          try{
+            $row=$pdo->query('SELECT state_json,revision,checksum FROM ghadir_state WHERE id=1 FOR UPDATE')->fetch();
+            if(!$row)throw new RuntimeException('state missing');
+            $s=json_decode((string)$row['state_json'],true);
+            if(!is_array($s))throw new RuntimeException('state invalid');
+
+            $cartonIds=[];$cartonCodes=[];$boxSerialTotal=0;
+            foreach($s['cartons']??[] as $c){
+              $p=strtoupper(str_replace(' ','',(string)($c['product']??'')));
+              if(strpos($p,'I90')===false)continue;
+              $box=(string)($c['manufacturer_box_no']??$c['code']??'');
+              if(isset($targets[$box])){
+                $cartonIds[(int)($c['id']??0)]=$box;
+                $cartonCodes[(string)($c['code']??'')]=$box;
+                $boxSerialTotal+=count($c['serials']??[]);
+              }
+            }
+            if(count($cartonIds)!==18)throw new RuntimeException('target carton count mismatch');
+            if($boxSerialTotal!==360)throw new RuntimeException('target carton serial total mismatch');
+
+            $targetRows=0;$historical=0;$realAssigned=0;$unexpectedLegacy=0;
+            foreach($s['inventory']??[] as $iv){
+              $cid=(int)($iv['carton_id']??0);$cc=(string)($iv['carton_code']??'');
+              if(!isset($cartonIds[$cid])&&!isset($cartonCodes[$cc]))continue;
+              $targetRows++;
+              $oid=(int)($iv['order_id']??0);$on=(string)($iv['order_number']??'');
+              if($oid>0)$realAssigned++;
+              elseif($oid===-39&&$on==='خروج تاریخی')$historical++;
+              elseif($oid!==0||$on==='خروج تاریخی')$unexpectedLegacy++;
+            }
+            if($targetRows!==360)throw new RuntimeException('target inventory count mismatch');
+            if($realAssigned!==0)throw new RuntimeException('real order assignment detected; aborting');
+            if($unexpectedLegacy!==0)throw new RuntimeException('unexpected legacy assignment detected; aborting');
+
+            $backupDir=__DIR__.'/storage/Backups';
+            if(!is_dir($backupDir)&&!mkdir($backupDir,0750,true))throw new RuntimeException('backup directory unavailable');
+            $stamp=date('Ymd-His');
+            $backupName='pre-i90-mysql-repair-rev'.(int)$row['revision'].'-'.$stamp.'.json';
+            $backupPath=$backupDir.'/'.$backupName;
+            if(file_put_contents($backupPath,(string)$row['state_json'],LOCK_EX)===false)throw new RuntimeException('backup write failed');
+            $backupHash=hash_file('sha256',$backupPath);
+
+            $changed=0;$now=date('Y-m-d H:i:s');
+            foreach($s['inventory'] as &$iv){
+              $cid=(int)($iv['carton_id']??0);$cc=(string)($iv['carton_code']??'');
+              if(!isset($cartonIds[$cid])&&!isset($cartonCodes[$cc]))continue;
+              if((int)($iv['order_id']??0)===-39&&(string)($iv['order_number']??'')==='خروج تاریخی'){
+                $iv['legacy_order_id']=-39;
+                $iv['legacy_order_number']='خروج تاریخی';
+                $iv['legacy_recovered_at']=$now;
+                $iv['order_id']=0;
+                $iv['order_number']='';
+                $changed++;
+              }
+            }
+            unset($iv);
+            if($changed!==$historical)throw new RuntimeException('changed count mismatch');
+
+            $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            if($encoded===false)throw new RuntimeException('encode failed');
+            $newRevision=(int)$row['revision']+1;$checksum=hash('sha256',$encoded);
+            $st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+            $st->execute([$encoded,$newRevision,$checksum]);
+            $st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+            $st->execute([$newRevision,$checksum,strlen($encoded)]);
+            $pdo->commit();
+
+            $verify=json_decode((string)$pdo->query('SELECT state_json FROM ghadir_state WHERE id=1')->fetchColumn(),true);
+            $free=0;$histAfter=0;$realAfter=0;$rowsAfter=0;
+            $verifyIds=[];$verifyCodes=[];
+            foreach($verify['cartons']??[] as $c){
+              $p=strtoupper(str_replace(' ','',(string)($c['product']??'')));
+              $box=(string)($c['manufacturer_box_no']??$c['code']??'');
+              if(strpos($p,'I90')!==false&&isset($targets[$box])){
+                $verifyIds[(int)($c['id']??0)]=true;$verifyCodes[(string)($c['code']??'')]=true;
+              }
+            }
+            foreach($verify['inventory']??[] as $iv){
+              if(!isset($verifyIds[(int)($iv['carton_id']??0)])&&!isset($verifyCodes[(string)($iv['carton_code']??'')]))continue;
+              $rowsAfter++;$oid=(int)($iv['order_id']??0);$on=(string)($iv['order_number']??'');
+              if($oid>0)$realAfter++;elseif($on==='خروج تاریخی')$histAfter++;elseif($oid===0)$free++;
+            }
+            if($rowsAfter!==360||$histAfter!==0||$realAfter!==0||$free!==360)throw new RuntimeException('post-repair verification failed');
+
+            echo json_encode([
+              'ok'=>true,'old_revision'=>(int)$row['revision'],'new_revision'=>$newRevision,
+              'backup'=>'storage/Backups/'.$backupName,'backup_sha256'=>$backupHash,
+              'target_cartons'=>18,'target_inventory'=>360,'legacy_released'=>$changed,
+              'after'=>['free'=>360,'historical'=>0,'real_assigned'=>0]
+            ],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          }catch(Throwable $e){
+            if($pdo->inTransaction())$pdo->rollBack();
+            http_response_code(409);
+            echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);
+          }
+          ?>
+          PHP
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/i90repair/__ghadir_i90_repair.php
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 2
+          set net:timeout 20
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/i90repair/__ghadir_i90_repair.php -o /__ghadir_i90_repair.php
+          bye
+          EOF
+          code="$(curl -sS --max-time 60 -o /tmp/i90repair/report.json -w '%{http_code}' "https://ghadirpartner.ir/__ghadir_i90_repair.php?k=$TOKEN" || true)"
+          cat /tmp/i90repair/report.json | jq .
+          test "$code" = "200"
+          jq -e '.ok == true and .after.free == 360 and .after.historical == 0 and .after.real_assigned == 0' /tmp/i90repair/report.json >/dev/null
+
+      - name: Cleanup repair endpoint
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          lftp <<EOF
+          set cmd:fail-exit no
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /__ghadir_i90_repair.php
+          bye
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: target-i90-repair-report
+          retention-days: 7
+          path: /tmp/i90repair/report.json
