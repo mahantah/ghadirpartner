@@ -1,0 +1,114 @@
+name: Inspect JSON-only I90 Cartons
+
+on:
+  push:
+    branches:
+      - tmp-inventory-mysql-diagnose-20261004
+    paths:
+      - "tmp-inspect-json-only-cartons.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp jq curl
+      - name: Inspect JSON-only cartons against MySQL
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cartoncmp
+          TOKEN="$(openssl rand -hex 24)"
+          cat > /tmp/cartoncmp/__ghadir_cartoncmp.php <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['k']??''))){http_response_code(404);exit;}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          $json=json_decode((string)file_get_contents(__DIR__.'/storage/ghadir_data.json'),true);
+          $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.($m['port']??3306).';dbname='.($m['database']??'').';charset=utf8mb4',(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+          $row=$pdo->query('SELECT state_json FROM ghadir_state WHERE id=1')->fetch();$sql=json_decode((string)$row['state_json'],true);
+          $targets=['I90-026','I90-034','I90-037'];$out=[];
+          foreach($targets as $code){
+            $jc=null;foreach($json['cartons']??[] as $c)if((string)($c['code']??'')===$code){$jc=$c;break;}
+            if(!$jc){$out[$code]=['json_missing'=>true];continue;}
+            $serials=array_values(array_unique(array_map(fn($x)=>strtoupper(trim((string)$x)),$jc['serials']??[])));
+            $matches=[];$cartonCodes=[];$missing=[];$free=0;$historical=0;$realAssigned=0;
+            foreach($serials as $sn){
+              $iv=null;foreach($sql['inventory']??[] as $x)if(strtoupper(trim((string)($x['serial']??'')))===$sn){$iv=$x;break;}
+              if(!$iv){$missing[]=$sn;continue;}
+              $existingCode=(string)($iv['carton_code']??'');
+              if($existingCode===''&&!empty($iv['carton_id'])){foreach($sql['cartons']??[] as $mc)if((int)($mc['id']??0)===(int)$iv['carton_id']){$existingCode=(string)($mc['code']??'');break;}}
+              if($existingCode!=='')$cartonCodes[$existingCode]=($cartonCodes[$existingCode]??0)+1;
+              if((string)($iv['order_number']??'')==='خروج تاریخی')$historical++;
+              elseif((int)($iv['order_id']??0)>0)$realAssigned++;
+              else $free++;
+            }
+            $sameBox=[];foreach($sql['cartons']??[] as $mc){
+              $mfg=(string)($mc['manufacturer_box_no']??'');
+              if($mfg===$code || (string)($mc['code']??'')===$code)$sameBox[]=['id'=>$mc['id']??0,'code'=>$mc['code']??'','manufacturer_box_no'=>$mfg,'serial_count'=>count($mc['serials']??[])];
+            }
+            $out[$code]=[
+              'json_carton'=>[
+                'id'=>$jc['id']??0,'code'=>$jc['code']??'','manufacturer_box_no'=>$jc['manufacturer_box_no']??null,
+                'product'=>$jc['product']??'','capacity'=>$jc['capacity']??null,'serial_count'=>count($serials),
+                'color'=>$jc['color']??null,'shelf_level'=>$jc['shelf_level']??null
+              ],
+              'mysql_same_box_candidates'=>$sameBox,
+              'serials_missing_from_mysql_count'=>count($missing),
+              'serials_found_in_mysql'=>count($serials)-count($missing),
+              'existing_mysql_carton_distribution'=>$cartonCodes,
+              'mysql_status_counts'=>['free'=>$free,'historical'=>$historical,'real_assigned'=>$realAssigned]
+            ];
+          }
+          echo json_encode($out,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          ?>
+          PHP
+          sed -i "s/__TOKEN__/$TOKEN/g" /tmp/cartoncmp/__ghadir_cartoncmp.php
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/cartoncmp/__ghadir_cartoncmp.php -o /__ghadir_cartoncmp.php
+          bye
+          EOF
+          code="$(curl -sS --max-time 30 -o /tmp/cartoncmp/report.json -w '%{http_code}' "https://ghadirpartner.ir/__ghadir_cartoncmp.php?k=$TOKEN" || true)"
+          test "$code" = "200"
+          jq . /tmp/cartoncmp/report.json
+      - name: Cleanup
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          lftp <<EOF
+          set cmd:fail-exit no
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm /__ghadir_cartoncmp.php
+          bye
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: json-only-carton-comparison
+          retention-days: 3
+          path: /tmp/cartoncmp/report.json
