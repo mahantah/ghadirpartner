@@ -1,0 +1,72 @@
+name: Audit MySQL Historical I90 Rows
+
+on:
+  push:
+    branches:
+      - mysql-historical-row-audit-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl php-cli
+      - name: Read only historical row metadata
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_hist_audit_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql'];
+          $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.$m['database'].';charset='.($m['charset']??'utf8mb4'),$m['username'],$m['password'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+          $row=$pdo->query("SELECT state_json FROM ghadir_state WHERE id=1")->fetch();$s=json_decode($row['state_json'],true);
+          $orders=[];foreach($s['orders']??[] as $o)$orders[(int)($o['id']??0)]=$o;
+          $cartons=[];foreach($s['cartons']??[] as $c)$cartons[(int)($c['id']??0)]=$c;
+          $out=[];
+          foreach($s['inventory']??[] as $x){
+            if(mb_strpos((string)($x['order_number']??''),'خروج تاریخی')===false)continue;
+            $oid=(int)($x['order_id']??0);$cid=(int)($x['carton_id']??0);$o=$orders[$oid]??null;$c=$cartons[$cid]??null;
+            $out[]=['inventory_id'=>$x['id']??0,'product'=>$x['product']??'','carton_id'=>$cid,'carton_code'=>$x['carton_code']??'','carton_exists'=>(bool)$c,'order_id'=>$oid,'order_number'=>$x['order_number']??'','order_exists'=>(bool)$o,'order_status'=>$o['status']??'','added_by'=>$x['added_by']??'','shelf_level'=>$x['shelf_level']??0];
+          }
+          echo json_encode(['ok'=>true,'rows'=>$out],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE";s=open(p).read().replace('__TOKEN__',"$TOKEN");open(p,'w').write(s)
+          PY
+          cleanup(){ lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          RESP="$(curl -fsS --max-time 30 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"]))exit(2);echo json_encode($x,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT),"\n";'
