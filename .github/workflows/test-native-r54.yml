@@ -1,0 +1,14 @@
+name: Test Native R54 Authentication
+on:
+  push:
+    branches: [codex/deploy-r54-20261004]
+    paths: [native-r54-tests/**, .github/workflows/test-native-r54.yml]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate synthetic OTP flows without SMS
+        run: python3 native-r54-tests/test-otp.py
