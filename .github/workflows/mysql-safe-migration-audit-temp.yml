@@ -1,0 +1,126 @@
+name: Audit Live Inventory Before MySQL Migration
+
+on:
+  push:
+    branches:
+      - mysql-safe-migration-audit-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli jq zip
+
+      - name: Download live data and create remote backup copy
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/ghadir-audit
+          mkdir -p /tmp/ghadir-audit
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /storage/ghadir_data.json -o /tmp/ghadir-audit/ghadir_data.json
+          get /config.php -o /tmp/ghadir-audit/config.php
+          bye
+          EOF
+          php -r '$x=json_decode(file_get_contents("/tmp/ghadir-audit/ghadir_data.json"),true); if(!is_array($x)){fwrite(STDERR,"invalid json\n"); exit(2);} echo "json ok\n";'
+          cp /tmp/ghadir-audit/ghadir_data.json /tmp/ghadir-audit/ghadir_data.pre-mysql.json
+          TS="$(date -u +%Y%m%d-%H%M%S)"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mkdir -p /storage/Backups
+          put -O /storage/Backups -o "ghadir-pre-mysql-$TS.json" /tmp/ghadir-audit/ghadir_data.pre-mysql.json
+          bye
+          EOF
+          echo "$TS" > /tmp/ghadir-audit/backup-ts.txt
+
+      - name: Build sanitized audit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json,re,hashlib
+          from pathlib import Path
+          s=json.loads(Path('/tmp/ghadir-audit/ghadir_data.json').read_text())
+          cfg=Path('/tmp/ghadir-audit/config.php').read_text(errors='ignore')
+          wanted={97,98,99,100,101,102,103,109,110,111,112,113,114,115,116,123,124,125}
+          cartons=s.get('cartons',[])
+          inv=s.get('inventory',[])
+          orders=s.get('orders',[])
+          order_by_id={int(o.get('id',0)):o for o in orders}
+          rows=[]
+          for c in cartons:
+              code=str(c.get('code',''))
+              nums=[int(x) for x in re.findall(r'\d+',code)]
+              if not nums or nums[-1] not in wanted: continue
+              if 'I90' not in str(c.get('product','')).upper() and 'I90' not in code.upper(): continue
+              cid=int(c.get('id',0))
+              items=[x for x in inv if int(x.get('carton_id',0) or 0)==cid or str(x.get('carton_code',''))==code]
+              assigned=[x for x in items if int(x.get('order_id',0) or 0)>0]
+              sent=[]
+              reserved=[]
+              orphan=[]
+              for x in assigned:
+                  oid=int(x.get('order_id',0) or 0)
+                  o=order_by_id.get(oid)
+                  if not o:
+                      orphan.append(x)
+                  elif o.get('status') in ('ارسال شد','تحویل شد'):
+                      sent.append(x)
+                  else:
+                      reserved.append(x)
+              rows.append({
+                  'carton_code':code,'carton_id':cid,'product':c.get('product',''),
+                  'carton_serials':len(c.get('serials') or []),'inventory_rows':len(items),
+                  'free':sum(1 for x in items if not int(x.get('order_id',0) or 0)),
+                  'reserved_not_sent':len(reserved),'actually_sent':len(sent),'orphan_assigned':len(orphan),
+                  'order_statuses':sorted(set(order_by_id.get(int(x.get('order_id',0) or 0),{}).get('status','MISSING') for x in assigned))
+              })
+          mysql_keys={
+              'storage_driver':bool(re.search(r"['\"]storage_driver['\"]\s*=>",cfg)),
+              'mysql_block':bool(re.search(r"['\"]mysql['\"]\s*=>",cfg)),
+              'database':bool(re.search(r"['\"]database['\"]\s*=>\s*['\"][^'\"]+['\"]",cfg)),
+              'username':bool(re.search(r"['\"]username['\"]\s*=>\s*['\"][^'\"]+['\"]",cfg)),
+              'password_key':bool(re.search(r"['\"]password['\"]\s*=>",cfg)),
+          }
+          report={
+              'state_sha256':hashlib.sha256(Path('/tmp/ghadir-audit/ghadir_data.json').read_bytes()).hexdigest(),
+              'counts':{k:len(s.get(k,[])) if isinstance(s.get(k),list) else None for k in ['users','customers','orders','inventory','cartons','products']},
+              'mysql_config_presence':mysql_keys,
+              'i90_target_cartons':rows
+          }
+          Path('/tmp/ghadir-audit/audit-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload sanitized report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghadir-pre-mysql-audit
+          retention-days: 7
+          path: |
+            /tmp/ghadir-audit/audit-report.json
+            /tmp/ghadir-audit/backup-ts.txt
