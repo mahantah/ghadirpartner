@@ -1,0 +1,54 @@
+name: Audit Partner MySQL Config Presence
+
+on:
+  push:
+    branches:
+      - mysql-partner-config-audit-20261004
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+      - name: Check config keys only
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cfg
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /config.php -o /tmp/cfg/root.php
+          get /partners/config.php -o /tmp/cfg/partners.php
+          bye
+          EOF
+          python3 <<'PY'
+          import re
+          from pathlib import Path
+          for name in ['root','partners']:
+              s=Path('/tmp/cfg/'+name+'.php').read_text(errors='ignore')
+              out={
+                'storage_driver_mysql':bool(re.search(r"['\"]storage_driver['\"]\s*=>\s*['\"]mysql['\"]",s,re.I)),
+                'mysql_block':bool(re.search(r"['\"]mysql['\"]\s*=>",s)),
+                'database_present':bool(re.search(r"['\"]database['\"]\s*=>\s*['\"][^'\"]+['\"]",s)),
+                'username_present':bool(re.search(r"['\"]username['\"]\s*=>\s*['\"][^'\"]+['\"]",s)),
+                'password_key':bool(re.search(r"['\"]password['\"]\s*=>",s))
+              }
+              print(name,out)
+              if not all(out.values()): raise SystemExit(2)
+          PY
