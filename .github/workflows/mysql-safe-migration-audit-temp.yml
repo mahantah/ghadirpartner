@@ -51,7 +51,6 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          mkdir -p /storage/Backups
           put -O /storage/Backups -o "ghadir-pre-mysql-$TS.json" /tmp/ghadir-audit/ghadir_data.pre-mysql.json
           bye
           EOF
