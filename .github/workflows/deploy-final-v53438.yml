@@ -2,11 +2,6 @@ name: Deploy Final V5.3.4.38
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "deploy-two-warehouses-return.trigger"
 
 permissions:
   contents: read
