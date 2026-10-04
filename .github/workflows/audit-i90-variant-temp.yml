@@ -1,0 +1,35 @@
+name: Audit I90 Product Variants
+on:
+  push:
+    branches:
+      - audit-i90-name-variant-20261004
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp python3
+      - name: Inspect latest MySQL snapshot counts
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/i90
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          cls -1 /storage/Backups
+          bye
+          EOF
