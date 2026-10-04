@@ -164,6 +164,13 @@ function ghadir_json_db(bool $write, callable $fn) {
 function ghadir_mysql_cfg(): array {
     global $cfg;
     $m = is_array($cfg['mysql'] ?? null) ? $cfg['mysql'] : [];
+    if (!$m) {
+        $root = dirname(__DIR__) . '/config.php';
+        if (is_file($root)) {
+            $rootCfg = require $root;
+            if (is_array($rootCfg['mysql'] ?? null)) $m = $rootCfg['mysql'];
+        }
+    }
     return array_merge([
         'host' => 'localhost', 'port' => 3306, 'database' => '', 'username' => '', 'password' => '', 'charset' => 'utf8mb4',
         'auto_migrate_from_json' => false,
