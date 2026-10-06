@@ -5,23 +5,18 @@ on:
     branches:
       - main
     paths:
-      - "fix-warehouse-access.trigger"
-
-permissions:
-  contents: read
+      - fix-warehouse-access.trigger
 
 jobs:
   fix:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 10
     environment: production
     steps:
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lftp php-cli nodejs
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
 
-      - name: Download live files
+      - name: Patch live app
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -29,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/whaccess/lib
+          mkdir -p /tmp/whaccess
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -38,66 +33,39 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /app.html -o /tmp/whaccess/app.html
-          get /lib/warehouse-v53438.php -o /tmp/whaccess/lib/warehouse-v53438.php
           bye
           EOF
-          cp /tmp/whaccess/app.html /tmp/whaccess/app.before.html
-          cp /tmp/whaccess/lib/warehouse-v53438.php /tmp/whaccess/lib/warehouse-v53438.before.php
-
-      - name: Patch role access
-        shell: bash
-        run: |
-          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           p=Path('/tmp/whaccess/app.html')
           s=p.read_text()
-
-          old="const TAB_ACCESS={dashboard:[],orders:['sales','finance','prep','viewer'],checks:['finance'],neworder:['sales'],customers:['sales','viewer'],inventory:['sales','prep','viewer'],warehouse:['prep','viewer'],reports:['prep','viewer'],products:['admin'],salesReports:['sales','viewer'],portalAdmin:['admin'],users:['admin'],settings:['admin']};"
-          new="const TAB_ACCESS={dashboard:[],orders:['sales','finance','prep','viewer'],checks:['finance'],neworder:['sales'],customers:['sales','viewer'],inventory:['sales','prep','viewer'],warehouse:['prep','viewer'],warehouseDaily:['prep','viewer'],reports:['prep','viewer'],products:['admin'],salesReports:['sales','viewer'],portalAdmin:['admin'],users:['admin'],settings:['admin']};"
-          if old not in s and "warehouseDaily:['prep','viewer']" not in s:
-              raise SystemExit('TAB_ACCESS pattern not found')
-          s=s.replace(old,new,1)
-
-          needle="  let current=document.querySelector('.tab:not(.hidden)')?.id;if(current&&!canViewTab(current)){document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));$('dashboard')?.classList.remove('hidden')}"
-          add="""  let whDaily=$('warehouseDaily');if(whDaily){let canWriteWarehouse=has('prep');let receiptBtn=[...whDaily.querySelectorAll('button')].find(b=>String(b.textContent||'').includes('ثبت رسید / ورود کارتن'));if(receiptBtn)receiptBtn.classList.toggle('hidden',!canWriteWarehouse);let transferCard=$('warehouseTransferFrom')?.closest('.card');if(transferCard)transferCard.classList.toggle('hidden',!canWriteWarehouse)}
-"""
-          if "let canWriteWarehouse=has('prep')" not in s:
-              if needle not in s: raise SystemExit('permission visibility insertion point not found')
-              s=s.replace(needle,add+needle,1)
-          p.write_text(s)
-
-          p=Path('/tmp/whaccess/lib/warehouse-v53438.php')
-          s=p.read_text()
-          old="if($p==='/api/warehouses'&&$m==='GET'){auth();"
-          new="if($p==='/api/warehouses'&&$m==='GET'){auth(['prep','viewer']);"
-          if old not in s and new not in s:
-              raise SystemExit('warehouses GET auth pattern not found')
-          s=s.replace(old,new,1)
+          if "warehouseDaily:['prep','viewer']" not in s:
+              old="warehouse:['prep','viewer'],reports:['prep','viewer']"
+              new="warehouse:['prep','viewer'],warehouseDaily:['prep','viewer'],reports:['prep','viewer']"
+              if old not in s:
+                  raise SystemExit('warehouse access pattern not found')
+              s=s.replace(old,new,1)
+          if 'warehouseWriteOnly' not in s:
+              s=s.replace(
+                  '<button class="btnlight" onclick="openWarehouseReceipt()">ثبت رسید / ورود کارتن</button>',
+                  '<button class="btnlight warehouseWriteOnly" onclick="openWarehouseReceipt()">ثبت رسید / ورود کارتن</button>',
+                  1
+              )
+              s=s.replace(
+                  '<div class="card warehouse-no-print">\n  <div class="section-title"><div><h3 style="margin:0">انتقال بین دو انبار</h3>',
+                  '<div class="card warehouse-no-print warehouseWriteOnly">\n  <div class="section-title"><div><h3 style="margin:0">انتقال بین دو انبار</h3>',
+                  1
+              )
+          if "querySelectorAll('.warehouseWriteOnly')" not in s:
+              hook="applyPermissionVisibility();"
+              repl="applyPermissionVisibility();document.querySelectorAll('.warehouseWriteOnly').forEach(x=>x.classList.toggle('hidden',!has('prep')));"
+              if hook not in s:
+                  raise SystemExit('permission hook not found')
+              s=s.replace(hook,repl,1)
           p.write_text(s)
           PY
-
-          php -l /tmp/whaccess/lib/warehouse-v53438.php
-          node - <<'NODE'
-          const fs=require('fs');
-          const h=fs.readFileSync('/tmp/whaccess/app.html','utf8');
-          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
-          let m,n=0;while((m=re.exec(h))){new Function(m[1]);n++}
-          if(!n)throw new Error('No inline JS');
-          console.log('inline JS OK',n);
-          NODE
           grep -Fq "warehouseDaily:['prep','viewer']" /tmp/whaccess/app.html
-          grep -Fq "let canWriteWarehouse=has('prep')" /tmp/whaccess/app.html
-          grep -Fq "if(\$p==='/api/warehouses'&&\$m==='GET'){auth(['prep','viewer']);" /tmp/whaccess/lib/warehouse-v53438.php
-
-      - name: Upload patched files
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
+          grep -Fq "warehouseWriteOnly" /tmp/whaccess/app.html
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -106,32 +74,8 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put /tmp/whaccess/app.html -o /app.html
-          put /tmp/whaccess/lib/warehouse-v53438.php -o /lib/warehouse-v53438.php
+          get /app.html -o /tmp/whaccess/verify.html
           bye
           EOF
-
-      - name: Verify live
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/whaccess/verify
-          mkdir -p /tmp/whaccess/verify/lib
-          lftp <<EOF
-          set cmd:fail-exit yes
-          set ftp:ssl-force true
-          set ftp:ssl-protect-data true
-          set ssl:verify-certificate yes
-          open -p 21 "$FTP_SERVER"
-          user "$FTP_USERNAME" "$FTP_PASSWORD"
-          get /app.html -o /tmp/whaccess/verify/app.html
-          get /lib/warehouse-v53438.php -o /tmp/whaccess/verify/lib/warehouse-v53438.php
-          bye
-          EOF
-          php -l /tmp/whaccess/verify/lib/warehouse-v53438.php
-          grep -Fq "warehouseDaily:['prep','viewer']" /tmp/whaccess/verify/app.html
-          grep -Fq "let canWriteWarehouse=has('prep')" /tmp/whaccess/verify/app.html
-          grep -Fq "if(\$p==='/api/warehouses'&&\$m==='GET'){auth(['prep','viewer']);" /tmp/whaccess/verify/lib/warehouse-v53438.php
+          grep -Fq "warehouseDaily:['prep','viewer']" /tmp/whaccess/verify.html
+          grep -Fq "warehouseWriteOnly" /tmp/whaccess/verify.html
