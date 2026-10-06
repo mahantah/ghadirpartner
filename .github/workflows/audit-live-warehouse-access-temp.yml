@@ -1,0 +1,43 @@
+name: Audit Live Warehouse Access
+
+on:
+  push:
+    branches:
+      - audit-live-warehouse-access-20261006
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+      - name: Inspect deployed app access logic
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/live
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/live/app.html
+          get /index.php -o /tmp/live/index.php
+          bye
+          EOF
+          echo "=== APP ACCESS ==="
+          grep -n -E -A8 -B8 "warehouseDaily|adminOnly|financeOnly|inventoryWriteTools|function boot|roles.includes|data-tab=.warehouse" /tmp/live/app.html | head -n 1200 || true
+          echo "=== API ACCESS ==="
+          grep -n -E -A7 -B7 "/api/warehouses|/api/warehouse/transfer|/api/order/return" /tmp/live/index.php | head -n 500 || true
