@@ -50,6 +50,18 @@ jobs:
             cp /tmp/delta/lib/warehouse-v53438.php lib/warehouse-v53438.php
             cp /tmp/delta/assets/warehouse-v53438.js assets/warehouse-v53438.js
             cp /tmp/delta/assets/warehouse-v53438.css assets/warehouse-v53438.css
+            cp "$GITHUB_WORKSPACE/assets/order-multiprint-v53438.js" assets/order-multiprint-v53438.js
+            python3 - <<'PY'
+            from pathlib import Path
+            p=Path('app.html')
+            s=p.read_text()
+            tag='<script src="/assets/order-multiprint-v53438.js?v=53438mp1"></script>'
+            if tag not in s:
+                if '</body>' not in s:
+                    raise SystemExit('app.html closing body not found')
+                s=s.replace('</body>',tag+'</body>',1)
+            p.write_text(s)
+            PY
           )
           php -l "$ROOT/index.php"
           php -l "$ROOT/partners/index.php"
@@ -68,6 +80,10 @@ jobs:
           grep -q '/api/order/return' "$ROOT/lib/warehouse-v53438.php"
           grep -q 'warehouseDaily' "$ROOT/assets/warehouse-v53438.js"
           grep -q 'انبار خرده تهرانپارس' "$ROOT/assets/warehouse-v53438.js"
+          node --check "$ROOT/assets/order-multiprint-v53438.js"
+          grep -q 'order-multiprint-v53438.js' "$ROOT/app.html"
+          grep -q 'چاپ بیجک‌های انتخابی' "$ROOT/assets/order-multiprint-v53438.js"
+          grep -q 'چاپ لیبل‌های انتخابی' "$ROOT/assets/order-multiprint-v53438.js"
           echo "root=$ROOT" >> "$GITHUB_OUTPUT"
 
       - name: Backup live core files
