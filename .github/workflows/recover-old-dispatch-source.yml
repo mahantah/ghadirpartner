@@ -26,12 +26,15 @@ jobs:
           OLD_COMMIT="9034d7cbdeca10d62accd48c977fd73a3b481f02"
           ZIP="GhadirPartner-Web-V5.3.4.12-DISPATCH-LABELS-READY.zip"
           rm -rf /tmp/old-dispatch recovered-old-dispatch
-          mkdir -p /tmp/old-dispatch recovered-old-dispatch/lib
+          mkdir -p /tmp/old-dispatch recovered-old-dispatch/lib recovered-old-dispatch/assets
           git show "$OLD_COMMIT:$ZIP" > /tmp/old.zip
           unzip -q /tmp/old.zip -d /tmp/old-dispatch
           cp /tmp/old-dispatch/index.php recovered-old-dispatch/index.php
           cp /tmp/old-dispatch/app.html recovered-old-dispatch/app.html
           cp /tmp/old-dispatch/lib/labels-v5348.php recovered-old-dispatch/lib/labels-v5348.php
+          cp /tmp/old-dispatch/ghadir-print-v5349.js recovered-old-dispatch/ghadir-print-v5349.js
+          cp /tmp/old-dispatch/assets/redesign-v5348.js recovered-old-dispatch/assets/redesign-v5348.js
+          cp /tmp/old-dispatch/assets/bugfix-v5349.js recovered-old-dispatch/assets/bugfix-v5349.js
           cp /tmp/old-dispatch/VERSION.txt recovered-old-dispatch/VERSION.txt
           php -l recovered-old-dispatch/index.php
           php -l recovered-old-dispatch/lib/labels-v5348.php
