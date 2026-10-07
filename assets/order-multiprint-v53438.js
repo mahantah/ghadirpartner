@@ -115,19 +115,29 @@ async function batchPrint(kind){
       if(!r.ok)throw new Error('خطا در آماده‌سازی سفارش '+id);
       const html=await r.text(),doc=new DOMParser().parseFromString(html,'text/html');
       if(!styles)styles=[...doc.querySelectorAll('style')].map(x=>x.textContent).join('\n');
+      let pageNo=0;
       for(const node of pageNodes(doc,kind)){
+        pageNo++;
         const clone=node.cloneNode(true);
         clone.classList.add('gp-batch-page');
         clone.querySelectorAll('.toolbar,script').forEach(x=>x.remove());
-        pages.push(clone.outerHTML);
+        const raw=clone.outerHTML;
+        if(kind==='label'){
+          pages.push('<div class="gp-label-choice" data-order-id="'+id+'" data-label-no="'+pageNo+'"><label class="gp-label-selector"><input class="gp-label-check" type="checkbox" checked onchange="gpSyncLabelSelection()"> انتخاب این لیبل</label>'+raw+'</div>');
+        }else{
+          pages.push(raw);
+        }
       }
     }
     const title=kind==='label'?'چاپ گروهی لیبل‌های ارسال':'چاپ گروهی بیجک‌ها';
     pop.document.open();
+    const labelToolbar=kind==='label'
+      ? '<div class="gp-batch-toolbar"><span id="gpLabelCount"></span><button onclick="gpSetAllLabels(true)">انتخاب همه</button><button class="light" onclick="gpSetAllLabels(false)">لغو همه</button><button onclick="gpPrintSelectedLabels()">چاپ فقط لیبل‌های انتخاب‌شده</button></div>'
+      : '<div class="gp-batch-toolbar"><button onclick="window.print()">چاپ همه ('+ids.length.toLocaleString('fa-IR')+')</button></div>';
     pop.document.write('<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>'+title+'</title><style>'+styles+'</style>'+
-      '<style>html,body{width:auto!important;height:auto!important;overflow:visible!important;background:#fff!important}.toolbar{display:none!important}.gp-batch-toolbar{position:fixed;left:10px;top:10px;z-index:99999;background:#fff;border:1px solid #d7dee7;border-radius:10px;padding:8px;box-shadow:0 8px 28px #0002}.gp-batch-toolbar button{background:#102a43;color:#fff;border:0;border-radius:8px;padding:9px 15px;font-family:Tahoma;cursor:pointer}.gp-batch-page.sheet{position:relative!important;top:auto!important;right:auto!important;left:auto!important;margin:0!important}.gp-batch-page{break-after:page!important;page-break-after:always!important}.gp-batch-page:last-of-type{break-after:auto!important;page-break-after:auto!important}@media print{.gp-batch-toolbar{display:none!important}}</style></head><body>'+
-      '<div class="gp-batch-toolbar"><button onclick="window.print()">چاپ همه ('+ids.length.toLocaleString('fa-IR')+')</button></div>'+pages.join('')+
-      '<script src="/assets/qrcode-v5349.js"></'+'script><script>window.addEventListener("load",function(){document.querySelectorAll(".qrRender").forEach(function(e){if(window.GPQRCodeSvg)e.innerHTML=GPQRCodeSvg(e.dataset.value||"")})});</'+'script></body></html>');
+      '<style>html,body{width:auto!important;height:auto!important;overflow:visible!important;background:#fff!important}.toolbar{display:none!important}.gp-batch-toolbar{position:fixed;left:10px;top:10px;z-index:99999;background:#fff;border:1px solid #d7dee7;border-radius:10px;padding:8px;box-shadow:0 8px 28px #0002;display:flex;gap:7px;align-items:center;flex-wrap:wrap;font-family:Tahoma}.gp-batch-toolbar button{background:#102a43;color:#fff;border:0;border-radius:8px;padding:9px 15px;font-family:Tahoma;cursor:pointer}.gp-batch-toolbar button.light{background:#eef2f6;color:#102a43}.gp-batch-page.sheet{position:relative!important;top:auto!important;right:auto!important;left:auto!important;margin:0!important}.gp-batch-page{break-after:page!important;page-break-after:always!important}.gp-batch-page:last-of-type{break-after:auto!important;page-break-after:auto!important}.gp-label-choice{position:relative}.gp-label-selector{position:absolute;right:10px;top:10px;z-index:99998;background:#fff;border:2px solid #f58220;border-radius:9px;padding:8px 11px;font:700 13px Tahoma;color:#102a43;box-shadow:0 5px 18px #0002;display:flex;gap:7px;align-items:center}.gp-label-selector input{width:19px;height:19px;accent-color:#f58220}.gp-label-choice.gp-label-unselected{opacity:.35}.gp-label-choice.gp-skip-print{display:none!important}@media print{.gp-batch-toolbar,.gp-label-selector{display:none!important}.gp-label-choice{opacity:1!important}.gp-label-choice.gp-skip-print{display:none!important}}</style></head><body>'+
+      labelToolbar+pages.join('')+
+      '<script src="/assets/qrcode-v5349.js"></'+'script><script>function gpSyncLabelSelection(){var a=[].slice.call(document.querySelectorAll(".gp-label-check")),n=a.filter(function(x){return x.checked}).length;document.querySelectorAll(".gp-label-choice").forEach(function(w){var x=w.querySelector(".gp-label-check");w.classList.toggle("gp-label-unselected",x&&!x.checked)});var c=document.getElementById("gpLabelCount");if(c)c.textContent=n.toLocaleString("fa-IR")+" لیبل انتخاب شده از "+a.length.toLocaleString("fa-IR")}function gpSetAllLabels(v){document.querySelectorAll(".gp-label-check").forEach(function(x){x.checked=v});gpSyncLabelSelection()}function gpPrintSelectedLabels(){var a=[].slice.call(document.querySelectorAll(".gp-label-check")),n=a.filter(function(x){return x.checked}).length;if(!n){alert("حداقل یک لیبل را انتخاب کنید");return}document.querySelectorAll(".gp-label-choice").forEach(function(w){var x=w.querySelector(".gp-label-check");w.classList.toggle("gp-skip-print",x&&!x.checked)});window.print()}window.addEventListener("afterprint",function(){document.querySelectorAll(".gp-label-choice").forEach(function(w){w.classList.remove("gp-skip-print")})});window.addEventListener("load",function(){document.querySelectorAll(".qrRender").forEach(function(e){if(window.GPQRCodeSvg)e.innerHTML=GPQRCodeSvg(e.dataset.value||"")});gpSyncLabelSelection()});</'+'script></body></html>');
     pop.document.close();
   }catch(e){
     pop.document.open();pop.document.write('<meta charset="utf-8"><div dir="rtl" style="font-family:Tahoma;padding:30px;color:#b42318">'+String(e.message||e)+'</div>');pop.document.close();
