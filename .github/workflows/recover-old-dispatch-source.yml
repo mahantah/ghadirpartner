@@ -35,6 +35,9 @@ jobs:
           cp /tmp/old-dispatch/ghadir-print-v5349.js recovered-old-dispatch/ghadir-print-v5349.js
           cp /tmp/old-dispatch/assets/redesign-v5348.js recovered-old-dispatch/assets/redesign-v5348.js
           cp /tmp/old-dispatch/assets/bugfix-v5349.js recovered-old-dispatch/assets/bugfix-v5349.js
+          if [[ -f /tmp/old-dispatch/assets/dispatch-v53417.js ]]; then cp /tmp/old-dispatch/assets/dispatch-v53417.js recovered-old-dispatch/assets/dispatch-v53417.js; fi
+          if [[ -f /tmp/old-dispatch/assets/dispatch-v53412.js ]]; then cp /tmp/old-dispatch/assets/dispatch-v53412.js recovered-old-dispatch/assets/dispatch-v53412.js; fi
+          unzip -l /tmp/old.zip | grep -Ei 'dispatch|label|print' | head -n 120 || true
           cp /tmp/old-dispatch/VERSION.txt recovered-old-dispatch/VERSION.txt
           php -l recovered-old-dispatch/index.php
           php -l recovered-old-dispatch/lib/labels-v5348.php
