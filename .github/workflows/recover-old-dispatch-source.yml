@@ -1,0 +1,42 @@
+name: Recover Old Dispatch Multi Print Source
+
+on:
+  push:
+    branches:
+      - recover-old-dispatch-multiprint-20261007
+    paths:
+      - ".github/workflows/recover-old-dispatch-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Recover historical V5.3.4.12 dispatch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLD_COMMIT="9034d7cbdeca10d62accd48c977fd73a3b481f02"
+          ZIP="GhadirPartner-Web-V5.3.4.12-DISPATCH-LABELS-READY.zip"
+          rm -rf /tmp/old-dispatch recovered-old-dispatch
+          mkdir -p /tmp/old-dispatch recovered-old-dispatch/lib
+          git show "$OLD_COMMIT:$ZIP" > /tmp/old.zip
+          unzip -q /tmp/old.zip -d /tmp/old-dispatch
+          cp /tmp/old-dispatch/index.php recovered-old-dispatch/index.php
+          cp /tmp/old-dispatch/app.html recovered-old-dispatch/app.html
+          cp /tmp/old-dispatch/lib/labels-v5348.php recovered-old-dispatch/lib/labels-v5348.php
+          cp /tmp/old-dispatch/VERSION.txt recovered-old-dispatch/VERSION.txt
+          php -l recovered-old-dispatch/index.php
+          php -l recovered-old-dispatch/lib/labels-v5348.php
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recovered-old-dispatch
+          git commit -m "Recover historical dispatch multi-print source"
+          git push origin HEAD:recover-old-dispatch-multiprint-20261007
