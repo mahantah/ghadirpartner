@@ -1,0 +1,51 @@
+name: Audit Live Order Multi Print
+
+on:
+  push:
+    branches:
+      - audit-live-order-multiprint-20261007
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y lftp
+      - name: Inspect live print capabilities
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/live/lib
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/live/app.html
+          get /index.php -o /tmp/live/index.php
+          bye
+          EOF
+          lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /lib/labels-v5348.php -o /tmp/live/lib/labels-v5348.php
+          bye
+          EOF
+          echo "=== APP ORDER PRINT ==="
+          grep -n -E -A6 -B6 "otbody|renderOrders|order-label|order-details|چاپ.*بیجک|چاپ.*لیبل|checkbox" /tmp/live/app.html | head -n 800 || true
+          echo "=== INDEX PRINT ROUTES ==="
+          grep -n -E -A8 -B5 "/print/order-label|/pdf/order-details|labels-v5348|gp_print_order" /tmp/live/index.php | head -n 600 || true
+          if [[ -s /tmp/live/lib/labels-v5348.php ]]; then echo "LABEL_LIB_PRESENT=yes"; else echo "LABEL_LIB_PRESENT=no"; fi
