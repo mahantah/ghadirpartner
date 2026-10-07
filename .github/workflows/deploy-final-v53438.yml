@@ -55,7 +55,7 @@ jobs:
             from pathlib import Path
             p=Path('app.html')
             s=p.read_text()
-            tag='<script src="/assets/order-multiprint-v53438.js?v=53438mp1"></script>'
+            tag='<script src="/assets/order-multiprint-v53438.js?v=53438mp2"></script>'
             if tag not in s:
                 if '</body>' not in s:
                     raise SystemExit('app.html closing body not found')
