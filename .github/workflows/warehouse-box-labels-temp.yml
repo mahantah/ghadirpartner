@@ -1,0 +1,101 @@
+name: Deploy Selectable Warehouse Box Labels
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "warehouse-box-labels.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp nodejs
+
+      - name: Validate asset
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-carton-multilabel-v53438.js
+          grep -q "چاپ لیبل باکس‌های انتخاب‌شده" assets/warehouse-carton-multilabel-v53438.js
+          grep -q "gp-wh-carton-label-check" assets/warehouse-carton-multilabel-v53438.js
+
+      - name: Patch and upload live app
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/whbox
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/whbox/app.html
+          bye
+          EOF
+          cp /tmp/whbox/app.html /tmp/whbox/app-before.html
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/whbox/app.html')
+          s=p.read_text()
+          tag='<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438wl1"></script>'
+          if tag not in s:
+              if '</body>' not in s: raise SystemExit('body closing tag not found')
+              s=s.replace('</body>',tag+'</body>',1)
+          p.write_text(s)
+          PY
+          TS="$(date +%Y%m%d-%H%M%S)"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          cd /storage/Backups
+          put /tmp/whbox/app-before.html -o "app-before-whbox-labels-$TS.html"
+          cd /
+          put /tmp/whbox/app.html -o /app.html
+          put assets/warehouse-carton-multilabel-v53438.js -o /assets/warehouse-carton-multilabel-v53438.js
+          bye
+          EOF
+
+      - name: Verify live
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/whbox/verify
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/whbox/verify/app.html
+          get /assets/warehouse-carton-multilabel-v53438.js -o /tmp/whbox/verify/asset.js
+          bye
+          EOF
+          node --check /tmp/whbox/verify/asset.js
+          grep -q "warehouse-carton-multilabel-v53438.js?v=53438wl1" /tmp/whbox/verify/app.html
+          grep -q "چاپ لیبل باکس‌های انتخاب‌شده" /tmp/whbox/verify/asset.js
+          grep -q "gp-wh-carton-label-check" /tmp/whbox/verify/asset.js
