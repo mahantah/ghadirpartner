@@ -35,6 +35,7 @@ jobs:
           cp /tmp/old-dispatch/ghadir-print-v5349.js recovered-old-dispatch/ghadir-print-v5349.js
           cp /tmp/old-dispatch/assets/redesign-v5348.js recovered-old-dispatch/assets/redesign-v5348.js
           cp /tmp/old-dispatch/assets/bugfix-v5349.js recovered-old-dispatch/assets/bugfix-v5349.js
+          cp /tmp/old-dispatch/assets/label-pagination-v5348.js recovered-old-dispatch/assets/label-pagination-v5348.js
           if [[ -f /tmp/old-dispatch/assets/dispatch-v53417.js ]]; then cp /tmp/old-dispatch/assets/dispatch-v53417.js recovered-old-dispatch/assets/dispatch-v53417.js; fi
           if [[ -f /tmp/old-dispatch/assets/dispatch-v53412.js ]]; then cp /tmp/old-dispatch/assets/dispatch-v53412.js recovered-old-dispatch/assets/dispatch-v53412.js; fi
           unzip -l /tmp/old.zip | grep -Ei 'dispatch|label|print' | head -n 120 || true
@@ -44,5 +45,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add recovered-old-dispatch
-          git commit -m "Recover historical dispatch multi-print source"
+          git diff --cached --quiet || git commit -m "Recover historical dispatch multi-print source"
           git push origin HEAD:recover-old-dispatch-multiprint-20261007
