@@ -108,37 +108,28 @@ function decorate(){
 async function printSelected(){
   const ids=[...selected];
   if(!ids.length){alert('حداقل یک باکس را تیک بزنید');return}
+  const cartons=ids.map(id=>(WH.cartons||[]).find(c=>Number(c.id)===Number(id))).filter(Boolean);
+  if(cartons.length!==ids.length){
+    alert('اطلاعات یکی از باکس‌های انتخاب‌شده به‌روز نیست. یک‌بار صفحه را به‌روزرسانی کنید.');
+    return;
+  }
+
   const pop=window.open('','_blank');
   if(!pop){alert('مرورگر پنجره چاپ را مسدود کرده است؛ Pop-up را برای سایت فعال کنید.');return}
-  pop.document.write('<!doctype html><html lang="fa" dir="rtl"><meta charset="utf-8"><title>آماده‌سازی لیبل باکس‌ها</title><body style="font-family:Tahoma;padding:30px">در حال آماده‌سازی '+ids.length.toLocaleString('fa-IR')+' لیبل…</body></html>');
 
-  try{
-    let sourceStyle='',pages=[];
-    for(const id of ids){
-      const r=await fetch('/print/warehouse-label?id='+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'});
-      if(!r.ok)throw new Error('خطا در دریافت لیبل باکس '+id);
-      const html=await r.text();
-      const doc=new DOMParser().parseFromString(html,'text/html');
-      if(!sourceStyle)sourceStyle=[...doc.querySelectorAll('style')].map(x=>x.textContent).join('\n');
-      const label=doc.querySelector('.label');
-      if(!label)throw new Error('قالب لیبل باکس '+id+' پیدا نشد');
-      pages.push('<section class="gp-wh-print-page">'+label.outerHTML+'</section>');
-    }
+  const h=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const pages=cartons.map(c=>{
+    const serials=(c.serials||[]).map(s=>'<span>'+h(s)+'</span>').join('');
+    return '<section class="gp-wh-print-page"><div class="label"><h2>'+h(c.code)+'</h2><b>'+h(c.product)+'</b><div class="serials">'+serials+'</div></div></section>';
+  });
 
-    pop.document.open();
-    pop.document.write('<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>چاپ لیبل باکس‌های انتخاب‌شده</title>'+
-      '<style>'+sourceStyle+'</style>'+
-      '<style>@page{size:100mm 70mm;margin:3mm}html,body{margin:0!important;padding:0!important;width:auto!important;height:auto!important;overflow:visible!important;background:#fff!important}.gp-wh-print-toolbar{position:fixed;left:8px;top:8px;z-index:9999;background:#fff;border:1px solid #d7dee7;border-radius:10px;padding:8px;box-shadow:0 8px 28px #0002;font-family:Tahoma}.gp-wh-print-toolbar button{background:#102a43;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-family:Tahoma;cursor:pointer}.gp-wh-print-page{width:94mm;min-height:64mm;page-break-after:always;break-after:page;padding:0;margin:0;background:#fff}.gp-wh-print-page:last-child{page-break-after:auto;break-after:auto}.gp-wh-print-page .label{width:94mm;min-height:64mm;margin:0!important}@media print{.gp-wh-print-toolbar{display:none!important}}</style></head><body>'+
-      '<div class="gp-wh-print-toolbar"><button onclick="window.print()">چاپ '+ids.length.toLocaleString('fa-IR')+' لیبل انتخاب‌شده</button></div>'+
-      pages.join('')+'</body></html>');
-    pop.document.close();
-  }catch(e){
-    pop.document.open();
-    pop.document.write('<meta charset="utf-8"><div dir="rtl" style="font-family:Tahoma;padding:30px;color:#b42318">'+String(e.message||e)+'</div>');
-    pop.document.close();
-  }
+  pop.document.open();
+  pop.document.write('<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>چاپ لیبل باکس‌های انتخاب‌شده</title>'+
+    '<style>@page{size:100mm 70mm;margin:3mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111}body{font-family:Tahoma,Arial;width:94mm}.gp-wh-print-toolbar{position:fixed;left:8px;top:8px;z-index:9999;background:#fff;border:1px solid #d7dee7;border-radius:10px;padding:8px;box-shadow:0 8px 28px #0002;font-family:Tahoma}.gp-wh-print-toolbar button{background:#102a43;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-family:Tahoma;cursor:pointer}.gp-wh-print-page{width:94mm;min-height:64mm;page-break-after:always;break-after:page;padding:0;margin:0;background:#fff}.gp-wh-print-page:last-child{page-break-after:auto;break-after:auto}.label{width:94mm;min-height:64mm;border:2px solid #111;padding:3mm;background:#fff}.label h2{margin:0 0 2mm;font-size:18px}.label>b{display:block;margin-bottom:2mm}.serials{display:grid;grid-template-columns:repeat(4,1fr);gap:.8mm 1.5mm;font:8px Consolas,monospace;direction:ltr}.serials span{white-space:nowrap}@media print{.gp-wh-print-toolbar{display:none!important}}</style></head><body>'+
+    '<div class="gp-wh-print-toolbar"><button onclick="window.print()">چاپ '+cartons.length.toLocaleString('fa-IR')+' لیبل انتخاب‌شده</button></div>'+
+    pages.join('')+'</body></html>');
+  pop.document.close();
 }
-
 const old=window.renderWarehouse;
 if(typeof old==='function'){
   window.renderWarehouse=function(){
