@@ -300,6 +300,78 @@ function wrapWarehouseRender(){
   }
 }
 
+
+let GP_STOCKTAKE_WAREHOUSE=1;
+async function loadStocktakeSeparated(){
+  const body=document.getElementById('stocktakeBody'),totals=document.getElementById('stocktakeTotals');
+  if(!body||!totals)return;
+  try{
+    const ws=await req('/api/warehouses');
+    const wid=Number(GP_STOCKTAKE_WAREHOUSE||1);
+    const products=(ws.products||[]).map(p=>p.name).filter(Boolean);
+    const current=ws.current?.[wid]||ws.current?.[String(wid)]||{};
+    const free=ws.free?.[wid]||ws.free?.[String(wid)]||{};
+    const reserved=ws.reserved?.[wid]||ws.reserved?.[String(wid)]||{};
+    const cartons=(ws.cartons||[]).filter(c=>Number(c.warehouse_id||0)===wid);
+    const cartonCount={};
+    cartons.forEach(c=>{const p=String(c.product||'نامشخص');cartonCount[p]=(cartonCount[p]||0)+1;});
+
+    const names=[...new Set([...products,...Object.keys(current),...Object.keys(free),...Object.keys(reserved)])]
+      .filter(p=>(Number(current[p])||Number(free[p])||Number(reserved[p])||cartonCount[p]))
+      .sort((a,b)=>warehouseProductOrder(a)-warehouseProductOrder(b)||a.localeCompare(b,'fa'));
+
+    const totalPhysical=names.reduce((n,p)=>n+(Number(current[p])||0),0);
+    const totalFree=names.reduce((n,p)=>n+(Number(free[p])||0),0);
+    const totalReserved=names.reduce((n,p)=>n+(Number(reserved[p])||0),0);
+    const whName=wid===1?'انبار عمده':'انبار خرده تهرانپارس';
+
+    totals.innerHTML=
+      '<div class="gp-stocktake-switch">'+
+        '<button class="'+(wid===1?'active':'')+'" onclick="GP_STOCKTAKE_WAREHOUSE=1;loadStocktakeSeparated()">انبار عمده</button>'+
+        '<button class="'+(wid===2?'active':'')+'" onclick="GP_STOCKTAKE_WAREHOUSE=2;loadStocktakeSeparated()">انبار خرده تهرانپارس</button>'+
+      '</div>'+
+      '<div class="gp-stocktake-summary">'+
+        '<div class="mutedbox"><span class="small">انبار انتخاب‌شده</span><h3>'+esc(whName)+'</h3></div>'+
+        '<div class="mutedbox"><span class="small">موجودی فیزیکی</span><h2>'+totalPhysical.toLocaleString('fa-IR')+'</h2></div>'+
+        '<div class="mutedbox"><span class="small">آزاد</span><h2>'+totalFree.toLocaleString('fa-IR')+'</h2></div>'+
+        '<div class="mutedbox"><span class="small">رزرو / تخصیص</span><h2>'+totalReserved.toLocaleString('fa-IR')+'</h2></div>'+
+      '</div>';
+
+    const table=body.closest('table');
+    if(table){
+      const head=table.querySelector('thead tr');
+      if(head)head.innerHTML='<th>کالا / مدل</th><th>انبار</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تعداد باکس</th>';
+    }
+    body.innerHTML=names.map(p=>'<tr>'+
+      '<td><b>'+esc(p)+'</b></td>'+
+      '<td>'+esc(whName)+'</td>'+
+      '<td><b>'+(Number(current[p])||0).toLocaleString('fa-IR')+'</b></td>'+
+      '<td>'+(Number(free[p])||0).toLocaleString('fa-IR')+'</td>'+
+      '<td>'+(Number(reserved[p])||0).toLocaleString('fa-IR')+'</td>'+
+      '<td>'+(Number(cartonCount[p])||0).toLocaleString('fa-IR')+'</td>'+
+      '</tr>').join('')||'<tr><td colspan="6">برای این انبار موجودی ثبت نشده است.</td></tr>';
+
+    const card=body.closest('.card');
+    if(card){
+      const sub=card.querySelector('.section-title .small');
+      if(sub)sub.textContent='موجودی انبار عمده و خرده به‌صورت کاملاً جداگانه نمایش داده می‌شود.';
+      const exportBtn=[...card.querySelectorAll('button')].find(b=>/خروجی Excel انبارگردانی/.test(b.textContent||''));
+      if(exportBtn)exportBtn.style.display='none';
+    }
+  }catch(e){
+    body.innerHTML='<tr><td colspan="6">'+esc(e.message||'خطا در دریافت موجودی انبار')+'</td></tr>';
+  }
+}
+
+function installSeparatedStocktake(){
+  if(typeof loadStocktake==='function' && !loadStocktake.__gpSeparated){
+    const wrapped=function(){return loadStocktakeSeparated();};
+    wrapped.__gpSeparated=true;
+    loadStocktake=wrapped;
+  }
+  window.loadStocktakeSeparated=loadStocktakeSeparated;
+}
+
 function normalizeUI(){
   fixWarehouseAndPriceMenuLabels();
   mergeCustomerSerialCards();
@@ -307,6 +379,8 @@ function normalizeUI(){
   wrapWarehouseRender();
   installSeparateStocktake();
   emphasizeForceOrders();
+  installSeparatedStocktake();
+  try{ if(document.getElementById('reports') && !document.getElementById('reports').classList.contains('hidden')) loadStocktakeSeparated(); }catch(e){}
   try{ if(document.getElementById('warehouseDaily') && !document.getElementById('warehouseDaily').classList.contains('hidden')){renderSeparateWarehouseLiveSummary();renderDailyMovementSummary();} }catch(e){}
 }
 
@@ -319,7 +393,8 @@ css.textContent=
   '#warehouseLedgerSummary{display:grid!important;grid-template-columns:repeat(2,minmax(280px,1fr))!important;gap:10px!important}.gp-wh-live-card{padding:12px 14px!important;border:1px solid #dce5ee!important}.gp-wh-live-card.active{border-color:#f58220!important;box-shadow:0 0 0 2px #f5822026!important}.gp-wh-live-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.gp-wh-live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.gp-wh-live-stats>div{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:9px;padding:8px;text-align:center}.gp-wh-live-stats span{display:block;font-size:11px;color:#64748b;margin-bottom:4px}.gp-wh-live-stats strong{font-size:17px;color:#102a43}'+
   '#otbody tr.gp-force-order td{border-top:2px solid #ef233c!important;border-bottom:2px solid #ef233c!important;animation:gpForceGlow 1.35s linear infinite;background-clip:padding-box}#otbody tr.gp-force-order td:first-child{border-right:2px solid #ef233c!important;border-radius:0 10px 10px 0}#otbody tr.gp-force-order td:last-child{border-left:2px solid #ef233c!important;border-radius:10px 0 0 10px}#otbody tr.gp-force-order .order-no:after{content:"فورس";display:inline-block;margin-right:6px;padding:2px 6px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:900;vertical-align:middle}@keyframes gpForceGlow{0%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}25%{box-shadow:inset 0 2px 0 #ff758f,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}50%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ffb3c1,0 0 13px rgba(239,35,60,.38)}75%{box-shadow:inset 0 2px 0 #ffb3c1,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}100%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}}'+
   '.gp-stocktake-wh{padding:12px!important}.gp-stocktake-wh-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}.gp-stocktake-wh-stats span{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:8px;padding:6px 9px}.gp-stocktake-wh-stats strong{margin-right:4px;color:#102a43}'+
-  '@media(max-width:720px){#warehouseLedgerSummary{grid-template-columns:1fr!important}.gp-wh-live-stats{grid-template-columns:repeat(3,1fr)}}';
+  '.gp-stocktake-switch{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.gp-stocktake-switch button{border:1px solid #cfd9e5;background:#f7f9fc;color:#102a43;border-radius:9px;padding:9px 14px;font-family:Tahoma;font-weight:800;cursor:pointer}.gp-stocktake-switch button.active{background:#f58220;color:#fff;border-color:#f58220}.gp-stocktake-summary{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:8px;width:100%}'+
+  '@media(max-width:720px){#warehouseLedgerSummary{grid-template-columns:1fr!important}.gp-wh-live-stats{grid-template-columns:repeat(3,1fr)}.gp-stocktake-summary{grid-template-columns:1fr 1fr}}';
 document.head.appendChild(css);
 
 normalizeUI();
