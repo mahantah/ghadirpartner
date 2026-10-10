@@ -46,10 +46,12 @@ jobs:
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /index.php -o /tmp/gp-live/index.php
           get /lib/storage.php -o /tmp/gp-live/lib/storage.php
+          get /lib/warehouse-v53438.php -o /tmp/gp-live/lib/warehouse-v53438.php
           bye
           EOF
           cp /tmp/gp-live/index.php /tmp/gp-rollback/index.php
           cp /tmp/gp-live/lib/storage.php /tmp/gp-rollback/lib/storage.php
+          cp /tmp/gp-live/lib/warehouse-v53438.php /tmp/gp-rollback/lib/warehouse-v53438.php
 
       - name: Patch and validate
         shell: bash
@@ -58,11 +60,13 @@ jobs:
           python3 scripts/patch-partial-shipment-per-serial.py /tmp/gp-live
           php -l /tmp/gp-live/index.php
           php -l /tmp/gp-live/lib/storage.php
-          grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-live/lib/storage.php
+          php -l /tmp/gp-live/lib/warehouse-v53438.php
+          (grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-live/lib/storage.php || grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-live/lib/warehouse-v53438.php)
           grep -q "warehouse_id.*reserved" /tmp/gp-live/index.php || grep -q "\$wid=(int)(\$iv\['warehouse_id'\]??0)" /tmp/gp-live/index.php
           cat >/tmp/test_partial.php <<'PHP'
           <?php
           require '/tmp/gp-live/lib/storage.php';
+          if(!function_exists('ghadir_warehouse_exit_order')) require '/tmp/gp-live/lib/warehouse-v53438.php';
           $s=[
             'warehouses'=>[
               ['id'=>1,'code'=>'WHOLESALE','name'=>'انبار عمده','active'=>true],
@@ -114,6 +118,7 @@ jobs:
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put /tmp/gp-live/index.php -o /index.php
           put /tmp/gp-live/lib/storage.php -o /lib/storage.php
+          put /tmp/gp-live/lib/warehouse-v53438.php -o /lib/warehouse-v53438.php
           bye
           EOF
 
@@ -135,11 +140,13 @@ jobs:
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /index.php -o /tmp/gp-verify/index.php
           get /lib/storage.php -o /tmp/gp-verify/lib/storage.php
+          get /lib/warehouse-v53438.php -o /tmp/gp-verify/lib/warehouse-v53438.php
           bye
           EOF
           php -l /tmp/gp-verify/index.php
           php -l /tmp/gp-verify/lib/storage.php
-          grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-verify/lib/storage.php
+          php -l /tmp/gp-verify/lib/warehouse-v53438.php
+          (grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-verify/lib/storage.php || grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-verify/lib/warehouse-v53438.php)
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz >/tmp/health.json
           cat /tmp/health.json
 
@@ -161,5 +168,6 @@ jobs:
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put /tmp/gp-rollback/index.php -o /index.php
           put /tmp/gp-rollback/lib/storage.php -o /lib/storage.php
+          put /tmp/gp-rollback/lib/warehouse-v53438.php -o /lib/warehouse-v53438.php
           bye
           EOF
