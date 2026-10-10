@@ -9,7 +9,7 @@ function walkTextReplace(root, fromRe, to){
   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
   const nodes=[];
   while(w.nextNode()) nodes.push(w.currentNode);
-  nodes.forEach(n=>{ if(fromRe.test(n.nodeValue||'')) n.nodeValue=(n.nodeValue||'').replace(fromRe,to); });
+  nodes.forEach(n=>{ const old=String(n.nodeValue||''); const neu=old.replace(fromRe,to); if(neu!==old) n.nodeValue=neu; });
 }
 
 function renameWarehouseProducts(){
@@ -150,18 +150,22 @@ function renderDailyMovementSummary(){
   let thead=table.querySelector('thead tr');
   if(thead) thead.innerHTML='<th>تاریخ</th><th>ورود</th><th>خروج</th><th>انتقال</th><th>توضیحات</th>';
 
+  const sig=ym+'|'+wid+'|'+[...days.entries()].map(([d,g])=>[d,g.count,[...g.in],[...g.out],[...g.tin],[...g.tout]].join(':')).join('|');
+  if(body.dataset.gpGroupedSig===sig && table.querySelectorAll('thead th').length===5) return;
   const rows=[...days.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([d,g])=>{
     const notes=[...g.notes];
     if(g.count>1) notes.push(g.count.toLocaleString('fa-IR')+' ثبت تجمیع‌شده');
     return '<tr><td><b>'+esc(d)+'</b></td><td>'+bucketHtml(g.in)+'</td><td>'+bucketHtml(g.out)+'</td><td>'+transferHtml(g.tin,g.tout)+'</td><td>'+(notes.length?notes.map(esc).join('، '):'<span class="small">—</span>')+'</td></tr>';
   }).join('');
   body.innerHTML=rows||'<tr><td colspan="5">در این ماه هنوز گردش جدیدی ثبت نشده است.</td></tr>';
+  body.dataset.gpGroupedSig=sig;
 }
 
 function wrapWarehouseRender(){
   if(typeof renderWarehouseLedger==='function' && !renderWarehouseLedger.__gpDailyGrouped){
     const base=renderWarehouseLedger;
     const wrapped=function(){
+      const body=document.getElementById('warehouseMovementBody'); if(body) delete body.dataset.gpGroupedSig;
       const r=base.apply(this,arguments);
       try{renderDailyMovementSummary()}catch(e){}
       return r;
