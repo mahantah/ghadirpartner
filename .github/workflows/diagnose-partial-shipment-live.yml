@@ -1,0 +1,52 @@
+name: Diagnose live partial shipment code
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-partial-shipment-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install FTP client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+      - name: Download live PHP files and inspect shipment logic
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-diag
+          mkdir -p /tmp/gp-diag/lib
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          cls -1 /lib
+          get /index.php -o /tmp/gp-diag/index.php
+          get /lib/storage.php -o /tmp/gp-diag/lib/storage.php
+          get /lib/warehouse-v53438.php -o /tmp/gp-diag/lib/warehouse-v53438.php
+          bye
+          EOF
+          for f in /tmp/gp-diag/index.php /tmp/gp-diag/lib/storage.php /tmp/gp-diag/lib/warehouse-v53438.php; do
+            echo "===== $f ====="
+            echo "--- symbols ---"
+            grep -n -E "ghadir_warehouse_exit_order|warehouse_exit|sale_out|خروج سفارش|/api/status|warehouse_id.*=0|warehouse_id.*0" "$f" | head -120 || true
+            echo "--- status context ---"
+            grep -n -B 2 -A 5 -E "if\(\$p===?'/api/status'|if\(\$p==='/api/status'|/api/status" "$f" | head -100 || true
+            echo
+          done
