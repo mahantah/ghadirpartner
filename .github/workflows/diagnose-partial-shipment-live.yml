@@ -44,9 +44,12 @@ jobs:
           EOF
           for f in /tmp/gp-diag/index.php /tmp/gp-diag/lib/storage.php /tmp/gp-diag/lib/warehouse-v53438.php; do
             echo "===== $f ====="
-            echo "--- symbols ---"
-            grep -n -E "ghadir_warehouse_exit_order|warehouse_exit|sale_out|خروج سفارش|/api/status|warehouse_id.*=0|warehouse_id.*0" "$f" | head -120 || true
-            echo "--- status context ---"
-            grep -n -B 2 -A 5 -E "if\(\$p===?'/api/status'|if\(\$p==='/api/status'|/api/status" "$f" | head -100 || true
+            grep -n -E "ghadir_warehouse_exit_items|gp_.*exit|warehouse_exit|sale_out|خروج سفارش|/api/status|warehouse_id.*=0|warehouse_id.*0" "$f" | head -160 || true
             echo
           done
+          echo "===== index status block 835-945 ====="
+          sed -n '835,945p' /tmp/gp-diag/index.php
+          echo "===== storage exit block 68-105 ====="
+          sed -n '68,105p' /tmp/gp-diag/lib/storage.php
+          echo "===== warehouse helper block 1-75 ====="
+          sed -n '1,75p' /tmp/gp-diag/lib/warehouse-v53438.php
