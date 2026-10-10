@@ -52,13 +52,15 @@ jobs:
             cp /tmp/delta/assets/warehouse-v53438.css assets/warehouse-v53438.css
             cp "$GITHUB_WORKSPACE/assets/order-multiprint-v53438.js" assets/order-multiprint-v53438.js
             cp "$GITHUB_WORKSPACE/assets/warehouse-carton-multilabel-v53438.js" assets/warehouse-carton-multilabel-v53438.js
+            cp "$GITHUB_WORKSPACE/assets/warehouse-ui-refine-v53438.js" assets/warehouse-ui-refine-v53438.js
             python3 - <<'PY'
             from pathlib import Path
             p=Path('app.html')
             s=p.read_text()
             tags=[
                 '<script src="/assets/order-multiprint-v53438.js?v=53438mp2"></script>',
-                '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438wl2"></script>'
+                '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438wl2"></script>',
+                '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui1"></script>'
             ]
             if '</body>' not in s:
                 raise SystemExit('app.html closing body not found')
@@ -92,6 +94,10 @@ jobs:
           node --check "$ROOT/assets/warehouse-carton-multilabel-v53438.js"
           grep -q 'warehouse-carton-multilabel-v53438.js' "$ROOT/app.html"
           grep -q 'چاپ لیبل باکس‌های انتخاب‌شده' "$ROOT/assets/warehouse-carton-multilabel-v53438.js"
+          node --check "$ROOT/assets/warehouse-ui-refine-v53438.js"
+          grep -q 'warehouse-ui-refine-v53438.js' "$ROOT/app.html"
+          grep -q 'سریال‌های مشتریان' "$ROOT/assets/warehouse-ui-refine-v53438.js"
+          grep -q 'ثبت تجمیع‌شده' "$ROOT/assets/warehouse-ui-refine-v53438.js"
           echo "root=$ROOT" >> "$GITHUB_OUTPUT"
 
       - name: Backup live core files
