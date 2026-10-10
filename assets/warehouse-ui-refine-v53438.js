@@ -5,6 +5,7 @@ if(window.__GP_WAREHOUSE_UI_REFINE_53438__) return;
 window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
 
 /* GP_UI_HOTFIX_20261010
+   GP_UI_HOTFIX_DEPLOY_RETRY_2
    - compact warehouse summary cards
    - keep stocktake product sorting self-contained
    - make stocktake warehouse switch use a real global state
