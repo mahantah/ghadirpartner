@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/deploy-partial-shipment-fix.yml'
+      - 'scripts/patch-partial-shipment-per-serial.py'
 
 permissions:
   contents: read
