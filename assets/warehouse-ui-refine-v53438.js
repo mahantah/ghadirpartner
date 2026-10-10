@@ -10,6 +10,55 @@ window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
    - keep stocktake product sorting self-contained
    - make stocktake warehouse switch use a real global state
 */
+/* GP_LEDGER_CURRENT_ANCHOR_20261010
+   Daily ledger must be anchored to the canonical current inventory, not a possibly
+   contaminated baseline. This prevents the first receipt after warehouse activation
+   from being counted once inside the baseline and once again as a movement.
+*/
+function gpWarehouseCurrentQty(state,wid,product){
+  const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
+  return Number(current?.[product]||0);
+}
+function gpWarehouseMovementDelta(m,wid){
+  let d=0;
+  if(Number(m?.to_warehouse_id)===Number(wid)) d+=Number(m?.qty)||0;
+  if(Number(m?.from_warehouse_id)===Number(wid)) d-=Number(m?.qty)||0;
+  return d;
+}
+function gpWarehouseEffectiveBaselineQty(state,wid,product){
+  if(!state) return 0;
+  let q=gpWarehouseCurrentQty(state,wid,product);
+  for(const m of (state.movements||[])){
+    if(m?.product!==product) continue;
+    q-=gpWarehouseMovementDelta(m,wid);
+  }
+  return q;
+}
+function installWarehouseLedgerCurrentAnchor(){
+  if(typeof warehouseBaselineQty==='function' && !warehouseBaselineQty.__gpCurrentAnchor){
+    const fn=function(wid,product){return gpWarehouseEffectiveBaselineQty(WAREHOUSE_STATE,wid,product)};
+    fn.__gpCurrentAnchor=true;
+    warehouseBaselineQty=fn;
+  }
+  if(typeof warehouseStockAtDay==='function' && !warehouseStockAtDay.__gpCurrentAnchor){
+    const fn=function(wid,product,jday){
+      if(typeof WAREHOUSE_STATE==='undefined'||!WAREHOUSE_STATE) return null;
+      const activation=typeof jalaliDate==='function'?jalaliDate(WAREHOUSE_STATE.activated_at||''):'';
+      const today=typeof warehouseTodayJ==='function'?warehouseTodayJ():'';
+      if(!activation||!today||jday<activation||jday>today) return null;
+      let q=gpWarehouseCurrentQty(WAREHOUSE_STATE,wid,product);
+      for(const m of (WAREHOUSE_STATE.movements||[])){
+        if(m?.product!==product) continue;
+        const md=typeof warehouseMovementDate==='function'?warehouseMovementDate(m):'';
+        if(md && md>jday && md<=today) q-=gpWarehouseMovementDelta(m,wid);
+      }
+      return q;
+    };
+    fn.__gpCurrentAnchor=true;
+    warehouseStockAtDay=fn;
+  }
+}
+
 function warehouseProductOrder(p){
   const n=String(p||'').toUpperCase();
   const keys=['I90','I80','T3 2G','T3 4G ECONOMY','H9 PRO','MF919','M3P','T3 4G','AF-75 - پلاس','Z-990','V77','AF-70 - پلاس','M3P- 4G','K9'];
@@ -228,7 +277,7 @@ function stocktakeProductRows(state,wid){
   (state.movements||[]).filter(m=>Number(m.from_warehouse_id)===wid||Number(m.to_warehouse_id)===wid).forEach(m=>names.add(m.product));
 
   return [...names].map(product=>{
-    let incoming=(state.baseline||[]).filter(x=>Number(x.warehouse_id)===wid&&x.product===product).reduce((n,x)=>n+(Number(x.qty)||0),0);
+    let incoming=gpWarehouseEffectiveBaselineQty(state,wid,product);
     let outgoing=0;
     (state.movements||[]).forEach(m=>{
       if(m.product!==product)return;
@@ -389,6 +438,7 @@ function normalizeUI(){
   fixWarehouseAndPriceMenuLabels();
   mergeCustomerSerialCards();
   installJDateFix();
+  installWarehouseLedgerCurrentAnchor();
   wrapWarehouseRender();
   installSeparateStocktake();
   emphasizeForceOrders();
