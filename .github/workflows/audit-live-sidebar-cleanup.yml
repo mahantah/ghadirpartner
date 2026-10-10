@@ -1,4 +1,4 @@
-name: Audit Live Sidebar Cleanup
+name: Audit Live Warehouse Daily Blocks
 on:
   push:
     branches:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: sudo apt-get update && sudo apt-get install -y lftp
-      - name: Inspect live sidebar assets
+      - name: Inspect live warehouse daily asset
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -28,13 +28,7 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          get /app.html -o /tmp/live/app.html
-          get /assets/ui-v53435.js -o /tmp/live/ui-v53435.js
-          get /assets/business-v53437.js -o /tmp/live/business-v53437.js
-          get /assets/ops-v53434.js -o /tmp/live/ops-v53434.js
-          get /assets/redesign-v5348.js -o /tmp/live/redesign-v5348.js
-          get /assets/bugfix-v5349.js -o /tmp/live/bugfix-v5349.js
+          get /assets/warehouse-v53438.js -o /tmp/live/warehouse-v53438.js
           bye
           EOF
-          echo "=== SIDEBAR ASSETS ==="
-          grep -n -E -A18 -B18 "مدیریت انبار|لیست قیمت|قیمت و موجودی|warehouseDaily|portalAdmin|data-tab" /tmp/live/*.js | head -n 2200 || true
+          grep -n -E -A25 -B25 "رسید انبار|انتقال / خروج / مرجوعی|رسید|مرجوعی|movement" /tmp/live/warehouse-v53438.js | head -n 2200 || true
