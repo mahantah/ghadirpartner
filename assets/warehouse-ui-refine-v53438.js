@@ -4,6 +4,18 @@
 if(window.__GP_WAREHOUSE_UI_REFINE_53438__) return;
 window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
 
+/* GP_UI_HOTFIX_20261010
+   - compact warehouse summary cards
+   - keep stocktake product sorting self-contained
+   - make stocktake warehouse switch use a real global state
+*/
+function warehouseProductOrder(p){
+  const n=String(p||'').toUpperCase();
+  const keys=['I90','I80','T3 2G','T3 4G ECONOMY','H9 PRO','MF919','M3P','T3 4G','AF-75 - پلاس','Z-990','V77','AF-70 - پلاس','M3P- 4G','K9'];
+  const i=keys.findIndex(k=>n.includes(String(k).toUpperCase()));
+  return i<0?999:i;
+}
+
 function walkTextReplace(root, fromRe, to){
   if(!root) return;
   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
@@ -301,13 +313,13 @@ function wrapWarehouseRender(){
 }
 
 
-let GP_STOCKTAKE_WAREHOUSE=1;
+window.GP_STOCKTAKE_WAREHOUSE=Number(window.GP_STOCKTAKE_WAREHOUSE||1);
 async function loadStocktakeSeparated(){
   const body=document.getElementById('stocktakeBody'),totals=document.getElementById('stocktakeTotals');
   if(!body||!totals)return;
   try{
     const ws=await req('/api/warehouses');
-    const wid=Number(GP_STOCKTAKE_WAREHOUSE||1);
+    const wid=Number(window.GP_STOCKTAKE_WAREHOUSE||1);
     const products=(ws.products||[]).map(p=>p.name).filter(Boolean);
     const current=ws.current?.[wid]||ws.current?.[String(wid)]||{};
     const free=ws.free?.[wid]||ws.free?.[String(wid)]||{};
@@ -390,7 +402,7 @@ css.textContent=
   '#warehouseDaily .warehouse-ledger-bottom{display:none!important}'+
   '.gp-serial-merge-divider{height:1px;background:#e4eaf1;margin:14px 0}'+
   '#inventory>.card{overflow:visible}.gp-move-products{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:4px}.gp-move-products span{display:inline-block;background:#f4f7fb;border:1px solid #e1e8f0;border-radius:7px;padding:3px 6px;font-size:11px}.warehouse-movement-table{min-width:900px}.warehouse-movement-table td{vertical-align:top}'+
-  '#warehouseLedgerSummary{display:grid!important;grid-template-columns:repeat(2,minmax(280px,1fr))!important;gap:10px!important}.gp-wh-live-card{padding:12px 14px!important;border:1px solid #dce5ee!important}.gp-wh-live-card.active{border-color:#f58220!important;box-shadow:0 0 0 2px #f5822026!important}.gp-wh-live-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.gp-wh-live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.gp-wh-live-stats>div{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:9px;padding:8px;text-align:center}.gp-wh-live-stats span{display:block;font-size:11px;color:#64748b;margin-bottom:4px}.gp-wh-live-stats strong{font-size:17px;color:#102a43}'+
+  '/* gp-warehouse-summary-compact */#warehouseLedgerSummary{display:grid!important;grid-template-columns:repeat(2,minmax(280px,1fr))!important;gap:6px!important;margin:6px 0!important}#warehouseLedgerSummary>.card{margin:0!important;padding:8px 11px!important;min-height:0!important;border-radius:12px!important}#warehouseLedgerSummary>.card>.small,#warehouseLedgerSummary>.card .small{margin:0!important;line-height:1.3!important}#warehouseLedgerSummary>.card>b{margin:1px 0!important;line-height:1.25!important}.gp-wh-live-card{padding:8px 10px!important;border:1px solid #dce5ee!important}.gp-wh-live-card.active{border-color:#f58220!important;box-shadow:0 0 0 2px #f5822026!important}.gp-wh-live-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}.gp-wh-live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.gp-wh-live-stats>div{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:8px;padding:5px 6px;text-align:center}.gp-wh-live-stats span{display:block;font-size:10.5px;color:#64748b;margin-bottom:2px;line-height:1.25}.gp-wh-live-stats strong{font-size:16px;line-height:1.15;color:#102a43}'+
   '#otbody tr.gp-force-order td{border-top:2px solid #ef233c!important;border-bottom:2px solid #ef233c!important;animation:gpForceGlow 1.35s linear infinite;background-clip:padding-box}#otbody tr.gp-force-order td:first-child{border-right:2px solid #ef233c!important;border-radius:0 10px 10px 0}#otbody tr.gp-force-order td:last-child{border-left:2px solid #ef233c!important;border-radius:10px 0 0 10px}#otbody tr.gp-force-order .order-no:after{content:"فورس";display:inline-block;margin-right:6px;padding:2px 6px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:900;vertical-align:middle}@keyframes gpForceGlow{0%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}25%{box-shadow:inset 0 2px 0 #ff758f,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}50%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ffb3c1,0 0 13px rgba(239,35,60,.38)}75%{box-shadow:inset 0 2px 0 #ffb3c1,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}100%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}}'+
   '.gp-stocktake-wh{padding:12px!important}.gp-stocktake-wh-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}.gp-stocktake-wh-stats span{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:8px;padding:6px 9px}.gp-stocktake-wh-stats strong{margin-right:4px;color:#102a43}'+
   '.gp-stocktake-switch{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.gp-stocktake-switch button{border:1px solid #cfd9e5;background:#f7f9fc;color:#102a43;border-radius:9px;padding:9px 14px;font-family:Tahoma;font-weight:800;cursor:pointer}.gp-stocktake-switch button.active{background:#f58220;color:#fff;border-color:#f58220}.gp-stocktake-summary{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:8px;width:100%}'+
