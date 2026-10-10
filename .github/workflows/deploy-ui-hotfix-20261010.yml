@@ -1,0 +1,128 @@
+name: Deploy warehouse UI hotfix 2026-10-10
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'assets/warehouse-ui-refine-v53438.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event.head_commit.message == 'fix: compact warehouse summary and stocktake renderer 2026-10-10' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-ui-refine-v53438.js
+          grep -q 'GP_UI_HOTFIX_20261010' assets/warehouse-ui-refine-v53438.js
+          grep -q 'function warehouseProductOrder' assets/warehouse-ui-refine-v53438.js
+          grep -q 'gp-warehouse-summary-compact' assets/warehouse-ui-refine-v53438.js
+
+      - name: Install FTP client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Backup live UI files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gp-ui-rollback/assets
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/gp-ui-rollback/app.html
+          get /assets/warehouse-ui-refine-v53438.js -o /tmp/gp-ui-rollback/assets/warehouse-ui-refine-v53438.js
+          bye
+          EOF
+
+      - name: Deploy asset and bust browser cache
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/gp-ui-rollback/app.html /tmp/app.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('/tmp/app.html')
+          s=p.read_text(encoding='utf-8')
+          pat=r'(/assets/warehouse-ui-refine-v53438\.js\?v=)[^"\x27< ]+'
+          s2,n=re.subn(pat,r'\g<1>53438ui4',s)
+          if n < 1:
+              raise SystemExit('warehouse UI script tag not found in live app.html')
+          p.write_text(s2,encoding='utf-8')
+          PY
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put assets/warehouse-ui-refine-v53438.js -o /assets/warehouse-ui-refine-v53438.js
+          put /tmp/app.html -o /app.html
+          bye
+          EOF
+
+      - name: Verify live hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..10}; do
+            curl -fsS --max-time 25 "https://ghadirpartner.ir/assets/warehouse-ui-refine-v53438.js?v=53438ui4" -o /tmp/live-ui.js || true
+            curl -fsS --max-time 25 "https://ghadirpartner.ir/" -o /tmp/live-app.html || true
+            if grep -q 'GP_UI_HOTFIX_20261010' /tmp/live-ui.js 2>/dev/null && grep -q 'warehouse-ui-refine-v53438.js?v=53438ui4' /tmp/live-app.html 2>/dev/null; then
+              node --check /tmp/live-ui.js
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Live hotfix verification failed" >&2
+          exit 1
+
+      - name: Roll back on failure
+        if: failure()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          test -f /tmp/gp-ui-rollback/app.html || exit 0
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-ui-rollback/app.html -o /app.html
+          put /tmp/gp-ui-rollback/assets/warehouse-ui-refine-v53438.js -o /assets/warehouse-ui-refine-v53438.js
+          bye
+          EOF
