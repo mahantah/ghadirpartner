@@ -1,4 +1,4 @@
-name: Deploy per-serial partial shipment fix
+name: Deploy partial shipment batch report fix
 
 on:
   push:
@@ -25,9 +25,9 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y lftp php-cli curl
+          sudo apt-get install -y lftp php-cli curl nodejs
 
-      - name: Download current live core
+      - name: Download current live files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/gp-live /tmp/gp-rollback
-          mkdir -p /tmp/gp-live/lib /tmp/gp-rollback/lib
+          mkdir -p /tmp/gp-live /tmp/gp-rollback
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -45,13 +45,11 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /index.php -o /tmp/gp-live/index.php
-          get /lib/storage.php -o /tmp/gp-live/lib/storage.php
-          get /lib/warehouse-v53438.php -o /tmp/gp-live/lib/warehouse-v53438.php
+          get /app.html -o /tmp/gp-live/app.html
           bye
           EOF
           cp /tmp/gp-live/index.php /tmp/gp-rollback/index.php
-          cp /tmp/gp-live/lib/storage.php /tmp/gp-rollback/lib/storage.php
-          cp /tmp/gp-live/lib/warehouse-v53438.php /tmp/gp-rollback/lib/warehouse-v53438.php
+          cp /tmp/gp-live/app.html /tmp/gp-rollback/app.html
 
       - name: Patch and validate
         shell: bash
@@ -59,49 +57,25 @@ jobs:
           set -euo pipefail
           python3 scripts/patch-partial-shipment-per-serial.py /tmp/gp-live
           php -l /tmp/gp-live/index.php
-          php -l /tmp/gp-live/lib/storage.php
-          php -l /tmp/gp-live/lib/warehouse-v53438.php
-          (grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-live/lib/storage.php || grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-live/lib/warehouse-v53438.php)
-          grep -q "warehouse_id.*reserved" /tmp/gp-live/index.php || grep -q "\$wid=(int)(\$iv\['warehouse_id'\]??0)" /tmp/gp-live/index.php
-          cat >/tmp/test_partial.php <<'PHP'
-          <?php
-          require '/tmp/gp-live/lib/storage.php';
-          if(!function_exists('ghadir_warehouse_exit_order')) require '/tmp/gp-live/lib/warehouse-v53438.php';
-          $s=[
-            'warehouses'=>[
-              ['id'=>1,'code'=>'WHOLESALE','name'=>'انبار عمده','active'=>true],
-              ['id'=>2,'code'=>'RETAIL','name'=>'انبار خرده','active'=>true]
-            ],
-            'warehouse_movements'=>[],
-            'next_warehouse_movement'=>1,
-            'inventory'=>[
-              ['id'=>1,'product'=>'TEST','serial'=>'S1','warehouse_id'=>1,'order_id'=>77,'order_number'=>'ORD77'],
-              ['id'=>2,'product'=>'TEST','serial'=>'S2','warehouse_id'=>1,'order_id'=>77,'order_number'=>'ORD77'],
-              ['id'=>3,'product'=>'TEST','serial'=>'S3','warehouse_id'=>1,'order_id'=>0,'order_number'=>'']
-            ],
-            'cartons'=>[],
-            'orders'=>[['id'=>77,'status'=>'ارسال شد']],
-            'warehouse_activated_at'=>'2026-10-10 10:00:00',
-            'warehouse_baseline'=>[]
-          ];
-          $o=['id'=>77,'number'=>'ORD77'];
-          $a=ghadir_warehouse_exit_order($s,$o,'test');
-          if($a!==2) throw new RuntimeException('first partial exit must be 2, got '.$a);
-          $s['inventory'][2]['order_id']=77;
-          $s['inventory'][2]['order_number']='ORD77';
-          $b=ghadir_warehouse_exit_order($s,$o,'test');
-          if($b!==1) throw new RuntimeException('second partial exit must be only remaining 1, got '.$b);
-          $c=ghadir_warehouse_exit_order($s,$o,'test');
-          if($c!==0) throw new RuntimeException('repeat exit must be idempotent, got '.$c);
-          $outs=array_values(array_filter($s['warehouse_movements'],fn($m)=>($m['type']??'')==='sale_out'));
-          if(count($outs)!==2 || (int)$outs[0]['qty']!==2 || (int)$outs[1]['qty']!==1) throw new RuntimeException('movement batches are not 2 then 1');
-          $seen=[];
-          foreach($outs as $m)foreach($m['serials'] as $sn){if(isset($seen[$sn]))throw new RuntimeException('serial exited twice: '.$sn);$seen[$sn]=1;}
-          echo "partial shipment test OK\n";
-          PHP
-          php /tmp/test_partial.php
+          grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' /tmp/gp-live/index.php
+          grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' /tmp/gp-live/app.html
+          node - /tmp/gp-live/app.html <<'NODE'
+          const fs=require('fs'),p=process.argv[2],h=fs.readFileSync(p,'utf8');
+          const a=h.indexOf('/* PARTIAL_SHIPMENT_BATCH_REPORT_20261010 */');
+          const b=h.indexOf("let EXIT_SORT=",a);
+          if(a<0||b<0)throw new Error('batch report JS block missing');
+          eval(h.slice(a,b));
+          const o={shipment_batches:[
+            {at:'2026-10-09 10:00:00',by:'a',items:[{product:'TEST',qty:2,serials:['S1','S2']}]},
+            {at:'2026-10-10 10:00:00',by:'b',items:[{product:'TEST',qty:2,serials:['S1','S3']}]}
+          ]};
+          const e=exitEvents(o);
+          if(e.length!==2||e[0].items[0].qty!==2||e[1].items[0].qty!==1)throw new Error('duplicate serial was not removed from later batch');
+          if(e[1].items[0].serials[0]!=='S3')throw new Error('wrong serial in second batch');
+          console.log('shipment batch JS test OK');
+          NODE
 
-      - name: Deploy patched live core
+      - name: Deploy patched report logic
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -117,8 +91,7 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put /tmp/gp-live/index.php -o /index.php
-          put /tmp/gp-live/lib/storage.php -o /lib/storage.php
-          put /tmp/gp-live/lib/warehouse-v53438.php -o /lib/warehouse-v53438.php
+          put /tmp/gp-live/app.html -o /app.html
           bye
           EOF
 
@@ -130,7 +103,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/gp-verify && mkdir -p /tmp/gp-verify/lib
+          rm -rf /tmp/gp-verify && mkdir -p /tmp/gp-verify
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -139,14 +112,12 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /index.php -o /tmp/gp-verify/index.php
-          get /lib/storage.php -o /tmp/gp-verify/lib/storage.php
-          get /lib/warehouse-v53438.php -o /tmp/gp-verify/lib/warehouse-v53438.php
+          get /app.html -o /tmp/gp-verify/app.html
           bye
           EOF
           php -l /tmp/gp-verify/index.php
-          php -l /tmp/gp-verify/lib/storage.php
-          php -l /tmp/gp-verify/lib/warehouse-v53438.php
-          (grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-verify/lib/storage.php || grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-verify/lib/warehouse-v53438.php)
+          grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' /tmp/gp-verify/index.php
+          grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' /tmp/gp-verify/app.html
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz >/tmp/health.json
           cat /tmp/health.json
 
@@ -167,7 +138,6 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put /tmp/gp-rollback/index.php -o /index.php
-          put /tmp/gp-rollback/lib/storage.php -o /lib/storage.php
-          put /tmp/gp-rollback/lib/warehouse-v53438.php -o /lib/warehouse-v53438.php
+          put /tmp/gp-rollback/app.html -o /app.html
           bye
           EOF
