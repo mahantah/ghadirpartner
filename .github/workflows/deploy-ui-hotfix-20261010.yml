@@ -1,10 +1,7 @@
 name: Deploy warehouse UI hotfix 2026-10-10
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-ui-hotfix-20261010.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
