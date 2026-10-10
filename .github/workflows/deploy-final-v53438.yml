@@ -70,6 +70,7 @@ jobs:
             p.write_text(s)
             PY
           )
+          python3 "$GITHUB_WORKSPACE/scripts/patch-partial-shipment-per-serial.py" "$ROOT"
           php -l "$ROOT/index.php"
           php -l "$ROOT/partners/index.php"
           php -l "$ROOT/lib/storage.php"
@@ -250,6 +251,7 @@ jobs:
           grep -q '/api/order/return' /tmp/livecheck/lib/warehouse-v53438.php
           grep -q 'warehouseDaily' /tmp/livecheck/assets/warehouse-v53438.js
           grep -q 'GP_UI_HOTFIX_20261010' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
+          grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/livecheck/lib/storage.php
           grep -q 'sessionLifetime=86400' /tmp/livecheck/index.php
           grep -q 'میلیارد تومان' /tmp/livecheck/app.html
 
