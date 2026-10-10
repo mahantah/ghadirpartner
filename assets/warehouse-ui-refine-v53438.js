@@ -169,12 +169,53 @@ function renderDailyMovementSummary(){
   body.dataset.gpGroupedSig=sig;
 }
 
+
+function warehouseTotalsFor(wid){
+  if(typeof WAREHOUSE_STATE==='undefined'||!WAREHOUSE_STATE) return {total:0,free:0,reserved:0};
+  const current=WAREHOUSE_STATE.current?.[wid]||WAREHOUSE_STATE.current?.[String(wid)]||{};
+  const freeMap=WAREHOUSE_STATE.free?.[wid]||WAREHOUSE_STATE.free?.[String(wid)]||{};
+  const reservedMap=WAREHOUSE_STATE.reserved?.[wid]||WAREHOUSE_STATE.reserved?.[String(wid)]||{};
+  return {
+    total:Object.values(current).reduce((s,n)=>s+(Number(n)||0),0),
+    free:Object.values(freeMap).reduce((s,n)=>s+(Number(n)||0),0),
+    reserved:Object.values(reservedMap).reduce((s,n)=>s+(Number(n)||0),0)
+  };
+}
+
+function renderSeparateWarehouseLiveSummary(){
+  if(typeof WAREHOUSE_STATE==='undefined'||!WAREHOUSE_STATE) return;
+  const host=document.getElementById('warehouseLedgerSummary');
+  if(!host) return;
+  const rows=[
+    {id:1,name:'انبار عمده'},
+    {id:2,name:'انبار خرده تهرانپارس'}
+  ];
+  host.innerHTML=rows.map(w=>{
+    const t=warehouseTotalsFor(w.id);
+    const active=(typeof WAREHOUSE_SELECTED!=='undefined'&&Number(WAREHOUSE_SELECTED)===w.id)?' active':'';
+    return '<div class="card gp-wh-live-card'+active+'">'+
+      '<div class="gp-wh-live-head"><b>'+esc(w.name)+'</b><span class="badge">'+(active?'نمایش دفتر':'مجزا')+'</span></div>'+
+      '<div class="gp-wh-live-stats">'+
+        '<div><span>موجودی فیزیکی</span><strong>'+t.total.toLocaleString('fa-IR')+'</strong></div>'+
+        '<div><span>آزاد</span><strong>'+t.free.toLocaleString('fa-IR')+'</strong></div>'+
+        '<div><span>رزرو / تخصیص</span><strong>'+t.reserved.toLocaleString('fa-IR')+'</strong></div>'+
+      '</div></div>';
+  }).join('');
+}
+
+function emphasizeForceOrders(){
+  document.querySelectorAll('#otbody tr').forEach(tr=>{
+    tr.classList.toggle('gp-force-order',tr.classList.contains('fros-row'));
+  });
+}
+
 function wrapWarehouseRender(){
   if(typeof renderWarehouseLedger==='function' && !renderWarehouseLedger.__gpDailyGrouped){
     const base=renderWarehouseLedger;
     const wrapped=function(){
       const body=document.getElementById('warehouseMovementBody'); if(body) delete body.dataset.gpGroupedSig;
       const r=base.apply(this,arguments);
+      try{renderSeparateWarehouseLiveSummary()}catch(e){}
       try{renderDailyMovementSummary()}catch(e){}
       return r;
     };
@@ -188,7 +229,8 @@ function normalizeUI(){
   mergeCustomerSerialCards();
   installJDateFix();
   wrapWarehouseRender();
-  try{ if(document.getElementById('warehouseDaily') && !document.getElementById('warehouseDaily').classList.contains('hidden')) renderDailyMovementSummary(); }catch(e){}
+  emphasizeForceOrders();
+  try{ if(document.getElementById('warehouseDaily') && !document.getElementById('warehouseDaily').classList.contains('hidden')){renderSeparateWarehouseLiveSummary();renderDailyMovementSummary();} }catch(e){}
 }
 
 const css=document.createElement('style');
@@ -196,7 +238,10 @@ css.textContent=
   '.jdate-pop{z-index:1000000!important}.jdate-wrap{overflow:visible!important}.report-grid,.card{overflow:visible}'+
   '#warehouseDaily .warehouse-ledger-bottom{display:none!important}'+
   '.gp-serial-merge-divider{height:1px;background:#e4eaf1;margin:14px 0}'+
-  '#inventory>.card{overflow:visible}.gp-move-products{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:4px}.gp-move-products span{display:inline-block;background:#f4f7fb;border:1px solid #e1e8f0;border-radius:7px;padding:3px 6px;font-size:11px}.warehouse-movement-table{min-width:900px}.warehouse-movement-table td{vertical-align:top}';
+  '#inventory>.card{overflow:visible}.gp-move-products{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:4px}.gp-move-products span{display:inline-block;background:#f4f7fb;border:1px solid #e1e8f0;border-radius:7px;padding:3px 6px;font-size:11px}.warehouse-movement-table{min-width:900px}.warehouse-movement-table td{vertical-align:top}'+
+  '#warehouseLedgerSummary{display:grid!important;grid-template-columns:repeat(2,minmax(280px,1fr))!important;gap:10px!important}.gp-wh-live-card{padding:12px 14px!important;border:1px solid #dce5ee!important}.gp-wh-live-card.active{border-color:#f58220!important;box-shadow:0 0 0 2px #f5822026!important}.gp-wh-live-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.gp-wh-live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.gp-wh-live-stats>div{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:9px;padding:8px;text-align:center}.gp-wh-live-stats span{display:block;font-size:11px;color:#64748b;margin-bottom:4px}.gp-wh-live-stats strong{font-size:17px;color:#102a43}'+
+  '#otbody tr.gp-force-order td{border-top:2px solid #ef233c!important;border-bottom:2px solid #ef233c!important;animation:gpForceGlow 1.35s linear infinite;background-clip:padding-box}#otbody tr.gp-force-order td:first-child{border-right:2px solid #ef233c!important;border-radius:0 10px 10px 0}#otbody tr.gp-force-order td:last-child{border-left:2px solid #ef233c!important;border-radius:10px 0 0 10px}#otbody tr.gp-force-order .order-no:after{content:"فورس";display:inline-block;margin-right:6px;padding:2px 6px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:900;vertical-align:middle}@keyframes gpForceGlow{0%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}25%{box-shadow:inset 0 2px 0 #ff758f,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}50%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ffb3c1,0 0 13px rgba(239,35,60,.38)}75%{box-shadow:inset 0 2px 0 #ffb3c1,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}100%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}}'+
+  '@media(max-width:720px){#warehouseLedgerSummary{grid-template-columns:1fr!important}.gp-wh-live-stats{grid-template-columns:repeat(3,1fr)}}';
 document.head.appendChild(css);
 
 normalizeUI();
