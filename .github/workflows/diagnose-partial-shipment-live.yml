@@ -1,10 +1,7 @@
 name: Diagnose live partial shipment code
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/diagnose-partial-shipment-live.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
