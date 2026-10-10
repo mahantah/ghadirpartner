@@ -3,8 +3,20 @@ from pathlib import Path
 import re, sys
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
-storage = root / "lib" / "storage.php"
 index = root / "index.php"
+storage_candidates = [
+    root / "lib" / "storage.php",
+    root / "lib" / "warehouse-v53438.php",
+]
+storage = None
+for candidate in storage_candidates:
+    if candidate.exists():
+        text = candidate.read_text(encoding="utf-8")
+        if "function ghadir_warehouse_exit_order" in text:
+            storage = candidate
+            break
+if storage is None:
+    raise SystemExit("could not locate warehouse exit implementation")
 
 s = storage.read_text(encoding="utf-8")
 
