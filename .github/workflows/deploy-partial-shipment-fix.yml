@@ -1,11 +1,7 @@
 name: Deploy partial shipment batch report fix
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-partial-shipment-fix.yml'
-      - 'scripts/patch-partial-shipment-per-serial.py'
+  workflow_dispatch:
 
 permissions:
   contents: read
