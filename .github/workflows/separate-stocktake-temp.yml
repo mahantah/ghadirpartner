@@ -1,0 +1,103 @@
+name: Deploy Separate Stocktake Warehouses
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "separate-stocktake.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp nodejs
+
+      - name: Validate asset
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-ui-refine-v53438.js
+          grep -q "renderSeparateStocktake" assets/warehouse-ui-refine-v53438.js
+          grep -q "جمع مشترک نمایش داده نمی‌شود" assets/warehouse-ui-refine-v53438.js
+
+      - name: Patch live app and upload
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gpst
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/gpst/app.html
+          bye
+          EOF
+          cp /tmp/gpst/app.html /tmp/gpst/app-before.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('/tmp/gpst/app.html')
+          s=p.read_text()
+          s=re.sub(r'<script src="/assets/warehouse-ui-refine-v53438\.js\?v=[^"]+"></script>','',s)
+          tag='<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui3"></script>'
+          if '</body>' not in s: raise SystemExit('closing body not found')
+          s=s.replace('</body>',tag+'</body>',1)
+          p.write_text(s)
+          PY
+          TS="$(date +%Y%m%d-%H%M%S)"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          cd /storage/Backups
+          put /tmp/gpst/app-before.html -o "app-before-separate-stocktake-$TS.html"
+          cd /
+          put /tmp/gpst/app.html -o /app.html
+          put assets/warehouse-ui-refine-v53438.js -o /assets/warehouse-ui-refine-v53438.js
+          bye
+          EOF
+
+      - name: Verify live
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gpst/verify
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/gpst/verify/app.html
+          get /assets/warehouse-ui-refine-v53438.js -o /tmp/gpst/verify/refine.js
+          bye
+          EOF
+          node --check /tmp/gpst/verify/refine.js
+          grep -q "warehouse-ui-refine-v53438.js?v=53438ui3" /tmp/gpst/verify/app.html
+          grep -q "renderSeparateStocktake" /tmp/gpst/verify/refine.js
+          grep -q "جمع مشترک نمایش داده نمی‌شود" /tmp/gpst/verify/refine.js
