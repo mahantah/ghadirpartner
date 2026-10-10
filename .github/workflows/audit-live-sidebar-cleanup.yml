@@ -1,0 +1,39 @@
+name: Audit Live Sidebar Cleanup
+on:
+  push:
+    branches:
+      - audit-live-sidebar-cleanup-20261010
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y lftp
+      - name: Inspect live app
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/live
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/live/app.html
+          bye
+          EOF
+          echo "=== SIDEBAR ==="
+          grep -n -E -A12 -B12 "مدیریت انبار|قیمت و موجودی|لیست قیمت|data-tab=.products.|data-tab=.portalAdmin." /tmp/live/app.html | head -n 1000 || true
+          echo "=== DAILY REDUNDANT BLOCKS ==="
+          grep -n -E -A12 -B12 "رسید انبار|انتقال / خروج / مرجوعی|رسید و گردش انبار" /tmp/live/app.html | head -n 1200 || true
+          echo "=== SCRIPT TAGS ==="
+          grep -oE '<script[^>]+src="[^"]+"' /tmp/live/app.html | tail -n 40 || true
