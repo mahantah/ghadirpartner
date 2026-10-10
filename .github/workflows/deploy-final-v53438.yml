@@ -60,7 +60,7 @@ jobs:
             tags=[
                 '<script src="/assets/order-multiprint-v53438.js?v=53438mp2"></script>',
                 '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438wl2"></script>',
-                '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui2"></script>'
+                '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui3"></script>'
             ]
             if '</body>' not in s:
                 raise SystemExit('app.html closing body not found')
