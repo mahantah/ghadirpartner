@@ -1,11 +1,7 @@
 name: Deploy warehouse UI hotfix 2026-10-10
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'assets/warehouse-ui-refine-v53438.js'
+  workflow_dispatch:
 
 permissions:
   contents: read
