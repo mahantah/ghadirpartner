@@ -53,3 +53,7 @@ jobs:
           sed -n '68,105p' /tmp/gp-diag/lib/storage.php
           echo "===== warehouse helper block 1-75 ====="
           sed -n '1,75p' /tmp/gp-diag/lib/warehouse-v53438.php
+          echo "===== index exit helpers 70-170 ====="
+          sed -n '70,170p' /tmp/gp-diag/index.php
+          echo "===== index shipment helpers 555-650 ====="
+          sed -n '555,650p' /tmp/gp-diag/index.php
