@@ -63,7 +63,7 @@ new_exit = r'''function ghadir_warehouse_exit_order(array &$s,array &$order,stri
 }'''
 
 s, n = re.subn(
-    r"function ghadir_warehouse_exit_order\(array &\$s,array &\$order,string \$by\): int \{.*?\n\}\n\nfunction ghadir_state_prepare",
+    r"function\\s+ghadir_warehouse_exit_order\\s*\\([^)]*\\)\\s*(?::\\s*int)?\\s*\\{.*?\\}\\s*function\\s+ghadir_state_prepare",
     new_exit + "\n\nfunction ghadir_state_prepare",
     s,
     count=1,
