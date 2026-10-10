@@ -1,0 +1,164 @@
+name: Deploy per-serial partial shipment fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-partial-shipment-fix.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli curl
+
+      - name: Download current live core
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-live /tmp/gp-rollback
+          mkdir -p /tmp/gp-live/lib /tmp/gp-rollback/lib
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-live/index.php
+          get /lib/storage.php -o /tmp/gp-live/lib/storage.php
+          bye
+          EOF
+          cp /tmp/gp-live/index.php /tmp/gp-rollback/index.php
+          cp /tmp/gp-live/lib/storage.php /tmp/gp-rollback/lib/storage.php
+
+      - name: Patch and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-partial-shipment-per-serial.py /tmp/gp-live
+          php -l /tmp/gp-live/index.php
+          php -l /tmp/gp-live/lib/storage.php
+          grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-live/lib/storage.php
+          grep -q "warehouse_id.*reserved" /tmp/gp-live/index.php || grep -q "\$wid=(int)(\$iv\['warehouse_id'\]??0)" /tmp/gp-live/index.php
+          cat >/tmp/test_partial.php <<'PHP'
+          <?php
+          require '/tmp/gp-live/lib/storage.php';
+          $s=[
+            'warehouses'=>[
+              ['id'=>1,'code'=>'WHOLESALE','name'=>'انبار عمده','active'=>true],
+              ['id'=>2,'code'=>'RETAIL','name'=>'انبار خرده','active'=>true]
+            ],
+            'warehouse_movements'=>[],
+            'next_warehouse_movement'=>1,
+            'inventory'=>[
+              ['id'=>1,'product'=>'TEST','serial'=>'S1','warehouse_id'=>1,'order_id'=>77,'order_number'=>'ORD77'],
+              ['id'=>2,'product'=>'TEST','serial'=>'S2','warehouse_id'=>1,'order_id'=>77,'order_number'=>'ORD77'],
+              ['id'=>3,'product'=>'TEST','serial'=>'S3','warehouse_id'=>1,'order_id'=>0,'order_number'=>'']
+            ],
+            'cartons'=>[],
+            'orders'=>[['id'=>77,'status'=>'ارسال شد']],
+            'warehouse_activated_at'=>'2026-10-10 10:00:00',
+            'warehouse_baseline'=>[]
+          ];
+          $o=['id'=>77,'number'=>'ORD77'];
+          $a=ghadir_warehouse_exit_order($s,$o,'test');
+          if($a!==2) throw new RuntimeException('first partial exit must be 2, got '.$a);
+          $s['inventory'][2]['order_id']=77;
+          $s['inventory'][2]['order_number']='ORD77';
+          $b=ghadir_warehouse_exit_order($s,$o,'test');
+          if($b!==1) throw new RuntimeException('second partial exit must be only remaining 1, got '.$b);
+          $c=ghadir_warehouse_exit_order($s,$o,'test');
+          if($c!==0) throw new RuntimeException('repeat exit must be idempotent, got '.$c);
+          $outs=array_values(array_filter($s['warehouse_movements'],fn($m)=>($m['type']??'')==='sale_out'));
+          if(count($outs)!==2 || (int)$outs[0]['qty']!==2 || (int)$outs[1]['qty']!==1) throw new RuntimeException('movement batches are not 2 then 1');
+          $seen=[];
+          foreach($outs as $m)foreach($m['serials'] as $sn){if(isset($seen[$sn]))throw new RuntimeException('serial exited twice: '.$sn);$seen[$sn]=1;}
+          echo "partial shipment test OK\n";
+          PHP
+          php /tmp/test_partial.php
+
+      - name: Deploy patched live core
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-live/index.php -o /index.php
+          put /tmp/gp-live/lib/storage.php -o /lib/storage.php
+          bye
+          EOF
+
+      - name: Verify live
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-verify && mkdir -p /tmp/gp-verify/lib
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-verify/index.php
+          get /lib/storage.php -o /tmp/gp-verify/lib/storage.php
+          bye
+          EOF
+          php -l /tmp/gp-verify/index.php
+          php -l /tmp/gp-verify/lib/storage.php
+          grep -q 'PARTIAL_SHIPMENT_PER_SERIAL_20261010' /tmp/gp-verify/lib/storage.php
+          curl -fsS --max-time 25 https://ghadirpartner.ir/healthz >/tmp/health.json
+          cat /tmp/health.json
+
+      - name: Roll back on failure
+        if: failure()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          test -f /tmp/gp-rollback/index.php || exit 0
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-rollback/index.php -o /index.php
+          put /tmp/gp-rollback/lib/storage.php -o /lib/storage.php
+          bye
+          EOF
