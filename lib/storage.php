@@ -93,22 +93,55 @@ function ghadir_warehouse_record(array &$s,string $type,string $product,array $s
 
 function ghadir_warehouse_exit_order(array &$s,array &$order,string $by): int {
     ghadir_warehouse_prepare_state($s);
-    $groups=[];$n=0;$oid=(int)($order['id']??0);
+    $groups=[];$n=0;$oid=(int)($order['id']??0);$now=date('Y-m-d H:i:s');
     foreach($s['inventory'] as &$iv) {
         if ((int)($iv['order_id']??0)!==$oid) continue;
         $wid=(int)($iv['warehouse_id']??0);
         if ($wid<1) continue;
+
+        // هر سریال فقط در همان لحظه‌ای که واقعاً از انبار خارج می‌شود ثبت خروج می‌خورد.
+        // اگر به هر دلیل یک سریالِ همین سفارش قبلاً خروج قطعی خورده باشد، دوباره خروج نمی‌خورد.
+        if ((int)($iv['warehouse_exit_order_id']??0)===$oid && !empty($iv['warehouse_exited_at'])) continue;
+
         $product=(string)($iv['product']??'نامشخص');
         $key=$wid.'|'.$product;
         if(!isset($groups[$key])) $groups[$key]=['warehouse_id'=>$wid,'product'=>$product,'serials'=>[]];
         $groups[$key]['serials'][]=(string)($iv['serial']??'');
         $iv['warehouse_id']=0;
-        $iv['warehouse_last_moved_at']=date('Y-m-d H:i:s');
+        $iv['warehouse_last_moved_at']=$now;
+        $iv['warehouse_exited_at']=$now;
+        $iv['warehouse_exit_order_id']=$oid;
+        $iv['warehouse_exit_order_number']=(string)($order['number']??'');
+        $iv['warehouse_exit_by']=$by;
         $n++;
     }
     unset($iv);
-    foreach($groups as $g) ghadir_warehouse_record($s,'sale_out',$g['product'],$g['serials'],$g['warehouse_id'],0,$by,$oid,(string)($order['number']??''),'خروج سفارش');
-    if($n>0) $order['warehouse_exit_at']=date('Y-m-d H:i:s');
+
+    $batchSerials=[];$batchGroups=[];
+    foreach($groups as $g) {
+        $mv=ghadir_warehouse_record($s,'sale_out',$g['product'],$g['serials'],$g['warehouse_id'],0,$by,$oid,(string)($order['number']??''),'خروج سفارش');
+        $batchSerials=array_merge($batchSerials,$g['serials']);
+        $batchGroups[]=['product'=>$g['product'],'warehouse_id'=>$g['warehouse_id'],'qty'=>count($g['serials']),'movement_id'=>(int)($mv['id']??0)];
+        $set=array_fill_keys($g['serials'],true);
+        foreach($s['inventory'] as &$iv) {
+            if ((int)($iv['order_id']??0)===$oid && isset($set[(string)($iv['serial']??'')])) {
+                $iv['warehouse_exit_movement_id']=(int)($mv['id']??0);
+            }
+        }
+        unset($iv);
+    }
+
+    if($n>0) {
+        $order['warehouse_exit_at']=$now;
+        if(!isset($order['warehouse_exit_batches'])||!is_array($order['warehouse_exit_batches'])) $order['warehouse_exit_batches']=[];
+        $order['warehouse_exit_batches'][]=[
+            'at'=>$now,
+            'by'=>$by,
+            'qty'=>$n,
+            'serials'=>array_values(array_unique($batchSerials)),
+            'groups'=>$batchGroups,
+        ];
+    }
     return $n;
 }
 
