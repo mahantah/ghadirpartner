@@ -12,15 +12,23 @@ function walkTextReplace(root, fromRe, to){
   nodes.forEach(n=>{ const old=String(n.nodeValue||''); const neu=old.replace(fromRe,to); if(neu!==old) n.nodeValue=neu; });
 }
 
-function renameWarehouseProducts(){
-  document.querySelectorAll('button,a,[role="button"]').forEach(el=>{
-    const t=(el.textContent||'').trim();
-    if(/قیمت\s*و\s*موجودی/.test(t) && !/پرتال/.test(t) && t.length<45){
-      walkTextReplace(el,/قیمت\s*و\s*موجودی/g,'محصولات');
-    }
-  });
+function setGpMenuLabel(btn,text){
+  if(!btn)return;
+  const span=btn.querySelector('.gp-menu-text');
+  if(span){span.textContent=text;return;}
+  const icon=[...btn.childNodes].find(n=>n.nodeType===1&&n.classList?.contains('gp-menu-icon'));
+  if(icon){
+    [...btn.childNodes].filter(n=>n!==icon).forEach(n=>n.remove());
+    const s=document.createElement('span');s.className='gp-menu-text';s.textContent=text;btn.append(s);
+  }else{
+    btn.textContent=text;
+  }
 }
-
+function fixWarehouseAndPriceMenuLabels(){
+  const warehouseProducts=document.querySelector('#warehouseNavGroup [data-tab="products"]')||document.querySelector('[data-tab="products"]');
+  setGpMenuLabel(warehouseProducts,'محصولات');
+  document.querySelectorAll('[data-tab="portalAdmin"][data-gp-view="catalog"]').forEach(b=>setGpMenuLabel(b,'لیست قیمت'));
+}
 function mergeCustomerSerialCards(){
   const sec=document.getElementById('inventory');
   if(!sec) return;
@@ -176,7 +184,7 @@ function wrapWarehouseRender(){
 }
 
 function normalizeUI(){
-  renameWarehouseProducts();
+  fixWarehouseAndPriceMenuLabels();
   mergeCustomerSerialCards();
   installJDateFix();
   wrapWarehouseRender();
@@ -186,6 +194,7 @@ function normalizeUI(){
 const css=document.createElement('style');
 css.textContent=
   '.jdate-pop{z-index:1000000!important}.jdate-wrap{overflow:visible!important}.report-grid,.card{overflow:visible}'+
+  '#warehouseDaily .warehouse-ledger-bottom{display:none!important}'+
   '.gp-serial-merge-divider{height:1px;background:#e4eaf1;margin:14px 0}'+
   '#inventory>.card{overflow:visible}.gp-move-products{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:4px}.gp-move-products span{display:inline-block;background:#f4f7fb;border:1px solid #e1e8f0;border-radius:7px;padding:3px 6px;font-size:11px}.warehouse-movement-table{min-width:900px}.warehouse-movement-table td{vertical-align:top}';
 document.head.appendChild(css);
