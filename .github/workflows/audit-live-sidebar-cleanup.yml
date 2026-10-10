@@ -31,6 +31,19 @@ jobs:
           get /app.html -o /tmp/live/app.html
           bye
           EOF
+          for A in ui-v53435.js business-v53437.js ops-v53434.js redesign-v5348.js bugfix-v5349.js; do
+            lftp <<EOF || true
+            set ftp:ssl-force true
+            set ftp:ssl-protect-data true
+            set ssl:verify-certificate yes
+            open -p 21 "$FTP_SERVER"
+            user "$FTP_USERNAME" "$FTP_PASSWORD"
+            get "/assets/$A" -o "/tmp/live/$A"
+            bye
+EOF
+          done
+          echo "=== SIDEBAR ASSETS ==="
+          grep -n -E -A14 -B14 "مدیریت انبار|لیست قیمت|قیمت و موجودی|warehouseDaily|portalAdmin|data-tab" /tmp/live/*.js | head -n 1600 || true
           echo "=== SIDEBAR ==="
           grep -n -E -A12 -B12 "مدیریت انبار|قیمت و موجودی|لیست قیمت|data-tab=.products.|data-tab=.portalAdmin." /tmp/live/app.html | head -n 1000 || true
           echo "=== DAILY REDUNDANT BLOCKS ==="
