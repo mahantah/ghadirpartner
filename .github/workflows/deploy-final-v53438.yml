@@ -60,7 +60,7 @@ jobs:
             tags=[
                 '<script src="/assets/order-multiprint-v53438.js?v=53438mp2"></script>',
                 '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438wl2"></script>',
-                '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui3"></script>'
+                '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui4"></script>'
             ]
             if '</body>' not in s:
                 raise SystemExit('app.html closing body not found')
@@ -203,6 +203,7 @@ jobs:
           put "$ROOT/lib/warehouse-v53438.php" -o /lib/warehouse-v53438.php
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
+          put "$ROOT/assets/warehouse-ui-refine-v53438.js" -o /assets/warehouse-ui-refine-v53438.js
           put "$ROOT/VERSION.txt" -o /VERSION.txt
           bye
           EOF
@@ -238,6 +239,7 @@ jobs:
           get /lib/storage.php -o /tmp/livecheck/lib/storage.php
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
           get /assets/warehouse-v53438.js -o /tmp/livecheck/assets/warehouse-v53438.js
+          get /assets/warehouse-ui-refine-v53438.js -o /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           get /VERSION.txt -o /tmp/livecheck/VERSION.txt
           bye
           EOF
@@ -247,6 +249,7 @@ jobs:
           php -l /tmp/livecheck/lib/warehouse-v53438.php
           grep -q '/api/order/return' /tmp/livecheck/lib/warehouse-v53438.php
           grep -q 'warehouseDaily' /tmp/livecheck/assets/warehouse-v53438.js
+          grep -q 'GP_UI_HOTFIX_20261010' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           grep -q 'sessionLifetime=86400' /tmp/livecheck/index.php
           grep -q 'میلیارد تومان' /tmp/livecheck/app.html
 
