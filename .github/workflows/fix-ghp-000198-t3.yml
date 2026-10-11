@@ -1,11 +1,7 @@
 name: Fix GHP-000198 T3 continuation and serial locations
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/fix-ghp-000198-t3.yml'
-      - 'scripts/patch-serial-continuation-location.py'
+  workflow_dispatch:
 
 permissions:
   contents: read
