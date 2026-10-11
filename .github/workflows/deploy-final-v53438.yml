@@ -71,6 +71,9 @@ jobs:
             PY
           )
           python3 "$GITHUB_WORKSPACE/scripts/patch-partial-shipment-per-serial.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-serial-continuation-location.py" "$ROOT"
+          grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
+          grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' "$ROOT/app.html"
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' "$ROOT/index.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' "$ROOT/app.html"
           php -l "$ROOT/index.php"
