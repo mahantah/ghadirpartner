@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/fix-ghp-000198-t3.yml'
+      - 'scripts/patch-serial-continuation-location.py'
 
 permissions:
   contents: read
