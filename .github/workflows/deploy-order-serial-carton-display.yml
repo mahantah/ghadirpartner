@@ -1,0 +1,129 @@
+name: Deploy order serial carton display fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-order-serial-carton-display.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli curl nodejs
+      - name: Download current live files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_PASSWORD }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-carton-live /tmp/gp-carton-rollback
+          mkdir -p /tmp/gp-carton-live /tmp/gp-carton-rollback
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "${{ secrets.FTP_SERVER }}"
+          user "${{ secrets.FTP_USERNAME }}" "${{ secrets.FTP_PASSWORD }}"
+          get /index.php -o /tmp/gp-carton-live/index.php
+          get /app.html -o /tmp/gp-carton-live/app.html
+          bye
+          EOF
+          cp /tmp/gp-carton-live/index.php /tmp/gp-carton-rollback/index.php
+          cp /tmp/gp-carton-live/app.html /tmp/gp-carton-rollback/app.html
+      - name: Patch and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-order-serial-carton-display.py /tmp/gp-carton-live
+          php -l /tmp/gp-carton-live/index.php
+          grep -q 'ORDER_SERIAL_CARTON_META_API_20261011' /tmp/gp-carton-live/index.php
+          grep -q 'ORDER_SERIAL_CARTON_DISPLAY_FIX_20261011' /tmp/gp-carton-live/app.html
+          grep -q '/api/order/serial-meta' /tmp/gp-carton-live/app.html
+          node - /tmp/gp-carton-live/app.html <<'NODE'
+          const fs=require('fs'),h=fs.readFileSync(process.argv[2],'utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;let m,n=0;
+          while((m=re.exec(h))){new Function(m[1]);n++}
+          if(!n)throw new Error('No inline JS');
+          console.log('JS OK',n);
+          NODE
+      - name: Deploy live files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-carton-live/index.php -o /index.php
+          put /tmp/gp-carton-live/app.html -o /app.html
+          bye
+          EOF
+      - name: Verify live fix
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-carton-verify && mkdir -p /tmp/gp-carton-verify
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-carton-verify/index.php
+          get /app.html -o /tmp/gp-carton-verify/app.html
+          bye
+          EOF
+          php -l /tmp/gp-carton-verify/index.php
+          grep -q 'ORDER_SERIAL_CARTON_META_API_20261011' /tmp/gp-carton-verify/index.php
+          grep -q 'ORDER_SERIAL_CARTON_DISPLAY_FIX_20261011' /tmp/gp-carton-verify/app.html
+          grep -q 'کارتن ${carton} — خارج شده' /tmp/gp-carton-verify/app.html
+          curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
+      - name: Roll back on failure
+        if: failure()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          test -f /tmp/gp-carton-rollback/index.php || exit 0
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-carton-rollback/index.php -o /index.php
+          put /tmp/gp-carton-rollback/app.html -o /app.html
+          bye
+          EOF
