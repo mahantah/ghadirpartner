@@ -1,10 +1,7 @@
 name: Diagnose GHP-000198 live state
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/diagnose-ghp-000198.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
