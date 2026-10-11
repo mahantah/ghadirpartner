@@ -1,0 +1,98 @@
+name: Diagnose live carton links
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-carton-links.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl
+      - name: Inspect live carton linkage safely
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_diag_cartons_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          try{
+            $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();if(!$r)throw new RuntimeException('state missing');
+            $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
+            $cartById=[];$cartBySerial=[];
+            foreach($s['cartons']??[] as $c){
+              $id=(int)($c['id']??0);$code=(string)($c['code']??($c['manufacturer_box_no']??''));
+              if($id)$cartById[$id]=$code;
+              foreach($c['serials']??[] as $sn)$cartBySerial[strtoupper(trim((string)$sn))]=$code;
+            }
+            $stats=['inventory'=>0,'allocated'=>0,'with_carton_id'=>0,'with_carton_code'=>0,'recoverable_by_id'=>0,'recoverable_by_serial'=>0,'no_carton_link'=>0];
+            $byOrder=[];$ghp=[];
+            foreach($s['inventory']??[] as $iv){
+              $stats['inventory']++;
+              if(empty($iv['order_id']))continue;
+              $stats['allocated']++;
+              $cid=(int)($iv['carton_id']??0);$cc=trim((string)($iv['carton_code']??''));$sn=strtoupper(trim((string)($iv['serial']??'')));
+              if($cid)$stats['with_carton_id']++;
+              if($cc!=='')$stats['with_carton_code']++;
+              $rid=$cid&&isset($cartById[$cid])&&$cartById[$cid]!==''?$cartById[$cid]:'';
+              $rs=$sn!==''&&isset($cartBySerial[$sn])?$cartBySerial[$sn]:'';
+              if($cc===''&&$rid!=='')$stats['recoverable_by_id']++;
+              if($cc===''&&$rid===''&&$rs!=='')$stats['recoverable_by_serial']++;
+              if($cc===''&&$rid===''&&$rs==='')$stats['no_carton_link']++;
+              $on=(string)($iv['order_number']??'');
+              if(!isset($byOrder[$on]))$byOrder[$on]=['allocated'=>0,'carton_code'=>0,'recoverable'=>0,'none'=>0];
+              $byOrder[$on]['allocated']++;
+              if($cc!=='')$byOrder[$on]['carton_code']++;
+              elseif($rid!==''||$rs!=='')$byOrder[$on]['recoverable']++;
+              else $byOrder[$on]['none']++;
+              if($on==='GHP-000198' && stripos((string)($iv['product']??''),'T3')!==false){
+                $ghp[]=['serial'=>substr($sn,0,2).'***'.substr($sn,-4),'carton_id'=>$cid,'carton_code'=>$cc,'by_id'=>$rid,'by_serial'=>$rs];
+              }
+            }
+            uasort($byOrder,fn($a,$b)=>$b['none']<=>$a['none']);
+            echo json_encode(['ok'=>true,'revision'=>(int)$r['revision'],'cartons'=>count($s['cartons']??[]),'stats'=>$stats,'top_orders_with_missing'=>array_slice($byOrder,0,15,true),'ghp198_t3_sample'=>array_slice($ghp,0,20)],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          }catch(Throwable $e){http_response_code(500);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);}
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE";s=open(p).read().replace('__TOKEN__',"$TOKEN");open(p,'w').write(s)
+          PY
+          cleanup(){ lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN"
