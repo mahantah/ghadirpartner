@@ -1,0 +1,272 @@
+name: Fix GHP-000198 T3 continuation and serial locations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-ghp-000198-t3.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli curl nodejs
+
+      - name: Download current live files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-live /tmp/gp-rollback
+          mkdir -p /tmp/gp-live /tmp/gp-rollback
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-live/index.php
+          get /app.html -o /tmp/gp-live/app.html
+          bye
+          EOF
+          cp /tmp/gp-live/index.php /tmp/gp-rollback/index.php
+          cp /tmp/gp-live/app.html /tmp/gp-rollback/app.html
+
+      - name: Patch code and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-serial-continuation-location.py /tmp/gp-live
+          php -l /tmp/gp-live/index.php
+          grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' /tmp/gp-live/index.php
+          grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' /tmp/gp-live/app.html
+          grep -q "'warehouse_id'=>1,'added_at'=>now()" /tmp/gp-live/index.php
+          node - /tmp/gp-live/app.html <<'NODE'
+          const fs=require('fs'),h=fs.readFileSync(process.argv[2],'utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;let m,n=0;
+          while((m=re.exec(h))){new Function(m[1]);n++}
+          if(!n)throw new Error('No inline JS');
+          console.log('JS OK',n);
+          NODE
+
+      - name: Deploy code hotfix
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-live/index.php -o /index.php
+          put /tmp/gp-live/app.html -o /app.html
+          bye
+          EOF
+
+      - name: Repair GHP-000198 live state
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_fix_198_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          function merge_exit_items_198($a,$b){
+            $map=[];$order=[];
+            foreach(array_merge($a??[],$b??[]) as $it){
+              $p=(string)($it['product']??'');if($p==='')continue;$k=$p;
+              if(!isset($map[$k])){$map[$k]=['product'=>$p,'qty'=>0,'serials'=>[]];$order[]=$k;}
+              foreach($it['serials']??[] as $sn){$sn=trim((string)$sn);if($sn!==''&&!in_array($sn,$map[$k]['serials'],true))$map[$k]['serials'][]=$sn;}
+            }
+            $out=[];foreach($order as $k){$map[$k]['qty']=count($map[$k]['serials']);if($map[$k]['qty']>0)$out[]=$map[$k];}
+            return $out;
+          }
+          try{
+            $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+            $pdo->exec("SET time_zone = '+03:30'");
+            $pdo->beginTransaction();
+            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1 FOR UPDATE")->fetch();if(!$r)throw new RuntimeException('state missing');
+            $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
+            $oi=-1;foreach($s['orders']??[] as $i=>$x)if((string)($x['number']??'')==='GHP-000198'){$oi=$i;break;}
+            if($oi<0)throw new RuntimeException('order GHP-000198 not found');
+            $o=&$s['orders'][$oi];$oid=(int)($o['id']??0);
+            $t3=null;foreach($o['items']??[] as $it)if(stripos((string)($it['product']??''),'T3')!==false){$t3=$it;break;}
+            if(!$t3)throw new RuntimeException('T3 item missing');
+            $serials=array_values(array_unique(array_filter(array_map(fn($v)=>trim((string)$v),$t3['serials']??[]),fn($v)=>$v!=='')));
+            if(count($serials)!==300)throw new RuntimeException('T3 serial count is '.count($serials).', expected 300');
+            $set=array_fill_keys(array_map('strtoupper',$serials),true);
+
+            $already=[];
+            foreach($o['shipment_batches']??[] as $b)foreach($b['items']??[] as $it)foreach($it['serials']??[] as $sn)$already[strtoupper(trim((string)$sn))]=true;
+            $pending=[];foreach($serials as $sn)if(!isset($already[strtoupper($sn)]))$pending[]=$sn;
+
+            $exitAt=(string)($o['updated_at']??date('Y-m-d H:i:s'));$by='system-fix-20261011';
+            foreach(array_reverse($o['history']??[]) as $h){
+              $act=(string)($h['action']??'');
+              if(strpos($act,'تحویل شد')!==false||strpos($act,'ارسال باقی')!==false){$exitAt=(string)($h['at']??$exitAt);$by=(string)($h['by']??$by);break;}
+            }
+
+            $invFound=0;$blankMoved=0;
+            foreach($s['inventory']??[] as $iv){
+              $k=strtoupper(trim((string)($iv['serial']??'')));
+              if(!isset($set[$k]))continue;
+              if((int)($iv['order_id']??0)!==$oid)throw new RuntimeException('T3 serial attached to different order');
+              $invFound++;
+              if(empty($iv['warehouse_last_moved_at']))$blankMoved++;
+            }
+            if($invFound!==300)throw new RuntimeException('T3 inventory rows '.$invFound.', expected 300');
+
+            $existingT3Movement=0;
+            foreach($s['warehouse_movements']??[] as $mv){
+              if((int)($mv['order_id']??0)===$oid && ($mv['type']??'')==='sale_out' && stripos((string)($mv['product']??''),'T3')!==false)$existingT3Movement+=(int)($mv['qty']??0);
+            }
+
+            $repaired=false;$movementId=0;
+            if(count($pending)>0 && $existingT3Movement===0){
+              $backupDir=__DIR__.'/storage/Backups';@mkdir($backupDir,0750,true);
+              $backupName='ghadir-pre-fix-ghp-000198-'.date('Ymd-His').'.json';
+              if(file_put_contents($backupDir.'/'.$backupName,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE),LOCK_EX)===false)throw new RuntimeException('backup failed');
+
+              $mx=0;foreach($s['warehouse_movements']??[] as $mv)$mx=max($mx,(int)($mv['id']??0));
+              $movementId=max((int)($s['next_warehouse_movement']??0),$mx+1);
+              $s['next_warehouse_movement']=$movementId+1;
+              $s['warehouse_movements'][]=[
+                'id'=>$movementId,'type'=>'sale_out','product'=>(string)$t3['product'],'qty'=>count($pending),'serials'=>$pending,
+                'from_warehouse_id'=>1,'to_warehouse_id'=>0,'order_id'=>$oid,'order_number'=>'GHP-000198',
+                'note'=>'خروج تکمیلی سفارش — اصلاح ثبت مرحله دوم','created_at'=>$exitAt,'created_by'=>$by
+              ];
+              foreach($s['inventory'] as &$iv){
+                $k=strtoupper(trim((string)($iv['serial']??'')));if(!isset($set[$k]))continue;
+                $iv['warehouse_id']=0;$iv['warehouse_last_moved_at']=$exitAt;$iv['warehouse_exited_at']=$exitAt;
+                $iv['warehouse_exit_order_id']=$oid;$iv['warehouse_exit_order_number']='GHP-000198';
+                $iv['warehouse_exit_by']=$by;$iv['warehouse_exit_movement_id']=$movementId;
+              }unset($iv);
+              if(!isset($o['shipment_batches'])||!is_array($o['shipment_batches']))$o['shipment_batches']=[];
+              $o['shipment_batches'][]=['at'=>$exitAt,'by'=>$by,'items'=>[['product'=>(string)$t3['product'],'qty'=>count($pending),'serials'=>$pending]],'qty'=>count($pending),'shipping_type'=>$o['shipping_type']??'','tracking_code'=>$o['tracking_code']??''];
+              $all=[];foreach($o['shipment_batches'] as $b)$all=merge_exit_items_198($all,$b['items']??[]);
+              $o['exit_items']=$all;$o['exit_device_qty']=array_sum(array_map(fn($it)=>(int)($it['qty']??0),$all));
+              $o['partial_exit']=false;$o['incomplete_status']='تکمیل شده';$o['last_partial_exit_at']=$exitAt;$o['last_partial_exit_by']=$by;
+              $o['partial_completed_at']=$exitAt;$o['partial_completed_by']=$by;$o['warehouse_exit_at']=$exitAt;
+              $o['history']=is_array($o['history']??null)?$o['history']:[];
+              $o['history'][]=['at'=>date('Y-m-d H:i:s'),'by'=>'system-fix-20261011','action'=>'اصلاح سیستمی خروج تکمیلی: 300 دستگاه T3 در مرحله دوم ثبت شد؛ خروج 500 دستگاه قبلی تکرار نشد'];
+              $repaired=true;
+            }
+
+            $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);if($encoded===false)throw new RuntimeException('encode failed');
+            $rev=(int)$r['revision'];
+            if($repaired){
+              $rev++;
+              $checksum=hash('sha256',$encoded);
+              $st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+              $st->execute([$encoded,$rev,$checksum]);
+              $st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+              $st->execute([$rev,$checksum,strlen($encoded)]);
+            }
+            $pdo->commit();
+            echo json_encode(['ok'=>true,'repaired'=>$repaired,'revision'=>$rev,'order'=>'GHP-000198','status'=>$o['status']??'','exit_device_qty'=>(int)($o['exit_device_qty']??0),'t3_qty'=>300,'pending_before'=>count($pending),'existing_t3_movement_before'=>$existingT3Movement,'exit_at'=>$exitAt,'movement_id'=>$movementId,'shipment_batches'=>count($o['shipment_batches']??[])],JSON_UNESCAPED_UNICODE);
+          }catch(Throwable $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();http_response_code(500);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);}
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE";s=open(p).read().replace('__TOKEN__',"$TOKEN");open(p,'w').write(s)
+          PY
+          cleanup(){ lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          echo "$RESP"
+          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["exit_device_qty"]??0)!==800||($x["shipment_batches"]??0)<2)exit(2);'
+
+      - name: Verify live code
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-verify && mkdir -p /tmp/gp-verify
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-verify/index.php
+          get /app.html -o /tmp/gp-verify/app.html
+          bye
+          EOF
+          php -l /tmp/gp-verify/index.php
+          grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' /tmp/gp-verify/index.php
+          grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' /tmp/gp-verify/app.html
+          curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
+
+      - name: Roll back code on failure
+        if: failure()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          test -f /tmp/gp-rollback/index.php || exit 0
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-rollback/index.php -o /index.php
+          put /tmp/gp-rollback/app.html -o /app.html
+          bye
+          EOF
