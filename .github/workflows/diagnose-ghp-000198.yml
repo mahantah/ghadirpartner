@@ -1,0 +1,98 @@
+name: Diagnose GHP-000198 live state
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-ghp-000198.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl
+      - name: Inspect live order safely
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_diag_198_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
+          function mask_sn($v){$v=(string)$v;$n=strlen($v);return $n<=6?$v:substr($v,0,2).'***'.substr($v,-4);}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          try{
+            $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();if(!$r)throw new RuntimeException('state missing');
+            $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
+            $o=null;foreach($s['orders']??[] as $x)if((string)($x['number']??'')==='GHP-000198'){$o=$x;break;}
+            if(!$o)throw new RuntimeException('order not found');
+            $oid=(int)($o['id']??0);$wanted=[];$items=[];
+            foreach($o['items']??[] as $it){
+              $ss=array_values(array_unique(array_filter(array_map(fn($x)=>trim((string)$x),$it['serials']??[]),fn($x)=>$x!=='')));
+              foreach($ss as $sn)$wanted[strtoupper($sn)]=(string)($it['product']??'');
+              $items[]=['product'=>$it['product']??'','qty'=>(int)($it['qty']??0),'serial_count'=>count($ss),'serials'=>array_map('mask_sn',$ss)];
+            }
+            $inv=[];$found=[];$missing=[];
+            foreach($s['inventory']??[] as $iv){
+              $key=strtoupper(trim((string)($iv['serial']??'')));
+              $belongs=((int)($iv['order_id']??0)===$oid)||((string)($iv['order_number']??'')==='GHP-000198')||isset($wanted[$key]);
+              if(!$belongs)continue;
+              if($key!=='')$found[$key]=1;
+              $inv[]=['serial'=>mask_sn($iv['serial']??''),'product'=>$iv['product']??'','warehouse_id'=>(int)($iv['warehouse_id']??0),'order_id'=>(int)($iv['order_id']??0),'order_number'=>$iv['order_number']??'','carton_code'=>$iv['carton_code']??'','shelf_level'=>$iv['shelf_level']??0,'added_at'=>$iv['added_at']??'','warehouse_last_moved_at'=>$iv['warehouse_last_moved_at']??''];
+            }
+            foreach($wanted as $key=>$p)if(!isset($found[$key]))$missing[]=['serial'=>mask_sn($key),'product'=>$p];
+            $batches=[];foreach($o['shipment_batches']??[] as $b){
+              $bis=[];foreach($b['items']??[] as $it)$bis[]=['product'=>$it['product']??'','qty'=>(int)($it['qty']??0),'serials'=>array_map('mask_sn',$it['serials']??[])];
+              $batches[]=['at'=>$b['at']??'','by'=>$b['by']??'','qty'=>(int)($b['qty']??0),'shipping_type'=>$b['shipping_type']??'','items'=>$bis];
+            }
+            $moves=[];foreach($s['warehouse_movements']??[] as $mv){
+              if((int)($mv['order_id']??0)!==$oid && (string)($mv['order_number']??'')!=='GHP-000198')continue;
+              $moves[]=['created_at'=>$mv['created_at']??'','type'=>$mv['type']??'','product'=>$mv['product']??'','qty'=>(int)($mv['qty']??0),'from'=>(int)($mv['from_warehouse_id']??0),'to'=>(int)($mv['to_warehouse_id']??0),'note'=>$mv['note']??'','serials'=>array_map('mask_sn',$mv['serials']??[])];
+            }
+            echo json_encode([
+              'ok'=>true,'revision'=>(int)$r['revision'],
+              'order'=>['id'=>$oid,'number'=>$o['number']??'','status'=>$o['status']??'','incomplete_status'=>$o['incomplete_status']??'','partial_exit'=>$o['partial_exit']??null,'exit_device_qty'=>$o['exit_device_qty']??null,'updated_at'=>$o['updated_at']??'','partial_exit_at'=>$o['partial_exit_at']??'','last_partial_exit_at'=>$o['last_partial_exit_at']??'','partial_completed_at'=>$o['partial_completed_at']??''],
+              'items'=>$items,'shipment_batches'=>$batches,'inventory'=>$inv,'missing_order_serials'=>$missing,'warehouse_movements'=>$moves
+            ],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          }catch(Throwable $e){http_response_code(500);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);}
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE";s=open(p).read().replace('__TOKEN__',"$TOKEN");open(p,'w').write(s)
+          PY
+          cleanup(){ lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN"
