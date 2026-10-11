@@ -96,3 +96,17 @@ jobs:
           bye
           EOF
           curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN"
+
+          echo
+          echo "===== LIVE SERIAL LOCATION FUNCTIONS ====="
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/live-app.html
+          bye
+          EOF
+          grep -o -E "function invBySerial.{0,900}|function serialSource.{0,500}" /tmp/live-app.html | head -10 || true
