@@ -1,10 +1,7 @@
 name: Deploy order serial carton display fix
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-order-serial-carton-display.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
