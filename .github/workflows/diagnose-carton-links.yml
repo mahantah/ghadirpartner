@@ -96,3 +96,28 @@ jobs:
           bye
           EOF
           curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN"
+
+          echo
+          echo "===== LIVE MISSING LOCATION TEXT ====="
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/live-app.html
+          bye
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('/tmp/live-app.html').read_text(encoding='utf-8',errors='ignore')
+          for key in ['محل انبار ثبت نشده','سریال ثبت نشده','سریال ثبت‌شده','serialSource','renderInventory','inventoryGroups']:
+              print('\n---',key,'---')
+              p=0;n=0
+              while True:
+                  i=s.find(key,p)
+                  if i<0 or n>=8: break
+                  print(s[max(0,i-900):i+1800])
+                  p=i+len(key);n+=1
+          PY
