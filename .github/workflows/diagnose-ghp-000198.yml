@@ -110,3 +110,7 @@ jobs:
           bye
           EOF
           grep -o -E "function invBySerial.{0,900}|function serialSource.{0,500}" /tmp/live-app.html | head -10 || true
+          echo "===== LIVE INVENTORY INDEX ====="
+          grep -o -E ".{0,700}INV_BY_SERIAL.{0,1200}" /tmp/live-app.html | head -20 || true
+          echo "===== LIVE REFRESH ====="
+          grep -o -E "async function refresh.{0,1800}" /tmp/live-app.html | head -5 || true
