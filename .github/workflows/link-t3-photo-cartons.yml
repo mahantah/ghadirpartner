@@ -1,0 +1,231 @@
+name: Link photographed T3 cartons
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/link-t3-photo-cartons.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp curl php-cli
+
+      - name: Link existing T3 serials to photographed cartons
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_link_t3_cartons_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+
+          function serial_range20($start){
+            $prefix=substr($start,0,1);$num=substr($start,1);$width=strlen($num);$base=(int)$num;$out=[];
+            for($i=0;$i<20;$i++)$out[]=$prefix.str_pad((string)($base+$i),$width,'0',STR_PAD_LEFT);
+            return $out;
+          }
+          function next_carton_code_local($s,$product){
+            preg_match_all('/[A-Z0-9]+/i',$product,$m);$pre=strtoupper(implode('',$m[0]))?:'ITEM';$max=0;
+            foreach($s['cartons']??[] as $c)if(strpos((string)($c['code']??''),$pre.'-')===0)$max=max($max,(int)substr((string)$c['code'],strlen($pre)+1));
+            return sprintf('%s-%03d',$pre,$max+1);
+          }
+
+          $starts=[
+            'T3335301064001',
+            'T3335301063081',
+            'T3335301063381',
+            'T3335301065681',
+            'T3335301064061',
+            'T3335301065321',
+            'T3335301067961',
+            'T3335301067601',
+            'T3335301063561',
+            'T3335301062361',
+          ];
+
+          try{
+            $pdo=new PDO(
+              'mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),
+              (string)($m['username']??''),(string)($m['password']??''),
+              [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]
+            );
+            $pdo->beginTransaction();
+            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1 FOR UPDATE")->fetch();
+            if(!$r)throw new RuntimeException('state missing');
+            $s=json_decode($r['state_json'],true);
+            if(!is_array($s))throw new RuntimeException('state invalid');
+
+            $order=null;
+            foreach($s['orders']??[] as $o)if((string)($o['number']??'')==='GHP-000198'){$order=$o;break;}
+            if(!$order)throw new RuntimeException('GHP-000198 not found');
+            $oid=(int)($order['id']??0);
+
+            $groups=[];$all=[];
+            foreach($starts as $st){
+              $ss=serial_range20($st);
+              $groups[]=$ss;
+              foreach($ss as $sn){
+                $k=strtoupper($sn);
+                if(isset($all[$k]))throw new RuntimeException('duplicate serial in photo groups '.$sn);
+                $all[$k]=true;
+              }
+            }
+            if(count($all)!==200)throw new RuntimeException('expected 200 unique serials');
+
+            $invIndex=[];
+            foreach($s['inventory']??[] as $i=>$iv){
+              $k=strtoupper(trim((string)($iv['serial']??'')));
+              if(isset($all[$k])){
+                if(isset($invIndex[$k]))throw new RuntimeException('duplicate inventory serial '.$k);
+                $invIndex[$k]=$i;
+              }
+            }
+            if(count($invIndex)!==200)throw new RuntimeException('found '.count($invIndex).' of 200 serials in inventory');
+
+            $product='';
+            foreach(array_keys($all) as $sn){
+              $iv=$s['inventory'][$invIndex[$sn]];
+              if((int)($iv['order_id']??0)!==$oid && (string)($iv['order_number']??'')!=='GHP-000198')
+                throw new RuntimeException('serial not linked to GHP-000198: '.$sn);
+              $p=(string)($iv['product']??'');
+              if($product==='')$product=$p;
+              elseif($product!==$p)throw new RuntimeException('mixed products in supplied photos');
+            }
+            if(stripos($product,'T3')===false)throw new RuntimeException('resolved product is not T3: '.$product);
+
+            $backupDir=__DIR__.'/storage/Backups';@mkdir($backupDir,0750,true);
+            $backupName='ghadir-pre-photo-cartons-'.date('Ymd-His').'.json';
+            if(file_put_contents($backupDir.'/'.$backupName,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE),LOCK_EX)===false)
+              throw new RuntimeException('backup failed');
+
+            $maxId=0;foreach($s['cartons']??[] as $c)$maxId=max($maxId,(int)($c['id']??0));
+            $next=max((int)($s['next_carton']??1),$maxId+1);
+            $created=[];$reused=[];
+
+            foreach($groups as $gi=>$serials){
+              $existingIds=[];$existingCodes=[];
+              foreach($serials as $sn){
+                $iv=$s['inventory'][$invIndex[strtoupper($sn)]];
+                $cid=(int)($iv['carton_id']??0);$cc=trim((string)($iv['carton_code']??''));
+                if($cid>0)$existingIds[$cid]=true;
+                if($cc!=='')$existingCodes[$cc]=true;
+              }
+
+              if($existingIds || $existingCodes){
+                if(count($existingIds)!==1 || count($existingCodes)!==1)throw new RuntimeException('partial/conflicting carton mapping in group '.($gi+1));
+                $cid=(int)array_key_first($existingIds);$code=(string)array_key_first($existingCodes);
+                $matched=false;
+                foreach($s['cartons']??[] as $c){
+                  if((int)($c['id']??0)===$cid && (string)($c['code']??'')===$code){
+                    $cs=array_map('strtoupper',$c['serials']??[]);
+                    if(count($cs)!==20 || array_diff(array_map('strtoupper',$serials),$cs))throw new RuntimeException('existing carton does not match photo group '.$code);
+                    $matched=true;break;
+                  }
+                }
+                if(!$matched)throw new RuntimeException('existing carton record missing '.$code);
+                $reused[]=$code;
+                continue;
+              }
+
+              $code=next_carton_code_local($s,$product);
+              $id=$next++;
+              $dates=[];
+              foreach($serials as $sn){$d=(string)($s['inventory'][$invIndex[strtoupper($sn)]]['added_at']??'');if($d!=='')$dates[]=$d;}
+              sort($dates);$createdAt=$dates[0]??date('Y-m-d H:i:s');
+
+              $carton=[
+                'id'=>$id,
+                'code'=>$code,
+                'manufacturer_box_no'=>$code,
+                'product'=>$product,
+                'color'=>'BLACK',
+                'capacity'=>20,
+                'incomplete_reason'=>'',
+                'serials'=>$serials,
+                'warehouse_id'=>0,
+                'created_at'=>$createdAt,
+                'created_by'=>'system-photo-map',
+                'batch_no'=>'P14041205',
+                'source_note'=>'کارتن‌بندی بازسازی‌شده از عکس لیبل فیزیکی',
+              ];
+              $s['cartons'][]=$carton;
+
+              foreach($serials as $sn){
+                $ii=$invIndex[strtoupper($sn)];
+                $s['inventory'][$ii]['carton_id']=$id;
+                $s['inventory'][$ii]['carton_code']=$code;
+              }
+              $created[]=['code'=>$code,'from'=>$serials[0],'to'=>$serials[19]];
+            }
+            $s['next_carton']=$next;
+
+            $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            if($encoded===false)throw new RuntimeException('state encode failed');
+            $rev=(int)$r['revision']+1;$checksum=hash('sha256',$encoded);
+            $st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+            $st->execute([$encoded,$rev,$checksum]);
+            $st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+            $st->execute([$rev,$checksum,strlen($encoded)]);
+            $pdo->commit();
+
+            echo json_encode([
+              'ok'=>true,'revision'=>$rev,'order'=>'GHP-000198','product'=>$product,
+              'photo_cartons'=>10,'serials_linked'=>200,'created'=>$created,'reused'=>$reused,'backup'=>$backupName
+            ],JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+          }catch(Throwable $e){
+            if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);
+          }
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE"
+          s=open(p,encoding="utf-8").read().replace('__TOKEN__',"$TOKEN")
+          open(p,'w',encoding="utf-8").write(s)
+          PY
+          cleanup(){ lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          RESP="$(curl -fsS --max-time 45 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          echo "$RESP"
+          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["serials_linked"]??0)!==200||($x["photo_cartons"]??0)!==10)exit(2);'
