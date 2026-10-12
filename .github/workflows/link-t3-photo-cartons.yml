@@ -226,6 +226,6 @@ jobs:
           put "/tmp/$FILE" -o "/$FILE"
           bye
           EOF
-          RESP="$(curl -fsS --max-time 45 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          RESP="$(curl -sS --max-time 45 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
           echo "$RESP"
           echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["serials_linked"]??0)!==200||($x["photo_cartons"]??0)!==10)exit(2);'
