@@ -75,6 +75,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-order-serial-carton-display.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-supplier-qr.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
+          base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > "$ROOT/assets/ghadir-contact-qr.png"
           grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
           grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' "$ROOT/app.html"
           grep -q 'ORDER_SERIAL_CARTON_META_API_20261011' "$ROOT/index.php"
@@ -82,8 +83,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' "$ROOT/index.php"
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' "$ROOT/app.html"
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' "$ROOT/lib/labels-v5348.php"
-          grep -q 'WAREHOUSE_CARTON_QR_LAYOUT_V2_20261012' "$ROOT/lib/labels-v5348.php"
-          grep -q 'width:28mm;height:28mm' "$ROOT/lib/labels-v5348.php"
+          grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' "$ROOT/lib/labels-v5348.php"
+          grep -q 'width:32mm;height:32mm' "$ROOT/lib/labels-v5348.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' "$ROOT/index.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' "$ROOT/app.html"
           php -l "$ROOT/index.php"
@@ -139,6 +140,7 @@ jobs:
           get /partners/index.php -o /tmp/rollback/partners/index.php
           get /lib/storage.php -o /tmp/rollback/lib/storage.php
           get /lib/labels-v5348.php -o /tmp/rollback/lib/labels-v5348.php
+          get /assets/ghadir-contact-qr.png -o /tmp/rollback/assets/ghadir-contact-qr.png
           get /VERSION.txt -o /tmp/rollback/VERSION.txt
           bye
           EOF
@@ -220,6 +222,7 @@ jobs:
           put "$ROOT/lib/storage.php" -o /lib/storage.php
           put "$ROOT/lib/warehouse-v53438.php" -o /lib/warehouse-v53438.php
           put "$ROOT/lib/labels-v5348.php" -o /lib/labels-v5348.php
+          put "$ROOT/assets/ghadir-contact-qr.png" -o /assets/ghadir-contact-qr.png
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
           put "$ROOT/assets/warehouse-ui-refine-v53438.js" -o /assets/warehouse-ui-refine-v53438.js
@@ -258,6 +261,7 @@ jobs:
           get /lib/storage.php -o /tmp/livecheck/lib/storage.php
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
           get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
+          get /assets/ghadir-contact-qr.png -o /tmp/livecheck/assets/ghadir-contact-qr.png
           get /assets/warehouse-v53438.js -o /tmp/livecheck/assets/warehouse-v53438.js
           get /assets/warehouse-ui-refine-v53438.js -o /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           get /VERSION.txt -o /tmp/livecheck/VERSION.txt
@@ -276,8 +280,11 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/livecheck/index.php
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/livecheck/lib/labels-v5348.php
-          grep -q 'WAREHOUSE_CARTON_QR_LAYOUT_V2_20261012' /tmp/livecheck/lib/labels-v5348.php
-          grep -q 'width:28mm;height:28mm' /tmp/livecheck/lib/labels-v5348.php
+          grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' /tmp/livecheck/lib/labels-v5348.php
+          grep -q '/assets/ghadir-contact-qr.png' /tmp/livecheck/lib/labels-v5348.php
+          base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > /tmp/expected-ghadir-contact-qr.png
+          cmp /tmp/expected-ghadir-contact-qr.png /tmp/livecheck/assets/ghadir-contact-qr.png
+          grep -q 'width:32mm;height:32mm' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'QR و بارکد این لیبل مربوط به شماره کارتن هستند' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'width:21mm;height:21mm' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'sessionLifetime=86400' /tmp/livecheck/index.php
@@ -304,6 +311,7 @@ jobs:
           put /tmp/rollback/partners/index.php -o /partners/index.php
           put /tmp/rollback/lib/storage.php -o /lib/storage.php
           put /tmp/rollback/lib/labels-v5348.php -o /lib/labels-v5348.php
+          put /tmp/rollback/assets/ghadir-contact-qr.png -o /assets/ghadir-contact-qr.png
           put /tmp/rollback/VERSION.txt -o /VERSION.txt
           bye
           EOF
