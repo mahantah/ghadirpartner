@@ -73,16 +73,21 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-partial-shipment-per-serial.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-serial-continuation-location.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-order-serial-carton-display.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-supplier-qr.py" "$ROOT"
           grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
           grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' "$ROOT/app.html"
           grep -q 'ORDER_SERIAL_CARTON_META_API_20261011' "$ROOT/index.php"
           grep -q 'ORDER_SERIAL_CARTON_DISPLAY_FIX_20261011' "$ROOT/app.html"
+          grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' "$ROOT/index.php"
+          grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' "$ROOT/app.html"
+          grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' "$ROOT/lib/labels-v5348.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' "$ROOT/index.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' "$ROOT/app.html"
           php -l "$ROOT/index.php"
           php -l "$ROOT/partners/index.php"
           php -l "$ROOT/lib/storage.php"
           php -l "$ROOT/lib/warehouse-v53438.php"
+          php -l "$ROOT/lib/labels-v5348.php"
           node - "$ROOT" <<'NODE'
           const fs=require('fs'),root=process.argv[2];
           const h=fs.readFileSync(root+'/app.html','utf8'),re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
@@ -130,6 +135,7 @@ jobs:
           get /app.html -o /tmp/rollback/app.html
           get /partners/index.php -o /tmp/rollback/partners/index.php
           get /lib/storage.php -o /tmp/rollback/lib/storage.php
+          get /lib/labels-v5348.php -o /tmp/rollback/lib/labels-v5348.php
           get /VERSION.txt -o /tmp/rollback/VERSION.txt
           bye
           EOF
@@ -210,6 +216,7 @@ jobs:
           put "$ROOT/partners/index.php" -o /partners/index.php
           put "$ROOT/lib/storage.php" -o /lib/storage.php
           put "$ROOT/lib/warehouse-v53438.php" -o /lib/warehouse-v53438.php
+          put "$ROOT/lib/labels-v5348.php" -o /lib/labels-v5348.php
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
           put "$ROOT/assets/warehouse-ui-refine-v53438.js" -o /assets/warehouse-ui-refine-v53438.js
@@ -247,6 +254,7 @@ jobs:
           get /app.html -o /tmp/livecheck/app.html
           get /lib/storage.php -o /tmp/livecheck/lib/storage.php
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
+          get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
           get /assets/warehouse-v53438.js -o /tmp/livecheck/assets/warehouse-v53438.js
           get /assets/warehouse-ui-refine-v53438.js -o /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           get /VERSION.txt -o /tmp/livecheck/VERSION.txt
@@ -256,11 +264,16 @@ jobs:
           php -l /tmp/livecheck/index.php
           php -l /tmp/livecheck/lib/storage.php
           php -l /tmp/livecheck/lib/warehouse-v53438.php
+          php -l /tmp/livecheck/lib/labels-v5348.php
           grep -q '/api/order/return' /tmp/livecheck/lib/warehouse-v53438.php
           grep -q 'warehouseDaily' /tmp/livecheck/assets/warehouse-v53438.js
           grep -q 'GP_UI_HOTFIX_20261010' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' /tmp/livecheck/index.php
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' /tmp/livecheck/app.html
+          grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/livecheck/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/livecheck/app.html
+          grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/livecheck/lib/labels-v5348.php
+          grep -q 'width:21mm;height:21mm' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'sessionLifetime=86400' /tmp/livecheck/index.php
           grep -q 'میلیارد تومان' /tmp/livecheck/app.html
 
@@ -284,6 +297,7 @@ jobs:
           put /tmp/rollback/app.html -o /app.html
           put /tmp/rollback/partners/index.php -o /partners/index.php
           put /tmp/rollback/lib/storage.php -o /lib/storage.php
+          put /tmp/rollback/lib/labels-v5348.php -o /lib/labels-v5348.php
           put /tmp/rollback/VERSION.txt -o /VERSION.txt
           bye
           EOF
