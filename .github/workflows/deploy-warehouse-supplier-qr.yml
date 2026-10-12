@@ -1,0 +1,156 @@
+name: Deploy warehouse supplier and carton QR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-warehouse-supplier-qr.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli curl nodejs
+
+      - name: Download current live files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-supplier-live /tmp/gp-supplier-rollback
+          mkdir -p /tmp/gp-supplier-live/lib /tmp/gp-supplier-rollback/lib
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-supplier-live/index.php
+          get /app.html -o /tmp/gp-supplier-live/app.html
+          get /lib/labels-v5348.php -o /tmp/gp-supplier-live/lib/labels-v5348.php
+          bye
+          EOF
+          cp /tmp/gp-supplier-live/index.php /tmp/gp-supplier-rollback/index.php
+          cp /tmp/gp-supplier-live/app.html /tmp/gp-supplier-rollback/app.html
+          cp /tmp/gp-supplier-live/lib/labels-v5348.php /tmp/gp-supplier-rollback/lib/labels-v5348.php
+
+      - name: Patch and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-warehouse-supplier-qr.py /tmp/gp-supplier-live
+          php -l /tmp/gp-supplier-live/index.php
+          php -l /tmp/gp-supplier-live/lib/labels-v5348.php
+          grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/gp-supplier-live/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/gp-supplier-live/app.html
+          grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/gp-supplier-live/lib/labels-v5348.php
+          grep -q 'id="whSupplier"' /tmp/gp-supplier-live/app.html
+          grep -q 'id="whCartonSearch"' /tmp/gp-supplier-live/app.html
+          grep -q "supplier.*whSupplier" /tmp/gp-supplier-live/app.html
+          grep -q "width:21mm;height:21mm" /tmp/gp-supplier-live/lib/labels-v5348.php
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/gp-supplier-live/lib/labels-v5348.php').read_text(encoding='utf-8')
+          a=p.find('function gp_carton_ticket_html')
+          b=p.find('function gp_print_carton_labels_three_up',a)
+          if a<0 or b<0: raise SystemExit('carton label function missing')
+          if 'supplier' in p[a:b].lower(): raise SystemExit('supplier must not appear on carton labels')
+          PY
+          node - /tmp/gp-supplier-live/app.html <<'NODE'
+          const fs=require('fs'),h=fs.readFileSync(process.argv[2],'utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;let m,n=0;
+          while((m=re.exec(h))){new Function(m[1]);n++}
+          if(!n)throw new Error('No inline JS');
+          console.log('JS OK',n);
+          NODE
+
+      - name: Deploy patched files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-supplier-live/index.php -o /index.php
+          put /tmp/gp-supplier-live/app.html -o /app.html
+          put /tmp/gp-supplier-live/lib/labels-v5348.php -o /lib/labels-v5348.php
+          bye
+          EOF
+
+      - name: Verify live
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-supplier-verify
+          mkdir -p /tmp/gp-supplier-verify/lib
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-supplier-verify/index.php
+          get /app.html -o /tmp/gp-supplier-verify/app.html
+          get /lib/labels-v5348.php -o /tmp/gp-supplier-verify/lib/labels-v5348.php
+          bye
+          EOF
+          php -l /tmp/gp-supplier-verify/index.php
+          php -l /tmp/gp-supplier-verify/lib/labels-v5348.php
+          grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/gp-supplier-verify/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/gp-supplier-verify/app.html
+          grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/gp-supplier-verify/lib/labels-v5348.php
+          grep -q "width:21mm;height:21mm" /tmp/gp-supplier-verify/lib/labels-v5348.php
+          curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
+
+      - name: Roll back on failure
+        if: failure()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          test -f /tmp/gp-supplier-rollback/index.php || exit 0
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-supplier-rollback/index.php -o /index.php
+          put /tmp/gp-supplier-rollback/app.html -o /app.html
+          put /tmp/gp-supplier-rollback/lib/labels-v5348.php -o /lib/labels-v5348.php
+          bye
+          EOF
