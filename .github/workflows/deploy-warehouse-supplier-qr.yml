@@ -68,7 +68,7 @@ jobs:
           grep -q "supplier.*whSupplier" /tmp/gp-supplier-live/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LAYOUT_V2_20261012' /tmp/gp-supplier-live/lib/labels-v5348.php
           grep -q "width:28mm;height:28mm" /tmp/gp-supplier-live/lib/labels-v5348.php
-          grep -q 'data-value="'.gp_h($payload).'"' /tmp/gp-supplier-live/lib/labels-v5348.php
+          grep -q 'class="qrRender"' /tmp/gp-supplier-live/lib/labels-v5348.php
           python3 - <<'PY'
           from pathlib import Path
           p=Path('/tmp/gp-supplier-live/lib/labels-v5348.php').read_text(encoding='utf-8')
