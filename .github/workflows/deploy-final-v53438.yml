@@ -74,6 +74,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-serial-continuation-location.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-order-serial-carton-display.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-supplier-qr.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
           grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
           grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' "$ROOT/app.html"
           grep -q 'ORDER_SERIAL_CARTON_META_API_20261011' "$ROOT/index.php"
@@ -81,6 +82,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' "$ROOT/index.php"
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' "$ROOT/app.html"
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' "$ROOT/lib/labels-v5348.php"
+          grep -q 'WAREHOUSE_CARTON_QR_LAYOUT_V2_20261012' "$ROOT/lib/labels-v5348.php"
+          grep -q 'width:28mm;height:28mm' "$ROOT/lib/labels-v5348.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' "$ROOT/index.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' "$ROOT/app.html"
           php -l "$ROOT/index.php"
@@ -273,6 +276,9 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/livecheck/index.php
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/livecheck/lib/labels-v5348.php
+          grep -q 'WAREHOUSE_CARTON_QR_LAYOUT_V2_20261012' /tmp/livecheck/lib/labels-v5348.php
+          grep -q 'width:28mm;height:28mm' /tmp/livecheck/lib/labels-v5348.php
+          grep -q 'QR و بارکد این لیبل مربوط به شماره کارتن هستند' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'width:21mm;height:21mm' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'sessionLifetime=86400' /tmp/livecheck/index.php
           grep -q 'میلیارد تومان' /tmp/livecheck/app.html
