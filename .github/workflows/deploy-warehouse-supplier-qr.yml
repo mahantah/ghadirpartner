@@ -1,7 +1,10 @@
 name: Deploy warehouse supplier and carton QR
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-warehouse-supplier-qr.yml'
 
 permissions:
   contents: read
@@ -32,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/gp-supplier-live /tmp/gp-supplier-rollback
-          mkdir -p /tmp/gp-supplier-live/lib /tmp/gp-supplier-rollback/lib
+          mkdir -p /tmp/gp-supplier-live/lib /tmp/gp-supplier-live/assets /tmp/gp-supplier-rollback/lib
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -55,6 +58,7 @@ jobs:
           set -euo pipefail
           python3 scripts/patch-warehouse-supplier-qr.py /tmp/gp-supplier-live
           python3 scripts/patch-carton-label-layout-v2.py /tmp/gp-supplier-live
+          base64 -d assets/ghadir-contact-qr.png.b64 > /tmp/gp-supplier-live/assets/ghadir-contact-qr.png
           php -l /tmp/gp-supplier-live/index.php
           php -l /tmp/gp-supplier-live/lib/labels-v5348.php
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/gp-supplier-live/index.php
@@ -63,8 +67,8 @@ jobs:
           grep -q 'id="whSupplier"' /tmp/gp-supplier-live/app.html
           grep -q 'id="whCartonSearch"' /tmp/gp-supplier-live/app.html
           grep -q "supplier.*whSupplier" /tmp/gp-supplier-live/app.html
-          grep -q 'WAREHOUSE_CARTON_QR_LAYOUT_V2_20261012' /tmp/gp-supplier-live/lib/labels-v5348.php
-          grep -q "width:28mm;height:28mm" /tmp/gp-supplier-live/lib/labels-v5348.php
+          grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' /tmp/gp-supplier-live/lib/labels-v5348.php
+          grep -q "width:32mm;height:32mm" /tmp/gp-supplier-live/lib/labels-v5348.php
           grep -q 'class="qrRender"' /tmp/gp-supplier-live/lib/labels-v5348.php
           python3 - <<'PY'
           from pathlib import Path
@@ -100,6 +104,7 @@ jobs:
           put /tmp/gp-supplier-live/index.php -o /index.php
           put /tmp/gp-supplier-live/app.html -o /app.html
           put /tmp/gp-supplier-live/lib/labels-v5348.php -o /lib/labels-v5348.php
+          put /tmp/gp-supplier-live/assets/ghadir-contact-qr.png -o /assets/ghadir-contact-qr.png
           bye
           EOF
 
@@ -112,7 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/gp-supplier-verify
-          mkdir -p /tmp/gp-supplier-verify/lib
+          mkdir -p /tmp/gp-supplier-verify/lib /tmp/gp-supplier-verify/assets
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -123,6 +128,7 @@ jobs:
           get /index.php -o /tmp/gp-supplier-verify/index.php
           get /app.html -o /tmp/gp-supplier-verify/app.html
           get /lib/labels-v5348.php -o /tmp/gp-supplier-verify/lib/labels-v5348.php
+          get /assets/ghadir-contact-qr.png -o /tmp/gp-supplier-verify/assets/ghadir-contact-qr.png
           bye
           EOF
           php -l /tmp/gp-supplier-verify/index.php
@@ -130,9 +136,11 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/gp-supplier-verify/index.php
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/gp-supplier-verify/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/gp-supplier-verify/lib/labels-v5348.php
-          grep -q 'WAREHOUSE_CARTON_QR_LAYOUT_V2_20261012' /tmp/gp-supplier-verify/lib/labels-v5348.php
-          grep -q "width:28mm;height:28mm" /tmp/gp-supplier-verify/lib/labels-v5348.php
-          grep -q 'QR و بارکد این لیبل مربوط به شماره کارتن هستند' /tmp/gp-supplier-verify/lib/labels-v5348.php
+          grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' /tmp/gp-supplier-verify/lib/labels-v5348.php
+          grep -q "width:32mm;height:32mm" /tmp/gp-supplier-verify/lib/labels-v5348.php
+          grep -q 'QR = اطلاعات تماس قدیر پرداخت | بارکد = شماره کارتن' /tmp/gp-supplier-verify/lib/labels-v5348.php
+          grep -q '/assets/ghadir-contact-qr.png' /tmp/gp-supplier-verify/lib/labels-v5348.php
+          cmp /tmp/gp-supplier-live/assets/ghadir-contact-qr.png /tmp/gp-supplier-verify/assets/ghadir-contact-qr.png
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
 
       - name: Roll back on failure
