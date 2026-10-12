@@ -55,9 +55,9 @@ jobs:
                       print('\n---',key,'---')
                       print(s[max(0,i-1800):i+5000])
                       p=i+len(key);n+=1
+          PY
           echo
           echo "===== LIVE PRINT FUNCTION LOCATION ====="
           grep -R -n -E "function[[:space:]]+gp_print_carton_labels_three_up|GPQRCode|qrcode|qr-svg|qrRender" /tmp/gp-diag/lib /tmp/gp-diag/index.php | head -200 || true
           echo "===== LIVE LIB FILES ====="
           find /tmp/gp-diag/lib -maxdepth 2 -type f -printf '%p\n' | sort
-          PY
