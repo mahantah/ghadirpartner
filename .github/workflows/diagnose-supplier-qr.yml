@@ -1,0 +1,57 @@
+name: Diagnose supplier and carton QR UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-supplier-qr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+      - name: Inspect live code
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-diag && mkdir -p /tmp/gp-diag/assets
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-diag/index.php
+          get /app.html -o /tmp/gp-diag/app.html
+          get /assets/warehouse-carton-multilabel-v53438.js -o /tmp/gp-diag/assets/warehouse-carton-multilabel-v53438.js
+          bye
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          files=['/tmp/gp-diag/index.php','/tmp/gp-diag/app.html','/tmp/gp-diag/assets/warehouse-carton-multilabel-v53438.js']
+          keys=['/api/warehouse/import','/api/inventory/overview','/api/inventory/group','/print/warehouse-label','whProduct','whColor','function renderWarehouse','function saveWarehouseCarton','function saveWarehouseFile','QR','qr','GPQRCode','warehouseBody','invSearch']
+          for fp in files:
+              s=Path(fp).read_text(encoding='utf-8',errors='ignore')
+              print('\n===== FILE',fp,'=====')
+              for key in keys:
+                  p=0;n=0
+                  while True:
+                      i=s.find(key,p)
+                      if i<0 or n>=3: break
+                      print('\n---',key,'---')
+                      print(s[max(0,i-1800):i+5000])
+                      p=i+len(key);n+=1
+          PY
