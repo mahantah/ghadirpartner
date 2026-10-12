@@ -1,10 +1,7 @@
 name: Diagnose supplier and carton QR UI
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/diagnose-supplier-qr.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
