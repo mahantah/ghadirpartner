@@ -74,7 +74,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-serial-continuation-location.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-order-serial-carton-display.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-supplier-qr.py" "$ROOT"
-          python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-display-v2.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-display-v3.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
           base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > "$ROOT/assets/ghadir-contact-qr.png"
           grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
@@ -83,8 +83,8 @@ jobs:
           grep -q 'ORDER_SERIAL_CARTON_DISPLAY_FIX_20261011' "$ROOT/app.html"
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' "$ROOT/index.php"
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' "$ROOT/app.html"
-          grep -q 'WAREHOUSE_SUPPLIER_INVENTORY_API_V2_20261013' "$ROOT/index.php"
-          grep -q 'WAREHOUSE_SUPPLIER_DISPLAY_V2_20261013' "$ROOT/app.html"
+          grep -q 'WAREHOUSE_SUPPLIER_INVENTORY_API_V3_20261013' "$ROOT/index.php"
+          grep -q 'WAREHOUSE_SUPPLIER_DISPLAY_V3_20261013' "$ROOT/app.html"
           grep -q '<th>تامین‌کننده</th>' "$ROOT/app.html"
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' "$ROOT/lib/labels-v5348.php"
           grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' "$ROOT/lib/labels-v5348.php"
@@ -283,8 +283,8 @@ jobs:
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/livecheck/index.php
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/livecheck/app.html
-          grep -q 'WAREHOUSE_SUPPLIER_INVENTORY_API_V2_20261013' /tmp/livecheck/index.php
-          grep -q 'WAREHOUSE_SUPPLIER_DISPLAY_V2_20261013' /tmp/livecheck/app.html
+          grep -q 'WAREHOUSE_SUPPLIER_INVENTORY_API_V3_20261013' /tmp/livecheck/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_DISPLAY_V3_20261013' /tmp/livecheck/app.html
           grep -q '<th>تامین‌کننده</th>' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' /tmp/livecheck/lib/labels-v5348.php
