@@ -1,7 +1,10 @@
 name: Deploy warehouse supplier and carton QR
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-warehouse-supplier-qr.yml'
 
 permissions:
   contents: read
@@ -54,12 +57,16 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/patch-warehouse-supplier-qr.py /tmp/gp-supplier-live
+          python3 scripts/patch-supplier-display-v2.py /tmp/gp-supplier-live
           python3 scripts/patch-carton-label-layout-v2.py /tmp/gp-supplier-live
           base64 -d assets/ghadir-contact-qr.png.b64 > /tmp/gp-supplier-live/assets/ghadir-contact-qr.png
           php -l /tmp/gp-supplier-live/index.php
           php -l /tmp/gp-supplier-live/lib/labels-v5348.php
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/gp-supplier-live/index.php
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/gp-supplier-live/app.html
+          grep -q 'WAREHOUSE_SUPPLIER_INVENTORY_API_V2_20261013' /tmp/gp-supplier-live/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_DISPLAY_V2_20261013' /tmp/gp-supplier-live/app.html
+          grep -q '<th>تامین‌کننده</th>' /tmp/gp-supplier-live/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/gp-supplier-live/lib/labels-v5348.php
           grep -q 'id="whSupplier"' /tmp/gp-supplier-live/app.html
           grep -q 'id="whCartonSearch"' /tmp/gp-supplier-live/app.html
@@ -132,6 +139,9 @@ jobs:
           php -l /tmp/gp-supplier-verify/lib/labels-v5348.php
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/gp-supplier-verify/index.php
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/gp-supplier-verify/app.html
+          grep -q 'WAREHOUSE_SUPPLIER_INVENTORY_API_V2_20261013' /tmp/gp-supplier-verify/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_DISPLAY_V2_20261013' /tmp/gp-supplier-verify/app.html
+          grep -q '<th>تامین‌کننده</th>' /tmp/gp-supplier-verify/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/gp-supplier-verify/lib/labels-v5348.php
           grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' /tmp/gp-supplier-verify/lib/labels-v5348.php
           grep -q "width:32mm;height:32mm" /tmp/gp-supplier-verify/lib/labels-v5348.php
