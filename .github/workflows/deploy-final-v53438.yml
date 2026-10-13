@@ -84,8 +84,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' "$ROOT/index.php"
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' "$ROOT/app.html"
           grep -q 'WAREHOUSE_SUPPLIER_DOM_V4_20261013' "$ROOT/app.html"
-          grep -q 'WAREHOUSE_SUPPLIER_DOM_V4_20261013' "$ROOT/app.html"
-          grep -q '<th>تامین‌کننده</th>' "$ROOT/app.html"
+          grep -q 'gpDecorateWarehouse' "$ROOT/app.html"
+          grep -q 'gpDecorateCustomerSerials' "$ROOT/app.html"
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' "$ROOT/lib/labels-v5348.php"
           grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' "$ROOT/lib/labels-v5348.php"
           grep -q 'width:32mm;height:32mm' "$ROOT/lib/labels-v5348.php"
@@ -284,8 +284,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/livecheck/index.php
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_SUPPLIER_DOM_V4_20261013' /tmp/livecheck/app.html
-          grep -q 'WAREHOUSE_SUPPLIER_DOM_V4_20261013' /tmp/livecheck/app.html
-          grep -q '<th>تامین‌کننده</th>' /tmp/livecheck/app.html
+          grep -q 'gpDecorateWarehouse' /tmp/livecheck/app.html
+          grep -q 'gpDecorateCustomerSerials' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' /tmp/livecheck/lib/labels-v5348.php
           grep -q '/assets/ghadir-contact-qr.png' /tmp/livecheck/lib/labels-v5348.php
