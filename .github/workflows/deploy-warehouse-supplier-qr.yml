@@ -1,11 +1,8 @@
 name: Deploy warehouse supplier and carton QR
-# supplier-display-dom-v4 retry
+# supplier-display-dom-v4
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-warehouse-supplier-qr.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
