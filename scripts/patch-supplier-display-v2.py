@@ -47,9 +47,13 @@ if FRONT_MARK not in a:
     )
     old="return [x.product,x.serial,x.imei,x.order_number,owner.name,owner.company,owner.code,owner.mobile,owner.order?owner.order.number:''].join(' ').toLowerCase();"
     new="return [x.product,x.serial,x.imei,x.order_number,x.supplier,owner.name,owner.company,owner.code,owner.mobile,owner.order?owner.order.number:''].join(' ').toLowerCase();"
-    if old not in a:
-        raise SystemExit("invSearchText pattern not found")
-    a=a.replace(old,new,1)
+    if old in a:
+        a=a.replace(old,new,1)
+    else:
+        fn=a.find("function invSearchText")
+        fn_end=a.find("function renderInventory",fn)
+        if fn<0 or fn_end<0 or "x.supplier" not in a[fn:fn_end]:
+            raise SystemExit("invSearchText supplier pattern not found")
 
     old='<th>شماره باکس</th><th>مدل</th><th>انبار</th><th>رنگ</th>'
     new='<th>شماره باکس</th><th>مدل</th><th>تامین‌کننده</th><th>انبار</th><th>رنگ</th>'
