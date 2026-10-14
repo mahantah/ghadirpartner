@@ -42,43 +42,80 @@ if($oldInOrder!==1)throw new RuntimeException('GHP-000228 old serial count misma
 if(stripos($product,'H9 PRO')===false)throw new RuntimeException('GHP-000228 serial is not H9 PRO');
 if(!preg_match('/^P125[0-9]{6}$/',$new))throw new RuntimeException('GHP-000228 new serial format invalid');
 if($countExact($s,$new)!==0){
-    $newInventory=[];
-    foreach($s['inventory']??[] as $iv)if(strcasecmp((string)($iv['serial']??''),$new)===0)$newInventory[]=[
-        'id'=>(int)($iv['id']??0),
-        'product'=>(string)($iv['product']??''),
-        'order_id'=>(int)($iv['order_id']??0),
-        'order_number'=>(string)($iv['order_number']??''),
-        'warehouse_id'=>(int)($iv['warehouse_id']??0),
-        'carton_id'=>(int)($iv['carton_id']??0),
-        'carton_code'=>(string)($iv['carton_code']??'')
-    ];
-    $newOrders=[];
-    foreach($s['orders']??[] as $o)foreach($o['items']??[] as $it)foreach($it['serials']??[] as $sn)if(strcasecmp((string)$sn,$new)===0)$newOrders[]=[
-        'number'=>(string)($o['number']??''),
-        'status'=>(string)($o['status']??''),
-        'product'=>(string)($it['product']??'')
-    ];
-    $oldInventory=[];
-    foreach($s['inventory']??[] as $iv)if(strcasecmp((string)($iv['serial']??''),$old)===0)$oldInventory[]=[
-        'id'=>(int)($iv['id']??0),
-        'product'=>(string)($iv['product']??''),
-        'order_id'=>(int)($iv['order_id']??0),
-        'order_number'=>(string)($iv['order_number']??''),
-        'warehouse_id'=>(int)($iv['warehouse_id']??0),
-        'carton_id'=>(int)($iv['carton_id']??0),
-        'carton_code'=>(string)($iv['carton_code']??''),
-        'warehouse_exited_at'=>(string)($iv['warehouse_exited_at']??''),
-        'warehouse_exit_movement_id'=>(int)($iv['warehouse_exit_movement_id']??0)
-    ];
-    $oldShipmentRefs=0;$oldExitRefs=0;
-    foreach($s['orders'][$oi]['shipment_batches']??[] as $b)foreach($b['items']??[] as $it)foreach($it['serials']??[] as $sn)if(strcasecmp((string)$sn,$old)===0)$oldShipmentRefs++;
-    foreach($s['orders'][$oi]['exit_items']??[] as $it)foreach($it['serials']??[] as $sn)if(strcasecmp((string)$sn,$old)===0)$oldExitRefs++;
-    if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();
+    $oldIdx=[];$newIdx=[];$newOrders=[];
+    foreach($s['inventory']??[] as $i=>$iv){
+        if(strcasecmp((string)($iv['serial']??''),$old)===0)$oldIdx[]=$i;
+        if(strcasecmp((string)($iv['serial']??''),$new)===0)$newIdx[]=$i;
+    }
+    foreach($s['orders']??[] as $j=>$o)foreach($o['items']??[] as $it)foreach($it['serials']??[] as $sn)
+        if(strcasecmp((string)$sn,$new)===0)$newOrders[]=$j;
+
+    if(count($oldIdx)!==1)throw new RuntimeException('GHP-000228 old inventory row count mismatch');
+    if(count($newIdx)!==1)throw new RuntimeException('GHP-000228 new inventory row count mismatch');
+    if(count($newOrders)!==0)throw new RuntimeException('GHP-000228 new serial is already assigned to another order');
+
+    $oldRow=$s['inventory'][$oldIdx[0]];
+    $newRow=$s['inventory'][$newIdx[0]];
+    if((int)($oldRow['order_id']??0)!==$oid)throw new RuntimeException('GHP-000228 old serial is not assigned to target order');
+    if((int)($oldRow['warehouse_id']??0)!==0)throw new RuntimeException('GHP-000228 old serial is not exited as expected');
+    if((int)($newRow['order_id']??0)!==0)throw new RuntimeException('GHP-000228 new serial is not free');
+    if((int)($newRow['warehouse_id']??0)<1)throw new RuntimeException('GHP-000228 new serial is not in warehouse');
+    if((string)($oldRow['product']??'')!==(string)($newRow['product']??''))throw new RuntimeException('GHP-000228 serial products differ');
+    if((int)($oldRow['carton_id']??0)!==(int)($newRow['carton_id']??0))throw new RuntimeException('GHP-000228 serials are not in the same source carton');
+
+    $dir=__DIR__.'/storage/Backups';@mkdir($dir,0750,true);
+    $name='ghadir-pre-swap-ghp-000228-serial-'.date('Ymd-His').'.json';
+    $raw=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE);
+    if($raw===false||file_put_contents($dir.'/'.$name,$raw,LOCK_EX)===false)throw new RuntimeException('GHP-000228 backup failed');
+
+    $orderChanged=0;
+    $replaceExact($s['orders'][$oi],$old,$new,$orderChanged);
+    if($orderChanged<1)throw new RuntimeException('GHP-000228 order serial reference was not replaced');
+
+    $swapFields=['order_id','order_number','warehouse_id','warehouse_last_moved_at','warehouse_exited_at','warehouse_exit_order_id','warehouse_exit_order_number','warehouse_exit_by','warehouse_exit_movement_id'];
+    foreach($swapFields as $k){
+        $oh=array_key_exists($k,$s['inventory'][$oldIdx[0]]);$nh=array_key_exists($k,$s['inventory'][$newIdx[0]]);
+        $ov=$oh?$s['inventory'][$oldIdx[0]][$k]:null;$nv=$nh?$s['inventory'][$newIdx[0]][$k]:null;
+        if($nh)$s['inventory'][$oldIdx[0]][$k]=$nv;else unset($s['inventory'][$oldIdx[0]][$k]);
+        if($oh)$s['inventory'][$newIdx[0]][$k]=$ov;else unset($s['inventory'][$newIdx[0]][$k]);
+    }
+
+    $movementChanged=0;
+    foreach($s['warehouse_movements']??[] as &$mv){
+        if(($mv['type']??'')!=='sale_out'||(int)($mv['order_id']??0)!==$oid)continue;
+        foreach($mv['serials']??[] as &$sn)if(strcasecmp((string)$sn,$old)===0){$sn=$new;$movementChanged++;}
+        unset($sn);
+    }
+    unset($mv);
+
+    $s['orders'][$oi]['history']=is_array($s['orders'][$oi]['history']??null)?$s['orders'][$oi]['history']:[];
+    $s['orders'][$oi]['history'][]=['at'=>date('Y-m-d H:i:s'),'by'=>'system-fix-20261014','action'=>'اصلاح سریال فاکتور: '.$old.' با '.$new.' جایگزین شد'];
+    $s['orders'][$oi]['updated_at']=date('Y-m-d H:i:s');
+
+    $verifyOldOrder=$countExact($s['orders'][$oi],$old);
+    $verifyNewOrder=$countExact($s['orders'][$oi],$new);
+    if($verifyOldOrder!==0||$verifyNewOrder<1)throw new RuntimeException('GHP-000228 order verification after swap failed');
+    if((int)($s['inventory'][$oldIdx[0]]['order_id']??0)!==0||(int)($s['inventory'][$oldIdx[0]]['warehouse_id']??0)<1)throw new RuntimeException('GHP-000228 old serial was not returned to free stock');
+    if((int)($s['inventory'][$newIdx[0]]['order_id']??0)!==$oid||(int)($s['inventory'][$newIdx[0]]['warehouse_id']??0)!==0)throw new RuntimeException('GHP-000228 new serial was not moved to exited order');
+
+    $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+    if($encoded===false)throw new RuntimeException('GHP-000228 encode failed');
+    $rev=(int)($r['revision']??0)+1;
+    $checksum=hash('sha256',$encoded);
+    $st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+    $st->execute([$encoded,$rev,$checksum]);
+    $st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+    $st->execute([$rev,$checksum,strlen($encoded)]);
+    $pdo->commit();
+
     echo json_encode([
         'ok'=>true,'order'=>$orderNo,'status'=>(string)($s['orders'][$oi]['status']??''),
-        'old'=>$old,'new'=>$new,'changed'=>false,'reason'=>'new_exists',
-        'old_inventory'=>$oldInventory,'new_inventory'=>$newInventory,'new_orders'=>$newOrders,
-        'old_shipment_refs'=>$oldShipmentRefs,'old_exit_refs'=>$oldExitRefs
+        'old'=>$old,'new'=>$new,'changed'=>true,'action'=>'swap_existing_serial',
+        'order_refs_changed'=>$orderChanged,'sale_out_refs_changed'=>$movementChanged,
+        'old_inventory_id'=>(int)($s['inventory'][$oldIdx[0]]['id']??0),
+        'new_inventory_id'=>(int)($s['inventory'][$newIdx[0]]['id']??0),
+        'carton_code'=>(string)($s['inventory'][$newIdx[0]]['carton_code']??''),
+        'revision'=>$rev,'backup'=>$name
     ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     exit;
 }
