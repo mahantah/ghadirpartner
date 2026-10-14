@@ -33,7 +33,11 @@ foreach($s['orders'][$oi]['items']??[] as $it){
         if(strcasecmp((string)$sn,$new)===0)$newInOrder++;
     }
 }
-if($oldInOrder===0&&$newInOrder===1)return;
+if($oldInOrder===0&&$newInOrder===1){
+    if(isset($pdo)&&$pdo->inTransaction())$pdo->commit();
+    echo json_encode(['ok'=>true,'order'=>$orderNo,'old'=>$old,'new'=>$new,'changed'=>false,'already'=>true],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    exit;
+}
 if($oldInOrder!==1)throw new RuntimeException('GHP-000228 old serial count mismatch');
 if(stripos($product,'H9 PRO')===false)throw new RuntimeException('GHP-000228 serial is not H9 PRO');
 if(!preg_match('/^P125[0-9]{6}$/',$new))throw new RuntimeException('GHP-000228 new serial format invalid');
@@ -63,4 +67,14 @@ if($newOrderCount!==1)throw new RuntimeException('GHP-000228 new serial order li
 $s['orders'][$oi]['history']=is_array($s['orders'][$oi]['history']??null)?$s['orders'][$oi]['history']:[];
 $s['orders'][$oi]['history'][]=['at'=>date('Y-m-d H:i:s'),'by'=>'system-fix-20261014','action'=>'اصلاح سریال '.$old.' به '.$new];
 $s['orders'][$oi]['updated_at']=date('Y-m-d H:i:s');
-$repaired=true;
+$encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+if($encoded===false)throw new RuntimeException('GHP-000228 encode failed');
+$rev=(int)($r['revision']??0)+1;
+$checksum=hash('sha256',$encoded);
+$st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+$st->execute([$encoded,$rev,$checksum]);
+$st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+$st->execute([$rev,$checksum,strlen($encoded)]);
+$pdo->commit();
+echo json_encode(['ok'=>true,'order'=>$orderNo,'product'=>$product,'old'=>$old,'new'=>$new,'changed'=>true,'replaced'=>$changed,'revision'=>$rev,'backup'=>$name],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+exit;
