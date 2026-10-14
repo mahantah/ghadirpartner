@@ -3,10 +3,7 @@ name: Check public response times
 # post-static-entry
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/check-public-performance.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
