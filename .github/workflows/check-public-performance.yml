@@ -1,5 +1,6 @@
 name: Check public response times
 # post-performance-v1
+# post-static-entry
 
 on:
   push:
