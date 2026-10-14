@@ -93,10 +93,16 @@ if MARK not in s:
     s=s.replace("new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});",
                 "/* "+MARK+" — whole-body mobile observer removed; resize/orientation + initial sync are sufficient */",1)
 
+    # Supplier V5 already wraps load/renderWarehouse and load/renderInventory.
+    # Disable the older V4 global observer/click hook to prevent duplicate full-list scans.
     supplier_observe="const obs=new MutationObserver(gpScheduleSupplierDisplay);\n  obs.observe(document.body,{childList:true,subtree:true});\n  document.addEventListener('click',gpScheduleSupplierDisplay,true);"
-    supplier_repl="const obs=new MutationObserver(gpScheduleSupplierDisplay);\n  [document.getElementById('warehouseBody'),document.getElementById('inventoryGroups')].filter(Boolean).forEach(root=>obs.observe(root,{childList:true,subtree:true}));\n  /* "+MARK+" — global click observer removed */"
+    supplier_repl="/* "+MARK+" — legacy supplier V4 MutationObserver/click hook disabled; V5 render hooks are authoritative */"
     if supplier_observe in s:
         s=s.replace(supplier_observe,supplier_repl,1)
+
+    # Supplier V5 also had a whole-document MutationObserver even though its render/load wrappers are sufficient.
+    s=s.replace("new MutationObserver(function(){ schedule(false); }).observe(document.body,{childList:true,subtree:true});",
+                "/* "+MARK+" — supplier V5 whole-body observer removed; explicit load/render wrappers remain active */",1)
 
     pos=s.lower().rfind("</body>")
     if pos<0: raise SystemExit("main </body> not found")
