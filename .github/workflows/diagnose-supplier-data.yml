@@ -1,0 +1,86 @@
+name: Diagnose supplier data
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-supplier-data.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli php-mysql
+      - name: Read live supplier structure
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-supplier-data && mkdir -p /tmp/gp-supplier-data
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /config.php -o /tmp/gp-supplier-data/config.php
+          bye
+          EOF
+          cat > /tmp/gp-supplier-data/diag.php <<'PHP'
+          <?php
+          $cfg=require '/tmp/gp-supplier-data/config.php';
+          $m=$cfg['mysql']??[];
+          $pdo=new PDO(
+            'mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),
+            (string)($m['username']??''),(string)($m['password']??''),
+            [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]
+          );
+          $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();
+          if(!$r) throw new RuntimeException('state missing');
+          $s=json_decode($r['state_json'],true);
+          if(!is_array($s)) throw new RuntimeException('state invalid');
+          $cartons=$s['cartons']??[]; $inventory=$s['inventory']??[];
+          $cartonKeys=[]; $invKeys=[]; $suppliers=[]; $cartonWith=0; $invWith=0;
+          foreach($cartons as $c){
+            foreach(array_keys($c) as $k)$cartonKeys[$k]=1;
+            $v=trim((string)($c['supplier']??''));
+            if($v!==''){ $cartonWith++; $suppliers[$v]=($suppliers[$v]??0)+1; }
+          }
+          foreach($inventory as $iv){
+            foreach(array_keys($iv) as $k)$invKeys[$k]=1;
+            if(trim((string)($iv['supplier']??''))!=='')$invWith++;
+          }
+          ksort($cartonKeys); ksort($invKeys); arsort($suppliers);
+          echo "revision=".(int)$r['revision']."\n";
+          echo "cartons=".count($cartons)." cartons_with_supplier=".$cartonWith."\n";
+          echo "inventory=".count($inventory)." inventory_with_supplier=".$invWith."\n";
+          echo "carton_keys=".implode(',',array_keys($cartonKeys))."\n";
+          echo "inventory_keys=".implode(',',array_keys($invKeys))."\n";
+          echo "suppliers=".json_encode($suppliers,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n";
+          $n=0;
+          foreach(array_reverse($cartons) as $c){
+            $v=trim((string)($c['supplier']??''));
+            if($v==='')continue;
+            echo "sample_carton=".json_encode([
+              'id'=>(int)($c['id']??0),
+              'code'=>(string)($c['code']??''),
+              'product'=>(string)($c['product']??''),
+              'supplier'=>$v,
+              'serial_count'=>count($c['serials']??[])
+            ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n";
+            if(++$n>=20)break;
+          }
+          PHP
+          php /tmp/gp-supplier-data/diag.php
