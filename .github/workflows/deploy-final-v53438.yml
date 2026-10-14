@@ -100,6 +100,8 @@ jobs:
           grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' "$ROOT/partners/index.php"
           grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' "$ROOT/partners/portal.html"
           grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' "$ROOT/mobile.html"
+          grep -q 'DirectoryIndex app.html index.php' "$ROOT/.htaccess"
+          grep -q 'DirectoryIndex portal.html index.php' "$ROOT/partners/.htaccess"
           ! grep -q 'setInterval(pollNotif,4000)' "$ROOT/app.html"
           ! grep -q 'warehouse-carton-multilabel-v53438.js' "$ROOT/app.html"
           grep -q '/api/warehouse/carton/supplier' "$ROOT/index.php"
