@@ -27,6 +27,7 @@ jobs:
           sudo apt-get install -y lftp php-cli curl nodejs
 
       - name: Download current live files
+        if: ${{ false }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -51,6 +52,7 @@ jobs:
           cp /tmp/gp-live/app.html /tmp/gp-rollback/app.html
 
       - name: Patch code and validate
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -68,6 +70,7 @@ jobs:
           NODE
 
       - name: Deploy code hotfix
+        if: ${{ false }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -229,6 +232,7 @@ jobs:
           echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["exit_device_qty"]??0)!==800||($x["shipment_batches"]??0)<2)exit(2);'
 
       - name: Verify live code
+        if: ${{ false }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -254,6 +258,7 @@ jobs:
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
 
       - name: Roll back code on failure
+        if: ${{ false }}
         if: failure()
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
