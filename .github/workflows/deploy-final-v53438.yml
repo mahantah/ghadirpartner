@@ -59,7 +59,6 @@ jobs:
             s=p.read_text()
             tags=[
                 '<script src="/assets/order-multiprint-v53438.js?v=53438mp2"></script>',
-                '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438wl2"></script>',
                 '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui4"></script>'
             ]
             if '</body>' not in s:
@@ -79,6 +78,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-edit-v6.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-ui-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-menu-overlay-v2.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-remove-selective-carton-label-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
           base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > "$ROOT/assets/ghadir-contact-qr.png"
           grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
@@ -93,6 +93,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' "$ROOT/app.html"
           grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' "$ROOT/app.html"
           grep -q 'MOBILE_MENU_OVERLAY_FIX_V2_20261014' "$ROOT/app.html"
+          grep -q 'REMOVE_SELECTIVE_CARTON_LABEL_UI_V1_20261014' "$ROOT/app.html"
+          ! grep -q 'warehouse-carton-multilabel-v53438.js' "$ROOT/app.html"
           grep -q '/api/warehouse/carton/supplier' "$ROOT/index.php"
           grep -q 'id="eisupplier"' "$ROOT/app.html"
           grep -q 'gpDecorateWarehouse' "$ROOT/app.html"
@@ -125,8 +127,6 @@ jobs:
           grep -q 'چاپ بیجک‌های انتخابی' "$ROOT/assets/order-multiprint-v53438.js"
           grep -q 'چاپ لیبل‌های انتخابی' "$ROOT/assets/order-multiprint-v53438.js"
           node --check "$ROOT/assets/warehouse-carton-multilabel-v53438.js"
-          grep -q 'warehouse-carton-multilabel-v53438.js' "$ROOT/app.html"
-          grep -q 'چاپ لیبل باکس‌های انتخاب‌شده' "$ROOT/assets/warehouse-carton-multilabel-v53438.js"
           node --check "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'warehouse-ui-refine-v53438.js' "$ROOT/app.html"
           grep -q 'سریال‌های مشتریان' "$ROOT/assets/warehouse-ui-refine-v53438.js"
@@ -300,6 +300,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/livecheck/app.html
           grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' /tmp/livecheck/app.html
           grep -q 'MOBILE_MENU_OVERLAY_FIX_V2_20261014' /tmp/livecheck/app.html
+          grep -q 'REMOVE_SELECTIVE_CARTON_LABEL_UI_V1_20261014' /tmp/livecheck/app.html
+          ! grep -q 'warehouse-carton-multilabel-v53438.js' /tmp/livecheck/app.html
           grep -q 'gpDecorateWarehouse' /tmp/livecheck/app.html
           grep -q 'gpDecorateCustomerSerials' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/livecheck/lib/labels-v5348.php
