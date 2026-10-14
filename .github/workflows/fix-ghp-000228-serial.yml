@@ -1,0 +1,210 @@
+name: Fix GHP-000228 serial
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-ghp-000228-serial.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y lftp php-cli php-mysql
+
+      - name: Download live config
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp228 && mkdir -p /tmp/gp228
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /config.php -o /tmp/gp228/config.php
+          bye
+          EOF
+
+      - name: Replace serial transactionally
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/gp228/fix.php <<'PHP'
+          <?php
+          $cfg=require '/tmp/gp228/config.php';
+          $m=$cfg['mysql']??[];
+          $orderNo='GHP-000228';
+          $old='P125111726';
+          $new='P125111730';
+
+          function countExact($v,$needle,&$count){
+            if(is_array($v)){foreach($v as $x)countExact($x,$needle,$count);return;}
+            if(is_string($v)&&strcasecmp($v,$needle)===0)$count++;
+          }
+          function replaceExact(&$v,$old,$new,&$count){
+            if(is_array($v)){foreach($v as &$x)replaceExact($x,$old,$new,$count);unset($x);return;}
+            if(is_string($v)&&strcasecmp($v,$old)===0){$v=$new;$count++;}
+          }
+
+          $pdo=new PDO(
+            'mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),
+            (string)($m['username']??''),(string)($m['password']??''),
+            [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]
+          );
+          $pdo->exec("SET time_zone = '+03:30'");
+          $pdo->beginTransaction();
+          try{
+            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1 FOR UPDATE")->fetch();
+            if(!$r)throw new RuntimeException('state missing');
+            $s=json_decode($r['state_json'],true);
+            if(!is_array($s))throw new RuntimeException('state invalid');
+
+            $oi=-1;
+            foreach($s['orders']??[] as $i=>$o)if((string)($o['number']??'')===$orderNo){$oi=$i;break;}
+            if($oi<0)throw new RuntimeException('order GHP-000228 not found');
+            $oid=(int)($s['orders'][$oi]['id']??0);
+
+            $orderOld=0;$product='';
+            foreach($s['orders'][$oi]['items']??[] as $it)foreach($it['serials']??[] as $sn){
+              if(strcasecmp((string)$sn,$old)===0){$orderOld++;$product=(string)($it['product']??'');}
+            }
+            if($orderOld!==1)throw new RuntimeException('old serial must exist exactly once in target order');
+            if(stripos($product,'H9 PRO')===false)throw new RuntimeException('target serial is not H9 PRO');
+            if(!preg_match('/^P125[0-9]{6}$/',$new))throw new RuntimeException('new serial format invalid');
+
+            foreach($s['orders']??[] as $j=>$o){
+              if($j===$oi)continue;
+              foreach($o['items']??[] as $it)foreach($it['serials']??[] as $sn)
+                if(strcasecmp((string)$sn,$old)===0)throw new RuntimeException('old serial also appears in another order');
+            }
+
+            $invOld=[];
+            foreach($s['inventory']??[] as $i=>$iv)if(strcasecmp((string)($iv['serial']??''),$old)===0)$invOld[]=$i;
+            if(count($invOld)!==1)throw new RuntimeException('old serial inventory row count mismatch');
+            if((int)($s['inventory'][$invOld[0]]['order_id']??0)!==$oid)throw new RuntimeException('old serial inventory is not attached to target order');
+
+            $newCount=0;countExact($s,$new,$newCount);
+            if($newCount!==0)throw new RuntimeException('new serial already exists');
+
+            $oldCount=0;countExact($s,$old,$oldCount);
+            if($oldCount<2)throw new RuntimeException('old serial reference count too low');
+
+            $backup=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE);
+            if($backup===false||file_put_contents('/tmp/gp228/backup.json',$backup)===false)throw new RuntimeException('backup write failed');
+
+            $replaced=0;replaceExact($s,$old,$new,$replaced);
+            $left=0;countExact($s,$old,$left);
+            $nowNew=0;countExact($s,$new,$nowNew);
+            if($left!==0||$nowNew!==$replaced||$replaced!==$oldCount)throw new RuntimeException('replacement verification failed');
+
+            $orderNew=0;
+            foreach($s['orders'][$oi]['items']??[] as $it)foreach($it['serials']??[] as $sn)
+              if(strcasecmp((string)$sn,$new)===0)$orderNew++;
+            if($orderNew!==1)throw new RuntimeException('new serial not linked exactly once to order');
+
+            $invNew=0;
+            foreach($s['inventory']??[] as $iv)
+              if(strcasecmp((string)($iv['serial']??''),$new)===0&&(int)($iv['order_id']??0)===$oid)$invNew++;
+            if($invNew!==1)throw new RuntimeException('new serial inventory link invalid');
+
+            $s['orders'][$oi]['history']=is_array($s['orders'][$oi]['history']??null)?$s['orders'][$oi]['history']:[];
+            $s['orders'][$oi]['history'][]=[
+              'at'=>date('Y-m-d H:i:s'),
+              'by'=>'system-fix-20261014',
+              'action'=>'اصلاح سریال '.$old.' به '.$new
+            ];
+            $s['orders'][$oi]['updated_at']=date('Y-m-d H:i:s');
+
+            $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+            if($encoded===false)throw new RuntimeException('encode failed');
+            $rev=(int)$r['revision']+1;
+            $checksum=hash('sha256',$encoded);
+
+            $st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+            $st->execute([$encoded,$rev,$checksum]);
+            $st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+            $st->execute([$rev,$checksum,strlen($encoded)]);
+            $pdo->commit();
+
+            echo json_encode([
+              'ok'=>true,'order'=>$orderNo,'product'=>$product,'old'=>$old,'new'=>$new,
+              'replaced'=>$replaced,'revision'=>$rev
+            ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+          }catch(Throwable $e){
+            if($pdo->inTransaction())$pdo->rollBack();
+            fwrite(STDERR,$e->getMessage()."\n");
+            exit(2);
+          }
+          PHP
+          php /tmp/gp228/fix.php | tee /tmp/gp228/result.json
+          php -r '$x=json_decode(file_get_contents("/tmp/gp228/result.json"),true);if(empty($x["ok"])||($x["order"]??"")!=="GHP-000228"||($x["new"]??"")!=="P125111730")exit(2);'
+
+      - name: Upload pre-change backup
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="ghadir-pre-fix-ghp-000228-serial-${GITHUB_RUN_ID}.json"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          mkdir -p /storage/Backups
+          put /tmp/gp228/backup.json -o "/storage/Backups/$NAME"
+          bye
+          EOF
+
+      - name: Verify live state
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/gp228/verify.php <<'PHP'
+          <?php
+          $cfg=require '/tmp/gp228/config.php';$m=$cfg['mysql']??[];
+          $pdo=new PDO(
+            'mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),
+            (string)($m['username']??''),(string)($m['password']??''),
+            [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]
+          );
+          $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();
+          $s=json_decode($r['state_json'],true);
+          $o=null;foreach($s['orders']??[] as $x)if(($x['number']??'')==='GHP-000228'){$o=$x;break;}
+          if(!$o)throw new RuntimeException('order missing');
+          $old=0;$new=0;
+          foreach($o['items']??[] as $it)foreach($it['serials']??[] as $sn){
+            if(strcasecmp((string)$sn,'P125111726')===0)$old++;
+            if(strcasecmp((string)$sn,'P125111730')===0)$new++;
+          }
+          if($old!==0||$new!==1)throw new RuntimeException('order verification failed');
+          $inv=0;foreach($s['inventory']??[] as $iv)if(strcasecmp((string)($iv['serial']??''),'P125111730')===0&&(int)($iv['order_id']??0)===(int)($o['id']??0))$inv++;
+          if($inv!==1)throw new RuntimeException('inventory verification failed');
+          echo json_encode(['ok'=>true,'order'=>'GHP-000228','new'=>'P125111730','inventory_rows'=>$inv,'revision'=>(int)$r['revision']],JSON_UNESCAPED_UNICODE);
+          PHP
+          php /tmp/gp228/verify.php
