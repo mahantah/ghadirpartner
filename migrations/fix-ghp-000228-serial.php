@@ -41,7 +41,27 @@ if($oldInOrder===0&&$newInOrder===1){
 if($oldInOrder!==1)throw new RuntimeException('GHP-000228 old serial count mismatch');
 if(stripos($product,'H9 PRO')===false)throw new RuntimeException('GHP-000228 serial is not H9 PRO');
 if(!preg_match('/^P125[0-9]{6}$/',$new))throw new RuntimeException('GHP-000228 new serial format invalid');
-if($countExact($s,$new)!==0)throw new RuntimeException('GHP-000228 new serial already exists');
+if($countExact($s,$new)!==0){
+    $newInventory=[];
+    foreach($s['inventory']??[] as $iv)if(strcasecmp((string)($iv['serial']??''),$new)===0)$newInventory[]=[
+        'id'=>(int)($iv['id']??0),
+        'product'=>(string)($iv['product']??''),
+        'order_id'=>(int)($iv['order_id']??0),
+        'order_number'=>(string)($iv['order_number']??''),
+        'warehouse_id'=>(int)($iv['warehouse_id']??0),
+        'carton_id'=>(int)($iv['carton_id']??0),
+        'carton_code'=>(string)($iv['carton_code']??'')
+    ];
+    $newOrders=[];
+    foreach($s['orders']??[] as $o)foreach($o['items']??[] as $it)foreach($it['serials']??[] as $sn)if(strcasecmp((string)$sn,$new)===0)$newOrders[]=[
+        'number'=>(string)($o['number']??''),
+        'status'=>(string)($o['status']??''),
+        'product'=>(string)($it['product']??'')
+    ];
+    if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();
+    echo json_encode(['ok'=>true,'order'=>$orderNo,'old'=>$old,'new'=>$new,'changed'=>false,'reason'=>'new_exists','new_inventory'=>$newInventory,'new_orders'=>$newOrders],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    exit;
+}
 
 $invRows=0;
 foreach($s['inventory']??[] as $iv){
