@@ -1,10 +1,7 @@
 name: Inspect live performance anchors
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/inspect-live-performance-anchors.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
