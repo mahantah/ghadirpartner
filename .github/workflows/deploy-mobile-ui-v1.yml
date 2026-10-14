@@ -1,0 +1,125 @@
+name: Deploy mobile UI optimization v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-mobile-ui-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install FTP client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y lftp
+
+      - name: Download live app
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-mobile-live /tmp/gp-mobile-backup /tmp/gp-mobile-verify
+          mkdir -p /tmp/gp-mobile-live /tmp/gp-mobile-backup /tmp/gp-mobile-verify
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/gp-mobile-live/app.html
+          bye
+          EOF
+          cp /tmp/gp-mobile-live/app.html /tmp/gp-mobile-backup/app.html
+
+      - name: Patch and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-mobile-ui-v1.py /tmp/gp-mobile-live
+          grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' /tmp/gp-mobile-live/app.html
+          grep -q 'viewport-fit=cover' /tmp/gp-mobile-live/app.html
+          grep -q 'mobile-nav-userbox' /tmp/gp-mobile-live/app.html
+          node - /tmp/gp-mobile-live/app.html <<'NODE'
+          const fs=require('fs');
+          const h=fs.readFileSync(process.argv[2],'utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
+          let m,n=0;
+          while((m=re.exec(h))){new Function(m[1]);n++}
+          if(!n)throw new Error('No inline JS');
+          console.log('JS OK',n);
+          NODE
+
+      - name: Deploy app
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-mobile-live/app.html -o /app.html
+          bye
+          EOF
+
+      - name: Verify live
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/gp-mobile-verify/app.html
+          bye
+          EOF
+          grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' /tmp/gp-mobile-verify/app.html
+          grep -q 'viewport-fit=cover' /tmp/gp-mobile-verify/app.html
+          cmp /tmp/gp-mobile-live/app.html /tmp/gp-mobile-verify/app.html
+          curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
+
+      - name: Roll back on failure
+        if: failure()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          test -f /tmp/gp-mobile-backup/app.html || exit 0
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-mobile-backup/app.html -o /app.html
+          bye
+          EOF
