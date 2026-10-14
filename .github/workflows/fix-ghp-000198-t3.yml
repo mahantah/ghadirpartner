@@ -121,6 +121,7 @@ jobs:
             $pdo->beginTransaction();
             $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1 FOR UPDATE")->fetch();if(!$r)throw new RuntimeException('state missing');
             $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
+            require __DIR__.'/__gp_fix_228_payload.php';
             $oi=-1;foreach($s['orders']??[] as $i=>$x)if((string)($x['number']??'')==='GHP-000198'){$oi=$i;break;}
             if($oi<0)throw new RuntimeException('order GHP-000198 not found');
             $o=&$s['orders'][$oi];$oid=(int)($o['id']??0);
@@ -186,7 +187,6 @@ jobs:
               $repaired=true;
             }
 
-            require __DIR__.'/__gp_fix_228_payload.php';
             $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);if($encoded===false)throw new RuntimeException('encode failed');
             $rev=(int)$r['revision'];
             if($repaired){
@@ -229,7 +229,7 @@ jobs:
           EOF
           RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
           echo "$RESP"
-          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["exit_device_qty"]??0)!==800||($x["shipment_batches"]??0)<2)exit(2);'
+          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["order"]??"")!=="GHP-000228"||($x["new"]??"")!=="P125111730")exit(2);'
 
       - name: Verify live code
         if: ${{ false }}
