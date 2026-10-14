@@ -58,8 +58,28 @@ if($countExact($s,$new)!==0){
         'status'=>(string)($o['status']??''),
         'product'=>(string)($it['product']??'')
     ];
+    $oldInventory=[];
+    foreach($s['inventory']??[] as $iv)if(strcasecmp((string)($iv['serial']??''),$old)===0)$oldInventory[]=[
+        'id'=>(int)($iv['id']??0),
+        'product'=>(string)($iv['product']??''),
+        'order_id'=>(int)($iv['order_id']??0),
+        'order_number'=>(string)($iv['order_number']??''),
+        'warehouse_id'=>(int)($iv['warehouse_id']??0),
+        'carton_id'=>(int)($iv['carton_id']??0),
+        'carton_code'=>(string)($iv['carton_code']??''),
+        'warehouse_exited_at'=>(string)($iv['warehouse_exited_at']??''),
+        'warehouse_exit_movement_id'=>(int)($iv['warehouse_exit_movement_id']??0)
+    ];
+    $oldShipmentRefs=0;$oldExitRefs=0;
+    foreach($s['orders'][$oi]['shipment_batches']??[] as $b)foreach($b['items']??[] as $it)foreach($it['serials']??[] as $sn)if(strcasecmp((string)$sn,$old)===0)$oldShipmentRefs++;
+    foreach($s['orders'][$oi]['exit_items']??[] as $it)foreach($it['serials']??[] as $sn)if(strcasecmp((string)$sn,$old)===0)$oldExitRefs++;
     if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();
-    echo json_encode(['ok'=>true,'order'=>$orderNo,'old'=>$old,'new'=>$new,'changed'=>false,'reason'=>'new_exists','new_inventory'=>$newInventory,'new_orders'=>$newOrders],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    echo json_encode([
+        'ok'=>true,'order'=>$orderNo,'status'=>(string)($s['orders'][$oi]['status']??''),
+        'old'=>$old,'new'=>$new,'changed'=>false,'reason'=>'new_exists',
+        'old_inventory'=>$oldInventory,'new_inventory'=>$newInventory,'new_orders'=>$newOrders,
+        'old_shipment_refs'=>$oldShipmentRefs,'old_exit_refs'=>$oldExitRefs
+    ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     exit;
 }
 
