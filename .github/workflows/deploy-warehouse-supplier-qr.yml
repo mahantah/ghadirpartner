@@ -1,8 +1,11 @@
 name: Deploy warehouse supplier and carton QR
-# supplier-display-live-v5 manual
+# supplier-edit-v6
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-warehouse-supplier-qr.yml'
 
 permissions:
   contents: read
@@ -57,6 +60,7 @@ jobs:
           python3 scripts/patch-warehouse-supplier-qr.py /tmp/gp-supplier-live
           python3 scripts/patch-supplier-display-dom-v4.py /tmp/gp-supplier-live
           python3 scripts/patch-supplier-display-live-v5.py /tmp/gp-supplier-live
+          python3 scripts/patch-supplier-edit-v6.py /tmp/gp-supplier-live
           python3 scripts/patch-carton-label-layout-v2.py /tmp/gp-supplier-live
           base64 -d assets/ghadir-contact-qr.png.b64 > /tmp/gp-supplier-live/assets/ghadir-contact-qr.png
           php -l /tmp/gp-supplier-live/index.php
@@ -65,6 +69,10 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/gp-supplier-live/app.html
           grep -q 'WAREHOUSE_SUPPLIER_DOM_V4_20261013' /tmp/gp-supplier-live/app.html
           grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' /tmp/gp-supplier-live/app.html
+          grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' /tmp/gp-supplier-live/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/gp-supplier-live/app.html
+          grep -q '/api/warehouse/carton/supplier' /tmp/gp-supplier-live/index.php
+          grep -q 'id="eisupplier"' /tmp/gp-supplier-live/app.html
           grep -q 'gpDecorateWarehouse' /tmp/gp-supplier-live/app.html
           grep -q 'gpDecorateCustomerSerials' /tmp/gp-supplier-live/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/gp-supplier-live/lib/labels-v5348.php
@@ -141,6 +149,9 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_UI_20261012' /tmp/gp-supplier-verify/app.html
           grep -q 'WAREHOUSE_SUPPLIER_DOM_V4_20261013' /tmp/gp-supplier-verify/app.html
           grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' /tmp/gp-supplier-verify/app.html
+          grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' /tmp/gp-supplier-verify/index.php
+          grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/gp-supplier-verify/app.html
+          grep -q '/api/warehouse/carton/supplier' /tmp/gp-supplier-verify/index.php
           grep -q 'gpDecorateWarehouse' /tmp/gp-supplier-verify/app.html
           grep -q 'gpDecorateCustomerSerials' /tmp/gp-supplier-verify/app.html
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' /tmp/gp-supplier-verify/lib/labels-v5348.php
