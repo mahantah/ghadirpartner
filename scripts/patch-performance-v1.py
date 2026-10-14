@@ -18,13 +18,10 @@ def write(p,s):
 p,s=read("index.php")
 if MARK not in s:
     eager="$PRODUCTS=db(false,fn($s)=>$s['products']);"
-    if eager not in s:
-        raise SystemExit("main eager products load not found")
-    s=s.replace(eager,"$PRODUCTS=[]; /* "+MARK+" — products are populated lazily by ghadir_db() */",1)
+    if eager in s:
+        s=s.replace(eager,"$PRODUCTS=[]; /* "+MARK+" — products are populated lazily by ghadir_db() */",1)
 
     anchor="if($p==='/api/me'){$u=auth();out(['id'=>$u['id'],'username'=>$u['username'],'roles'=>$u['roles']]);}"
-    if anchor not in s:
-        raise SystemExit("main /api/me anchor not found")
     bootstrap=r"""
 /* PERFORMANCE_BOOTSTRAP_V1_20261014 */
 if($p==='/api/bootstrap'&&$m==='GET'){
@@ -63,7 +60,16 @@ if($p==='/api/mobile-bootstrap'&&$m==='GET'){
     }));
 }
 """
-    s=s.replace(anchor,anchor+bootstrap,1)
+    if "if($p==='/api/bootstrap'&&$m==='GET')" not in s:
+        if anchor not in s:
+            raise SystemExit("main /api/me anchor not found")
+        s=s.replace(anchor,anchor+bootstrap,1)
+    elif "if($p==='/api/mobile-bootstrap'&&$m==='GET')" not in s:
+        # Existing main bootstrap is already optimized; only add the scanner bundle.
+        mb=bootstrap[bootstrap.find("if($p==='/api/mobile-bootstrap'"):]
+        s=s.replace(anchor,anchor+"\n/* "+MARK+" */\n"+mb,1)
+    if MARK not in s:
+        s=s.replace("$PRODUCTS=default_products();", "$PRODUCTS=default_products(); /* "+MARK+" */", 1)
     write(p,s)
 else:
     print("main backend performance patch already applied")
@@ -73,13 +79,11 @@ p,s=read("app.html")
 if MARK not in s:
     old_refresh="async function refresh(){[CUST,ORD,PROD,INV]=await Promise.all([req('/api/customers'),req('/api/orders'),req('/api/products'),req('/api/inventory')]);renderProductDatalist();renderCustOptions();renderCustomers();renderOrders();renderDash();if($('checkBody'))renderChecks()}"
     new_refresh="async function refresh(){let b=await req('/api/bootstrap');CUST=b.customers||[];ORD=b.orders||[];PROD=b.products||[];INV=b.inventory||[];renderProductDatalist();renderCustOptions();renderCustomers();renderOrders();renderDash();if($('checkBody'))renderChecks()}"
-    if old_refresh not in s:
-        raise SystemExit("main refresh function not found")
-    s=s.replace(old_refresh,new_refresh,1)
+    if old_refresh in s:
+        s=s.replace(old_refresh,new_refresh,1)
 
-    if "await refresh();addItem();setInterval(pollNotif,4000)" not in s:
-        raise SystemExit("notification poll startup not found")
-    s=s.replace("await refresh();addItem();setInterval(pollNotif,4000)","await refresh();addItem()",1)
+    if "await refresh();addItem();setInterval(pollNotif,4000)" in s:
+        s=s.replace("await refresh();addItem();setInterval(pollNotif,4000)","await refresh();addItem()",1)
 
     # The endpoint currently always returns [] and each poll forced a full state decode.
     s=s.replace("setInterval(()=>{if(!$('warehouseDaily')?.classList.contains('hidden'))loadWarehouseLedger()},15000);",
@@ -105,13 +109,10 @@ else:
 p,s=read("partners/index.php")
 if MARK not in s:
     eager="$PRODUCTS=db(false,fn($s)=>$s['products']);"
-    if eager not in s:
-        raise SystemExit("partners eager products load not found")
-    s=s.replace(eager,"$PRODUCTS=[]; /* "+MARK+" — products are populated lazily by ghadir_db() */",1)
+    if eager in s:
+        s=s.replace(eager,"$PRODUCTS=[]; /* "+MARK+" — products are populated lazily by ghadir_db() */",1)
 
     me_anchor="if($p==='/api/me'){$u=auth();$customer=null;if(!empty($u['customer_id']))$customer=db(false,function($s)use($u){$i=idx($s['customers'],$u['customer_id']);return $i<0?null:$s['customers'][$i];});out(['id'=>$u['id'],'username'=>$u['username'],'roles'=>$u['roles'],'customer_id'=>(int)($u['customer_id']??0),'customer'=>$customer,'alternate_mobile'=>$u['alternate_mobile']??'']);}"
-    if me_anchor not in s:
-        raise SystemExit("partners /api/me anchor not found")
     bootstrap=r"""
 /* PERFORMANCE_BOOTSTRAP_V1_20261014 */
 if($p==='/api/bootstrap'&&$m==='GET'){
@@ -169,7 +170,12 @@ if($p==='/api/bootstrap'&&$m==='GET'){
     }));
 }
 """
-    s=s.replace(me_anchor,me_anchor+bootstrap,1)
+    if "if($p==='/api/bootstrap'&&$m==='GET')" not in s:
+        if me_anchor not in s:
+            raise SystemExit("partners /api/me anchor not found")
+        s=s.replace(me_anchor,me_anchor+bootstrap,1)
+    if MARK not in s:
+        s=s.replace("$PRODUCTS=[];", "$PRODUCTS=[]; /* "+MARK+" */", 1)
     write(p,s)
 else:
     print("partners backend performance patch already applied")
@@ -183,11 +189,13 @@ if MARK not in s:
         raise SystemExit("partners boot prefix not found")
     s=s.replace(old_prefix,new_prefix,1)
 
-    old_load="async function loadAll(){[customers,orders,catalog,offers]=await Promise.all([api('/api/customers'),api('/api/orders'),api('/api/catalog'),api('/api/offers')]);$('customerPicker').innerHTML=customers.map(c=>`<option value=\"${c.id}\">${esc(c.name)} — ${esc(c.company||c.code||'')}</option>`).join('');$('accountCustomer').innerHTML=$('customerPicker').innerHTML;renderDashboard();renderCatalog();renderCatalogAdmin();renderOrders();updateDraft()}"
-    new_load="async function loadAll(){let b=window.__gpPortalBootstrap||await api('/api/bootstrap');window.__gpPortalBootstrap=null;customers=b.customers||[];orders=b.orders||[];catalog=b.catalog||[];offers=b.offers||[];$('customerPicker').innerHTML=customers.map(c=>`<option value=\"${c.id}\">${esc(c.name)} — ${esc(c.company||c.code||'')}</option>`).join('');$('accountCustomer').innerHTML=$('customerPicker').innerHTML;renderDashboard();renderCatalog();renderCatalogAdmin();renderOrders();updateDraft()}"
-    if old_load not in s:
+    m=re.search(r"async function loadAll\(\)\{\[customers,orders,catalog,offers\]=await Promise\.all\(\[api\('/api/customers'\),api\('/api/orders'\),api\('/api/catalog'\),api\('/api/offers'\)\]\);(?P<body>.*?)\}",s,re.S)
+    if not m:
         raise SystemExit("partners loadAll not found")
-    s=s.replace(old_load,new_load,1)
+    body=m.group('body')
+    new_load="async function loadAll(){let b=window.__gpPortalBootstrap||await api('/api/bootstrap');window.__gpPortalBootstrap=null;customers=b.customers||[];orders=b.orders||[];catalog=b.catalog||[];offers=b.offers||[];"+body+"}"
+    s=s[:m.start()]+new_load+s[m.end():]
+
 
     pos=s.lower().rfind("</body>")
     if pos<0: raise SystemExit("partners </body> not found")
