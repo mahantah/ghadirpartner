@@ -1,0 +1,54 @@
+name: Inspect live performance anchors
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-live-performance-anchors.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: production
+    steps:
+      - name: Install FTP client
+        run: |
+          sudo apt-get update -y >/dev/null
+          sudo apt-get install -y lftp >/dev/null
+      - name: Fetch live code snippets
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/live/partners
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/live/index.php
+          get /app.html -o /tmp/live/app.html
+          get /mobile.html -o /tmp/live/mobile.html
+          get /partners/index.php -o /tmp/live/partners/index.php
+          get /partners/portal.html -o /tmp/live/partners/portal.html
+          bye
+          EOF
+          echo '=== MAIN PRODUCTS ==='
+          grep -n -E '\$PRODUCTS|/api/bootstrap|/api/mobile-bootstrap' /tmp/live/index.php | head -20 || true
+          echo '=== MAIN REFRESH / POLL ==='
+          grep -n -E 'async function refresh|setInterval\(pollNotif|MutationObserver\(schedule|obs.observe\(document.body|warehouseDaily.*15000' /tmp/live/app.html | head -30 || true
+          echo '=== PARTNERS PRODUCTS / BOOTSTRAP ==='
+          grep -n -E '\$PRODUCTS|/api/bootstrap' /tmp/live/partners/index.php | head -20 || true
+          echo '=== PARTNERS BOOT / LOAD ==='
+          grep -n -E 'async function boot|async function loadAll' /tmp/live/partners/portal.html | head -20 || true
+          echo '=== MOBILE BOOT ==='
+          grep -n -A8 -B2 'async function boot' /tmp/live/mobile.html | head -30 || true
