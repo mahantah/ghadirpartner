@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/deploy-performance-v1.yml'
+      - 'scripts/patch-performance-v1.py'
 
 permissions:
   contents: read
@@ -63,6 +64,9 @@ jobs:
           grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' /tmp/gp-perf-live/partners/index.php
           grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' /tmp/gp-perf-live/partners/portal.html
           ! grep -q 'setInterval(pollNotif,4000)' /tmp/gp-perf-live/app.html
+          grep -q 'legacy supplier V4 MutationObserver/click hook disabled' /tmp/gp-perf-live/app.html
+          grep -q 'supplier V5 whole-body observer removed' /tmp/gp-perf-live/app.html
+          grep -q 'whole-body mobile observer removed' /tmp/gp-perf-live/app.html
           php -l /tmp/gp-perf-live/index.php
           php -l /tmp/gp-perf-live/partners/index.php
           node - /tmp/gp-perf-live/app.html /tmp/gp-perf-live/partners/portal.html /tmp/gp-perf-live/mobile.html <<'NODE'
