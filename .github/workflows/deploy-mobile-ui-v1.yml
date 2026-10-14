@@ -1,10 +1,7 @@
 name: Deploy mobile UI optimization v1
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-mobile-ui-v1.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
