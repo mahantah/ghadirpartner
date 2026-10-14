@@ -1,10 +1,7 @@
 name: Fix GHP-000228 serial
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/fix-ghp-000228-serial.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
