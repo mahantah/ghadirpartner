@@ -1,11 +1,7 @@
 name: Deploy performance hotfix v1
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-performance-v1.yml'
-      - 'scripts/patch-performance-v1.py'
+  workflow_dispatch:
 
 permissions:
   contents: read
