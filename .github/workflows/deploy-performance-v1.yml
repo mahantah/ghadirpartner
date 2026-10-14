@@ -49,6 +49,8 @@ jobs:
           get /mobile.html -o /tmp/gp-perf-live/mobile.html
           get /partners/index.php -o /tmp/gp-perf-live/partners/index.php
           get /partners/portal.html -o /tmp/gp-perf-live/partners/portal.html
+          get /.htaccess -o /tmp/gp-perf-live/.htaccess
+          get /partners/.htaccess -o /tmp/gp-perf-live/partners/.htaccess
           bye
           EOF
           cp -a /tmp/gp-perf-live/. /tmp/gp-perf-backup/
@@ -67,6 +69,8 @@ jobs:
           grep -q 'legacy supplier V4 MutationObserver/click hook disabled' /tmp/gp-perf-live/app.html
           grep -q 'supplier V5 whole-body observer removed' /tmp/gp-perf-live/app.html
           grep -q 'whole-body mobile observer removed' /tmp/gp-perf-live/app.html
+          grep -q 'DirectoryIndex app.html index.php' /tmp/gp-perf-live/.htaccess
+          grep -q 'DirectoryIndex portal.html index.php' /tmp/gp-perf-live/partners/.htaccess
           php -l /tmp/gp-perf-live/index.php
           php -l /tmp/gp-perf-live/partners/index.php
           node - /tmp/gp-perf-live/app.html /tmp/gp-perf-live/partners/portal.html /tmp/gp-perf-live/mobile.html <<'NODE'
@@ -99,6 +103,8 @@ jobs:
           put /tmp/gp-perf-live/mobile.html -o /mobile.html
           put /tmp/gp-perf-live/partners/index.php -o /partners/index.php
           put /tmp/gp-perf-live/partners/portal.html -o /partners/portal.html
+          put /tmp/gp-perf-live/.htaccess -o /.htaccess
+          put /tmp/gp-perf-live/partners/.htaccess -o /partners/.htaccess
           bye
           EOF
 
@@ -122,6 +128,8 @@ jobs:
           get /mobile.html -o /tmp/gp-perf-verify/mobile.html
           get /partners/index.php -o /tmp/gp-perf-verify/partners/index.php
           get /partners/portal.html -o /tmp/gp-perf-verify/partners/portal.html
+          get /.htaccess -o /tmp/gp-perf-verify/.htaccess
+          get /partners/.htaccess -o /tmp/gp-perf-verify/partners/.htaccess
           bye
           EOF
           grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' /tmp/gp-perf-verify/index.php
@@ -133,6 +141,8 @@ jobs:
           cmp /tmp/gp-perf-live/mobile.html /tmp/gp-perf-verify/mobile.html
           cmp /tmp/gp-perf-live/partners/index.php /tmp/gp-perf-verify/partners/index.php
           cmp /tmp/gp-perf-live/partners/portal.html /tmp/gp-perf-verify/partners/portal.html
+          cmp /tmp/gp-perf-live/.htaccess /tmp/gp-perf-verify/.htaccess
+          cmp /tmp/gp-perf-live/partners/.htaccess /tmp/gp-perf-verify/partners/.htaccess
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
           curl -fsS --max-time 25 https://ghadirpartner.ir/partners/healthz
 
@@ -157,5 +167,7 @@ jobs:
           put /tmp/gp-perf-backup/mobile.html -o /mobile.html
           put /tmp/gp-perf-backup/partners/index.php -o /partners/index.php
           put /tmp/gp-perf-backup/partners/portal.html -o /partners/portal.html
+          put /tmp/gp-perf-backup/.htaccess -o /.htaccess
+          put /tmp/gp-perf-backup/partners/.htaccess -o /partners/.htaccess
           bye
           EOF
