@@ -23,8 +23,8 @@ jobs:
           python3 -m py_compile scripts/patch-performance-v1.py
           rm -rf /tmp/gp-perf-test
           mkdir -p /tmp/gp-perf-test/partners
-          cp index.php app.html mobile.html /tmp/gp-perf-test/
-          cp partners/index.php partners/portal.html /tmp/gp-perf-test/partners/
+          cp index.php app.html mobile.html .htaccess /tmp/gp-perf-test/
+          cp partners/index.php partners/portal.html partners/.htaccess /tmp/gp-perf-test/partners/
           python3 scripts/patch-performance-v1.py /tmp/gp-perf-test
           php -l /tmp/gp-perf-test/index.php
           php -l /tmp/gp-perf-test/partners/index.php
@@ -33,6 +33,8 @@ jobs:
           grep -q "req('/api/bootstrap')" /tmp/gp-perf-test/app.html
           grep -q "api('/api/bootstrap')" /tmp/gp-perf-test/partners/portal.html
           grep -q "req('/api/mobile-bootstrap')" /tmp/gp-perf-test/mobile.html
+          grep -q 'DirectoryIndex app.html index.php' /tmp/gp-perf-test/.htaccess
+          grep -q 'DirectoryIndex portal.html index.php' /tmp/gp-perf-test/partners/.htaccess
           node - /tmp/gp-perf-test/app.html /tmp/gp-perf-test/partners/portal.html /tmp/gp-perf-test/mobile.html <<'NODE'
           const fs=require('fs');
           for(const f of process.argv.slice(2)){
