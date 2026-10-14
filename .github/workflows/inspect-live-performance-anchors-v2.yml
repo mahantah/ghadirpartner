@@ -1,0 +1,56 @@
+name: Inspect live performance anchors v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-live-performance-anchors-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: production
+    steps:
+      - name: Install FTP client
+        run: |
+          sudo apt-get update -y >/dev/null
+          sudo apt-get install -y lftp >/dev/null
+      - name: Fetch live code snippets
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/live/partners
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/live/index.php
+          get /app.html -o /tmp/live/app.html
+          get /mobile.html -o /tmp/live/mobile.html
+          get /partners/index.php -o /tmp/live/partners/index.php
+          get /partners/portal.html -o /tmp/live/partners/portal.html
+          bye
+          EOF
+          echo '=== MAIN BACKEND BOOTSTRAP ==='
+          sed -n '715,770p' /tmp/live/index.php
+          echo '=== MAIN UI BOOT/REFRESH ==='
+          sed -n '735,800p' /tmp/live/app.html
+          echo '=== MAIN SUPPLIER OBSERVER V4 ==='
+          sed -n '1435,1470p' /tmp/live/app.html
+          echo '=== MAIN SUPPLIER LIVE V5 ==='
+          sed -n '1625,1675p' /tmp/live/app.html
+          echo '=== MAIN MOBILE OBSERVER ==='
+          sed -n '2045,2070p' /tmp/live/app.html
+          echo '=== PARTNER BOOT/LOAD ==='
+          sed -n '245,270p' /tmp/live/partners/portal.html
