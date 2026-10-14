@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/fix-ghp-000198-t3.yml'
+      - 'migrations/fix-ghp-000228-serial.php'
 
 permissions:
   contents: read
