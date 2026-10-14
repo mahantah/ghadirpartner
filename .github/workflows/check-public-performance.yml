@@ -1,0 +1,27 @@
+name: Check public response times
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/check-public-performance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Measure public endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in             "https://ghadirpartner.ir/"             "https://ghadirpartner.ir/partners/"             "https://ghadirpartner.ir/healthz"             "https://ghadirpartner.ir/partners/healthz"
+          do
+            echo "=== $url ==="
+            for i in 1 2 3 4 5; do
+              curl -L -sS --max-time 25 -o /dev/null                 -w "run=$i http=%{http_code} ttfb=%{time_starttransfer} total=%{time_total} bytes=%{size_download}\n"                 "$url"
+            done
+          done
