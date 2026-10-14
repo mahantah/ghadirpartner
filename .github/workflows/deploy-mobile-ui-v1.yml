@@ -1,7 +1,10 @@
 name: Deploy mobile UI optimization v1
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-mobile-ui-v1.yml'
 
 permissions:
   contents: read
@@ -46,7 +49,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/patch-mobile-ui-v1.py /tmp/gp-mobile-live
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/gp-mobile-live
           grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' /tmp/gp-mobile-live/app.html
+          grep -q 'MOBILE_MENU_OVERLAY_FIX_V2_20261014' /tmp/gp-mobile-live/app.html
           grep -q 'viewport-fit=cover' /tmp/gp-mobile-live/app.html
           grep -q 'mobile-nav-userbox' /tmp/gp-mobile-live/app.html
           node - /tmp/gp-mobile-live/app.html <<'NODE'
@@ -97,6 +102,7 @@ jobs:
           bye
           EOF
           grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' /tmp/gp-mobile-verify/app.html
+          grep -q 'MOBILE_MENU_OVERLAY_FIX_V2_20261014' /tmp/gp-mobile-verify/app.html
           grep -q 'viewport-fit=cover' /tmp/gp-mobile-verify/app.html
           cmp /tmp/gp-mobile-live/app.html /tmp/gp-mobile-verify/app.html
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
