@@ -259,7 +259,6 @@ jobs:
 
       - name: Roll back code on failure
         if: ${{ false }}
-        if: failure()
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
