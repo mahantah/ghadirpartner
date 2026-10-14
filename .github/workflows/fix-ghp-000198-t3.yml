@@ -227,7 +227,7 @@ jobs:
           put "$GITHUB_WORKSPACE/migrations/fix-ghp-000228-serial.php" -o "/__gp_fix_228_payload.php"
           bye
           EOF
-          RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          RESP="$(curl -sS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
           echo "$RESP"
           echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["order"]??"")!=="GHP-000228"||($x["new"]??"")!=="P125111730")exit(2);'
 
