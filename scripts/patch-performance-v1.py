@@ -239,4 +239,16 @@ if MARK not in s:
 else:
     print("mobile scanner performance patch already applied")
 
+# ---------- static entry documents ----------
+# The public HTML shells do not need PHP. Serving them directly removes one PHP
+# startup from every admin/partner app launch while APIs continue through index.php.
+for rel,entry in [(".htaccess","app.html"),("partners/.htaccess","portal.html")]:
+    hp=root/rel
+    if hp.exists():
+        hs=hp.read_text(encoding="utf-8")
+        if "PERFORMANCE_STATIC_ENTRY_V1_20261014" not in hs:
+            directive=f"# PERFORMANCE_STATIC_ENTRY_V1_20261014\nDirectoryIndex {entry} index.php\n"
+            hs=directive+hs
+            hp.write_text(hs,encoding="utf-8")
+
 print("performance v1 patch applied")
