@@ -1,0 +1,42 @@
+name: Validate performance patch v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-performance-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/patch-performance-v1.py
+          rm -rf /tmp/gp-perf-test
+          mkdir -p /tmp/gp-perf-test/partners
+          cp index.php app.html mobile.html /tmp/gp-perf-test/
+          cp partners/index.php partners/portal.html /tmp/gp-perf-test/partners/
+          python3 scripts/patch-performance-v1.py /tmp/gp-perf-test
+          php -l /tmp/gp-perf-test/index.php
+          php -l /tmp/gp-perf-test/partners/index.php
+          grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' /tmp/gp-perf-test/index.php
+          grep -q 'PERFORMANCE_BOOTSTRAP_V1_20261014' /tmp/gp-perf-test/partners/index.php
+          grep -q "req('/api/bootstrap')" /tmp/gp-perf-test/app.html
+          grep -q "api('/api/bootstrap')" /tmp/gp-perf-test/partners/portal.html
+          grep -q "req('/api/mobile-bootstrap')" /tmp/gp-perf-test/mobile.html
+          node - /tmp/gp-perf-test/app.html /tmp/gp-perf-test/partners/portal.html /tmp/gp-perf-test/mobile.html <<'NODE'
+          const fs=require('fs');
+          for(const f of process.argv.slice(2)){
+            const h=fs.readFileSync(f,'utf8'),re=/<script[^>]*>([\s\S]*?)<\/script>/gi;
+            let m,n=0;while((m=re.exec(h))){if(!/\bsrc=/.test(m[0])){new Function(m[1]);n++;}}
+            console.log(f,n);
+          }
+          NODE
