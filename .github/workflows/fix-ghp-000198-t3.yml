@@ -1,7 +1,10 @@
 name: Fix GHP-000198 T3 continuation and serial locations
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-ghp-000198-t3.yml'
 
 permissions:
   contents: read
@@ -180,6 +183,7 @@ jobs:
               $repaired=true;
             }
 
+            require __DIR__.'/__gp_fix_228_payload.php';
             $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);if($encoded===false)throw new RuntimeException('encode failed');
             $rev=(int)$r['revision'];
             if($repaired){
@@ -204,6 +208,7 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           rm "/$FILE"
+          rm "/__gp_fix_228_payload.php"
           bye
           EOF
           }
@@ -216,6 +221,7 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put "/tmp/$FILE" -o "/$FILE"
+          put "$GITHUB_WORKSPACE/migrations/fix-ghp-000228-serial.php" -o "/__gp_fix_228_payload.php"
           bye
           EOF
           RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
