@@ -14,10 +14,20 @@ if MARK in s:
     print("retail carton detach v1 already applied")
     raise SystemExit(0)
 
-start=s.find("if($p==='/api/warehouse/transfer'&&$m==='POST')")
-end=s.find("if($p==='/api/order/return'&&$m==='POST')",start)
-if start<0 or end<0:
-    raise SystemExit("warehouse transfer route not found")
+anchor=s.find("/api/warehouse/transfer")
+if anchor<0:
+    raise SystemExit("warehouse transfer route anchor not found")
+start=s.rfind("if(",0,anchor)
+if start<0:
+    start=s.rfind("if (",0,anchor)
+next_anchor=s.find("/api/order/return",anchor)
+if next_anchor<0:
+    raise SystemExit("warehouse return route anchor not found")
+end=s.rfind("if(",anchor,next_anchor)
+if end<0:
+    end=s.rfind("if (",anchor,next_anchor)
+if start<0 or end<0 or end<=start:
+    raise SystemExit("warehouse transfer route bounds not found")
 
 route=r"""/* WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015 */
 if($p==='/api/warehouse/transfer'&&$m==='POST'){
