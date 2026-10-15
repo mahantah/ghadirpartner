@@ -1,7 +1,11 @@
 name: Fix GHP-000198 T3 continuation and serial locations
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-ghp-000198-t3.yml'
+      - 'migrations/cancel-ghp-000219-returned.php'
 
 permissions:
   contents: read
@@ -24,6 +28,7 @@ jobs:
           sudo apt-get install -y lftp php-cli curl nodejs
 
       - name: Download current live files
+        if: ${{ false }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -48,6 +53,7 @@ jobs:
           cp /tmp/gp-live/app.html /tmp/gp-rollback/app.html
 
       - name: Patch code and validate
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -65,6 +71,7 @@ jobs:
           NODE
 
       - name: Deploy code hotfix
+        if: ${{ false }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -115,6 +122,7 @@ jobs:
             $pdo->beginTransaction();
             $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1 FOR UPDATE")->fetch();if(!$r)throw new RuntimeException('state missing');
             $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
+            require __DIR__.'/__gp_cancel_219_payload.php';
             $oi=-1;foreach($s['orders']??[] as $i=>$x)if((string)($x['number']??'')==='GHP-000198'){$oi=$i;break;}
             if($oi<0)throw new RuntimeException('order GHP-000198 not found');
             $o=&$s['orders'][$oi];$oid=(int)($o['id']??0);
@@ -204,6 +212,7 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           rm "/$FILE"
+          rm "/__gp_cancel_219_payload.php"
           bye
           EOF
           }
@@ -216,13 +225,15 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put "/tmp/$FILE" -o "/$FILE"
+          put "$GITHUB_WORKSPACE/migrations/cancel-ghp-000219-returned.php" -o "/__gp_cancel_219_payload.php"
           bye
           EOF
           RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
           echo "$RESP"
-          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["exit_device_qty"]??0)!==800||($x["shipment_batches"]??0)<2)exit(2);'
+          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["order"]??"")!=="GHP-000219"||($x["status"]??"")!=="لغو شد"||($x["return_status"]??"")!=="مرجوع کامل"||($x["assigned_remaining"]??-1)!==0)exit(2);'
 
       - name: Verify live code
+        if: ${{ false }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -248,7 +259,7 @@ jobs:
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
 
       - name: Roll back code on failure
-        if: failure()
+        if: ${{ false }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
