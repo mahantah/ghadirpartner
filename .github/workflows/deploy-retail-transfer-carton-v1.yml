@@ -1,11 +1,7 @@
 name: Deploy retail transfer carton detach v1
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-retail-transfer-carton-v1.yml'
-      - 'scripts/patch-retail-transfer-detach-carton-v1.py'
+  workflow_dispatch:
 
 permissions:
   contents: read
