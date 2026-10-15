@@ -1,7 +1,10 @@
 name: Diagnose supplier data
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-supplier-data.yml'
 
 permissions:
   contents: read
@@ -33,6 +36,8 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /config.php -o /tmp/gp-supplier-data/config.php
+          get /app.html -o /tmp/gp-supplier-data/app.html
+          get /index.php -o /tmp/gp-supplier-data/index.php
           bye
           EOF
           cat > /tmp/gp-supplier-data/diag.php <<'PHP'
@@ -80,4 +85,11 @@ jobs:
             if(++$n>=20)break;
           }
           PHP
+          echo "=== CHECK_LIVE_SUPPLIER_UI_V7 ==="
+          grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' /tmp/gp-supplier-data/app.html && echo "supplier_live_v5=ok" || echo "supplier_live_v5=missing"
+          grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/gp-supplier-data/app.html && echo "supplier_edit_ui_v6=ok" || echo "supplier_edit_ui_v6=missing"
+          grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' /tmp/gp-supplier-data/index.php && echo "supplier_edit_api_v6=ok" || echo "supplier_edit_api_v6=missing"
+          grep -q 'id="eisupplier"' /tmp/gp-supplier-data/app.html && echo "inventory_supplier_edit_field=ok" || echo "inventory_supplier_edit_field=missing"
+          grep -q '/api/warehouse/carton/supplier' /tmp/gp-supplier-data/index.php && echo "carton_supplier_edit_api=ok" || echo "carton_supplier_edit_api=missing"
+          grep -q 'تامین‌کننده' /tmp/gp-supplier-data/app.html && echo "supplier_label=ok" || echo "supplier_label=missing"
           php /tmp/gp-supplier-data/diag.php
