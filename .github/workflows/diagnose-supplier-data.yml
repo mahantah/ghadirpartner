@@ -15,11 +15,13 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v5
+
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y lftp php-cli php-mysql
-      - name: Read live supplier structure
+          sudo apt-get install -y lftp curl
+
+      - name: Inspect live supplier state safely
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -27,7 +29,77 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/gp-supplier-data && mkdir -p /tmp/gp-supplier-data
+          TOKEN="$(openssl rand -hex 24)"
+          FILE="__gp_supplier_diag_${GITHUB_RUN_ID}.php"
+          cat > "/tmp/$FILE" <<'PHP'
+          <?php
+          header('Content-Type: application/json; charset=utf-8');
+          if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
+          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          try{
+            $pdo=new PDO(
+              'mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),
+              (string)($m['username']??''),(string)($m['password']??''),
+              [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]
+            );
+            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();
+            if(!$r)throw new RuntimeException('state missing');
+            $s=json_decode($r['state_json'],true);
+            if(!is_array($s))throw new RuntimeException('state invalid');
+            $cartons=$s['cartons']??[];$inventory=$s['inventory']??[];
+            $suppliers=[];$cartonWith=0;$invWith=0;$resolvable=0;$detachedWith=0;
+            $byId=[];$byCode=[];
+            foreach($cartons as $c){
+              $v=trim((string)($c['supplier']??''));
+              if($v==='')continue;
+              $cartonWith++;$suppliers[$v]=($suppliers[$v]??0)+1;
+              $id=(int)($c['id']??0);$code=strtoupper(trim((string)($c['code']??'')));
+              if($id>0)$byId[$id]=$v;if($code!=='')$byCode[$code]=$v;
+            }
+            foreach($inventory as $iv){
+              $v=trim((string)($iv['supplier']??''));
+              if($v!==''){$invWith++;$resolvable++;continue;}
+              $cid=(int)($iv['carton_id']??0);$cc=strtoupper(trim((string)($iv['carton_code']??'')));
+              $dcid=(int)($iv['detached_from_carton_id']??0);$dcc=strtoupper(trim((string)($iv['detached_from_carton_code']??'')));
+              if(($cid>0&&isset($byId[$cid]))||($cc!==''&&isset($byCode[$cc]))||($dcid>0&&isset($byId[$dcid]))||($dcc!==''&&isset($byCode[$dcc])))$resolvable++;
+              if($dcid>0)$detachedWith++;
+            }
+            arsort($suppliers);
+            $recent=[];
+            foreach(array_reverse($cartons) as $c){
+              $v=trim((string)($c['supplier']??''));if($v==='')continue;
+              $recent[]=['code'=>(string)($c['code']??''),'product'=>(string)($c['product']??''),'supplier'=>$v,'serial_count'=>count($c['serials']??[])];
+              if(count($recent)>=12)break;
+            }
+            echo json_encode([
+              'ok'=>true,'revision'=>(int)$r['revision'],
+              'cartons'=>count($cartons),'cartons_with_supplier'=>$cartonWith,
+              'inventory'=>count($inventory),'inventory_with_supplier'=>$invWith,
+              'inventory_supplier_resolvable'=>$resolvable,
+              'detached_inventory_rows'=>$detachedWith,
+              'suppliers'=>$suppliers,'recent'=>$recent
+            ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+          }catch(Throwable $e){
+            http_response_code(500);
+            echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);
+          }
+          PHP
+          python3 - <<PY
+          p="/tmp/$FILE"
+          s=open(p,encoding="utf-8").read().replace('__TOKEN__',"$TOKEN")
+          open(p,'w',encoding='utf-8').write(s)
+          PY
+          cleanup(){ lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -35,61 +107,9 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          get /config.php -o /tmp/gp-supplier-data/config.php
-          get /app.html -o /tmp/gp-supplier-data/app.html
-          get /index.php -o /tmp/gp-supplier-data/index.php
+          put "/tmp/$FILE" -o "/$FILE"
           bye
           EOF
-          cat > /tmp/gp-supplier-data/diag.php <<'PHP'
-          <?php
-          $cfg=require '/tmp/gp-supplier-data/config.php';
-          $m=$cfg['mysql']??[];
-          $pdo=new PDO(
-            'mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),
-            (string)($m['username']??''),(string)($m['password']??''),
-            [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]
-          );
-          $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();
-          if(!$r) throw new RuntimeException('state missing');
-          $s=json_decode($r['state_json'],true);
-          if(!is_array($s)) throw new RuntimeException('state invalid');
-          $cartons=$s['cartons']??[]; $inventory=$s['inventory']??[];
-          $cartonKeys=[]; $invKeys=[]; $suppliers=[]; $cartonWith=0; $invWith=0;
-          foreach($cartons as $c){
-            foreach(array_keys($c) as $k)$cartonKeys[$k]=1;
-            $v=trim((string)($c['supplier']??''));
-            if($v!==''){ $cartonWith++; $suppliers[$v]=($suppliers[$v]??0)+1; }
-          }
-          foreach($inventory as $iv){
-            foreach(array_keys($iv) as $k)$invKeys[$k]=1;
-            if(trim((string)($iv['supplier']??''))!=='')$invWith++;
-          }
-          ksort($cartonKeys); ksort($invKeys); arsort($suppliers);
-          echo "revision=".(int)$r['revision']."\n";
-          echo "cartons=".count($cartons)." cartons_with_supplier=".$cartonWith."\n";
-          echo "inventory=".count($inventory)." inventory_with_supplier=".$invWith."\n";
-          echo "carton_keys=".implode(',',array_keys($cartonKeys))."\n";
-          echo "inventory_keys=".implode(',',array_keys($invKeys))."\n";
-          echo "suppliers=".json_encode($suppliers,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n";
-          $n=0;
-          foreach(array_reverse($cartons) as $c){
-            $v=trim((string)($c['supplier']??''));
-            if($v==='')continue;
-            echo "sample_carton=".json_encode([
-              'id'=>(int)($c['id']??0),
-              'code'=>(string)($c['code']??''),
-              'product'=>(string)($c['product']??''),
-              'supplier'=>$v,
-              'serial_count'=>count($c['serials']??[])
-            ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n";
-            if(++$n>=20)break;
-          }
-          PHP
-          echo "=== CHECK_LIVE_SUPPLIER_UI_V7 ==="
-          grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' /tmp/gp-supplier-data/app.html && echo "supplier_live_v5=ok" || echo "supplier_live_v5=missing"
-          grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/gp-supplier-data/app.html && echo "supplier_edit_ui_v6=ok" || echo "supplier_edit_ui_v6=missing"
-          grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' /tmp/gp-supplier-data/index.php && echo "supplier_edit_api_v6=ok" || echo "supplier_edit_api_v6=missing"
-          grep -q 'id="eisupplier"' /tmp/gp-supplier-data/app.html && echo "inventory_supplier_edit_field=ok" || echo "inventory_supplier_edit_field=missing"
-          grep -q '/api/warehouse/carton/supplier' /tmp/gp-supplier-data/index.php && echo "carton_supplier_edit_api=ok" || echo "carton_supplier_edit_api=missing"
-          grep -q 'تامین‌کننده' /tmp/gp-supplier-data/app.html && echo "supplier_label=ok" || echo "supplier_label=missing"
-          php /tmp/gp-supplier-data/diag.php
+          RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          echo "$RESP"
+          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"]))exit(2);'
