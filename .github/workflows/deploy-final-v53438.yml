@@ -76,6 +76,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-display-dom-v4.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-display-live-v5.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-edit-v6.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-purchase-supplier-v9.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-retail-transfer-detach-carton-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-ui-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-menu-overlay-v2.py" "$ROOT"
@@ -94,6 +95,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' "$ROOT/index.php"
           grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' "$ROOT/index.php"
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' "$ROOT/app.html"
+          grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_V9_20261015' "$ROOT/index.php"
+          grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_UI_V9_20261015' "$ROOT/app.html"
           grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' "$ROOT/app.html"
           grep -q 'MOBILE_MENU_OVERLAY_FIX_V2_20261014' "$ROOT/app.html"
           grep -q 'REMOVE_SELECTIVE_CARTON_LABEL_UI_V1_20261014' "$ROOT/app.html"
@@ -310,6 +313,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' /tmp/livecheck/index.php
           grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/livecheck/index.php
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/livecheck/app.html
+          grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_V9_20261015' /tmp/livecheck/index.php
+          grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_UI_V9_20261015' /tmp/livecheck/app.html
           grep -q 'MOBILE_UI_OPTIMIZATION_V1_20261014' /tmp/livecheck/app.html
           grep -q 'MOBILE_MENU_OVERLAY_FIX_V2_20261014' /tmp/livecheck/app.html
           grep -q 'REMOVE_SELECTIVE_CARTON_LABEL_UI_V1_20261014' /tmp/livecheck/app.html
