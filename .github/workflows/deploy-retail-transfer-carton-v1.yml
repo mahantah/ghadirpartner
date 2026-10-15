@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/gp-retail-transfer
-          mkdir -p /tmp/gp-retail-transfer/live /tmp/gp-retail-transfer/backup /tmp/gp-retail-transfer/verify
+          mkdir -p /tmp/gp-retail-transfer/live/lib /tmp/gp-retail-transfer/backup/lib /tmp/gp-retail-transfer/verify/lib
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -45,9 +45,11 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /index.php -o /tmp/gp-retail-transfer/live/index.php
+          get /lib/warehouse-v53438.php -o /tmp/gp-retail-transfer/live/lib/warehouse-v53438.php
           bye
           EOF
           cp /tmp/gp-retail-transfer/live/index.php /tmp/gp-retail-transfer/backup/index.php
+          cp /tmp/gp-retail-transfer/live/lib/warehouse-v53438.php /tmp/gp-retail-transfer/backup/lib/warehouse-v53438.php
 
       - name: Patch and validate
         shell: bash
@@ -55,9 +57,10 @@ jobs:
           set -euo pipefail
           python3 scripts/patch-retail-transfer-detach-carton-v1.py /tmp/gp-retail-transfer/live
           php -l /tmp/gp-retail-transfer/live/index.php
-          grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/gp-retail-transfer/live/index.php
-          grep -q "detached_from_carton_id" /tmp/gp-retail-transfer/live/index.php
-          grep -q "last_split_to_warehouse_id" /tmp/gp-retail-transfer/live/index.php
+          php -l /tmp/gp-retail-transfer/live/lib/warehouse-v53438.php
+          grep -Rq 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/gp-retail-transfer/live
+          grep -Rq "detached_from_carton_id" /tmp/gp-retail-transfer/live
+          grep -Rq "last_split_to_warehouse_id" /tmp/gp-retail-transfer/live
 
       - name: Deploy patched index
         env:
@@ -75,6 +78,7 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put /tmp/gp-retail-transfer/live/index.php -o /index.php
+          put /tmp/gp-retail-transfer/live/lib/warehouse-v53438.php -o /lib/warehouse-v53438.php
           bye
           EOF
 
@@ -94,11 +98,14 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           get /index.php -o /tmp/gp-retail-transfer/verify/index.php
+          get /lib/warehouse-v53438.php -o /tmp/gp-retail-transfer/verify/lib/warehouse-v53438.php
           bye
           EOF
           php -l /tmp/gp-retail-transfer/verify/index.php
-          grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/gp-retail-transfer/verify/index.php
+          php -l /tmp/gp-retail-transfer/verify/lib/warehouse-v53438.php
+          grep -Rq 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/gp-retail-transfer/verify
           cmp /tmp/gp-retail-transfer/live/index.php /tmp/gp-retail-transfer/verify/index.php
+          cmp /tmp/gp-retail-transfer/live/lib/warehouse-v53438.php /tmp/gp-retail-transfer/verify/lib/warehouse-v53438.php
           curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
 
       - name: Roll back on failure
@@ -117,5 +124,6 @@ jobs:
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
           put /tmp/gp-retail-transfer/backup/index.php -o /index.php
+          put /tmp/gp-retail-transfer/backup/lib/warehouse-v53438.php -o /lib/warehouse-v53438.php
           bye
           EOF
