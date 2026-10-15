@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/deploy-retail-transfer-carton-v1.yml'
+      - 'scripts/patch-retail-transfer-detach-carton-v1.py'
 
 permissions:
   contents: read
