@@ -3,15 +3,20 @@ from pathlib import Path
 import sys
 
 root=Path(sys.argv[1] if len(sys.argv)>1 else ".")
-index=root/"index.php"
+candidates=[root/"index.php",root/"lib"/"warehouse-v53438.php"]
+target=None
+for p in candidates:
+    if p.exists():
+        txt=p.read_text(encoding="utf-8")
+        if "/api/warehouse/transfer" in txt or "WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015" in txt:
+            target=p;break
+if target is None:
+    raise SystemExit("warehouse transfer route anchor not found in live PHP files")
+
 MARK="WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015"
-
-if not index.exists():
-    raise SystemExit("index.php not found")
-
-s=index.read_text(encoding="utf-8")
+s=target.read_text(encoding="utf-8")
 if MARK in s:
-    print("retail carton detach v1 already applied")
+    print("retail carton detach v1 already applied to "+str(target))
     raise SystemExit(0)
 
 anchor=s.find("/api/warehouse/transfer")
@@ -135,5 +140,5 @@ if($p==='/api/warehouse/transfer'&&$m==='POST'){
 """
 
 s=s[:start]+route+s[end:]
-index.write_text(s,encoding="utf-8")
+target.write_text(s,encoding="utf-8")
 print("retail carton detach v1 patch applied")
