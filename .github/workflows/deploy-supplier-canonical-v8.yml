@@ -1,0 +1,139 @@
+name: Deploy supplier canonical v8
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-supplier-canonical-v8.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp php-cli nodejs curl
+
+      - name: Download live files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gp-supplier-v8 /tmp/gp-supplier-v8-backup /tmp/gp-supplier-v8-verify
+          mkdir -p /tmp/gp-supplier-v8 /tmp/gp-supplier-v8-backup /tmp/gp-supplier-v8-verify
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-supplier-v8/index.php
+          get /app.html -o /tmp/gp-supplier-v8/app.html
+          bye
+          EOF
+          cp /tmp/gp-supplier-v8/index.php /tmp/gp-supplier-v8-backup/index.php
+          cp /tmp/gp-supplier-v8/app.html /tmp/gp-supplier-v8-backup/app.html
+
+      - name: Patch and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch-supplier-canonical-v8.py /tmp/gp-supplier-v8
+          php -l /tmp/gp-supplier-v8/index.php
+          grep -q 'SUPPLIER_CANONICAL_BACKEND_V8_20261016' /tmp/gp-supplier-v8/index.php
+          grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' /tmp/gp-supplier-v8/app.html
+          grep -q 'id="whSupplier"' /tmp/gp-supplier-v8/app.html
+          grep -q '/api/warehouse/carton/supplier' /tmp/gp-supplier-v8/index.php
+          grep -q "supplier:\$('whSupplier').value.trim()" /tmp/gp-supplier-v8/app.html
+          grep -q "fd.append('supplier'" /tmp/gp-supplier-v8/app.html
+          grep -q '<th>تامین‌کننده</th>' /tmp/gp-supplier-v8/app.html
+          node - /tmp/gp-supplier-v8/app.html <<'NODE'
+          const fs=require('fs'),h=fs.readFileSync(process.argv[2],'utf8');
+          const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;let m,n=0;
+          while((m=re.exec(h))){new Function(m[1]);n++}
+          if(!n)throw new Error('No inline JS');
+          console.log('JS OK',n);
+          NODE
+
+      - name: Deploy
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-supplier-v8/index.php -o /index.php
+          put /tmp/gp-supplier-v8/app.html -o /app.html
+          bye
+          EOF
+
+      - name: Verify live
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /index.php -o /tmp/gp-supplier-v8-verify/index.php
+          get /app.html -o /tmp/gp-supplier-v8-verify/app.html
+          bye
+          EOF
+          php -l /tmp/gp-supplier-v8-verify/index.php
+          grep -q 'SUPPLIER_CANONICAL_BACKEND_V8_20261016' /tmp/gp-supplier-v8-verify/index.php
+          grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' /tmp/gp-supplier-v8-verify/app.html
+          cmp /tmp/gp-supplier-v8/index.php /tmp/gp-supplier-v8-verify/index.php
+          cmp /tmp/gp-supplier-v8/app.html /tmp/gp-supplier-v8-verify/app.html
+          curl -fsS --max-time 25 https://ghadirpartner.ir/healthz
+
+      - name: Roll back on failure
+        if: failure()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set +e
+          test -f /tmp/gp-supplier-v8-backup/index.php || exit 0
+          lftp <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/gp-supplier-v8-backup/index.php -o /index.php
+          put /tmp/gp-supplier-v8-backup/app.html -o /app.html
+          bye
+          EOF
