@@ -1,0 +1,53 @@
+name: Nav hamburger morph contract tests
+on:
+  pull_request:
+    paths:
+      - 'assets/nav-morph-v1.css'
+      - 'assets/nav-morph-v1.js'
+      - 'scripts/patch-nav-morph-v1.py'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-nav-morph-v1.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check JS and patch syntax
+        run: |
+          set -euo pipefail
+          node --check assets/nav-morph-v1.js
+          python3 -m py_compile scripts/patch-nav-morph-v1.py
+      - name: Apply and repeat patch without changing existing routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/menu-ui-test
+          cp app.html /tmp/menu-ui-test/app.html
+          sha256sum /tmp/menu-ui-test/app.html > /tmp/menu-base.sha
+          python3 scripts/patch-nav-morph-v1.py /tmp/menu-ui-test
+          cp /tmp/menu-ui-test/app.html /tmp/menu-after.html
+          python3 scripts/patch-nav-morph-v1.py /tmp/menu-ui-test
+          cmp /tmp/menu-ui-test/app.html /tmp/menu-after.html
+          grep -q 'GHADIR_NAV_MORPH_V1_20261017' /tmp/menu-after.html
+          grep -q 'nav-morph-v1.css?v=20261017a1' /tmp/menu-after.html
+          grep -q 'nav-morph-v1.js?v=20261017a1' /tmp/menu-after.html
+          grep -q 'data-tab="orders"' /tmp/menu-after.html
+          grep -q 'data-tab="warehouse"' /tmp/menu-after.html
+          grep -q 'data-tab="customers"' /tmp/menu-after.html
+          grep -q 'id="login"' /tmp/menu-after.html
+          grep -q 'navToggle.onclick' /tmp/menu-after.html
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          text=Path('/tmp/menu-after.html').read_text()
+          assert text.count('GHADIR_NAV_MORPH_V1_20261017')==1
+          assert text.count('<script src="/assets/nav-morph-v1.js')==1
+          css=Path('assets/nav-morph-v1.css').read_text()
+          js=Path('assets/nav-morph-v1.js').read_text()
+          assert 'aria-expanded="true"' in css
+          assert 'rotate(45deg)' in css and 'rotate(-45deg)' in css
+          assert 'sidebar-open' in js and "oldClose.remove()" in js
+          print('Navigation morph contract OK')
+          PY
