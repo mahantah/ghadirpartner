@@ -1,4 +1,5 @@
 name: Release approved OTP repair and branded loader
+# Retry with distinct local snapshot filenames; no changes were uploaded by the first run.
 on:
   push:
     branches: [main]

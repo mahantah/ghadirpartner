@@ -73,7 +73,7 @@ elif sys.argv[1] == 'publish':
     try:
         # Re-read to avoid overwriting a concurrent change after snapshot creation.
         for name in FILES:
-            check=TEMP/'drift-check'
+            check=TEMP/('drift-check-'+Path(name).name)
             transfer([f'get /{name} -o "{check}"'])
             if digest(check) != digest(BEFORE/name): raise RuntimeError('Concurrent live edit; abort')
         # Stage all replacements before atomic per-file renames, HTML last.
