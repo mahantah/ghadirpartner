@@ -1,3 +1,4 @@
+/* GHADIR_LOGIN_STARTUP_SPLASH_V1_20261017: ready signal + password busy state */
 /* GHADIR_LOGIN_INSTANT_SWITCH_ALIGNED_CORNERS_V5_20261017 */
 /* GHADIR_STAFF_OTP_SAFARI_UI_FIX_V2_20261016 */
 /* GHADIR_LOGIN_COMPACT_MATTE_V4_20261016 */
@@ -121,8 +122,35 @@
         $('gp-otp-code').focus();
       }catch(e){status(e.message,true)}finally{lock(false)}
     });
+    // Mirror the existing OTP busy overlay for legacy password sign-in.
+    // Keep the original password handler/API completely untouched.
+    function passwordLoading(){
+      const user=$('lu'),secret=$('lp'),message=$('lmsg');
+      if(!passwordPanel || passwordPanel.hidden || !user?.value.trim() || !secret?.value)return;
+      loading.hidden=false;
+      let finished=false;
+      let timer;
+      const observer=new MutationObserver(function(){
+        if(login.classList.contains('hidden') || (message&&message.textContent.trim()))done();
+      });
+      function done(){
+        if(finished)return;
+        finished=true;observer.disconnect();window.clearTimeout(timer);
+        // Avoid hiding an active OTP request's loader on a mode change.
+        if(!busy)loading.hidden=true;
+      }
+      observer.observe(login,{attributes:true,attributeFilter:['class']});
+      if(message)observer.observe(message,{characterData:true,childList:true,subtree:true});
+      timer=window.setTimeout(done,15000);
+    }
+    if($('loginbtn'))$('loginbtn').addEventListener('click',passwordLoading);
+    if($('lp'))$('lp').addEventListener('keydown',function(e){
+      if(e.key==='Enter')passwordLoading();
+    });
     // Existing password login remains available as a fallback; no API replacement.
     showMode('otp');
+    // Expose the real login only after its mode, controls and listeners are ready.
+    if(typeof window.GP_LOGIN_STARTUP_READY==='function')window.GP_LOGIN_STARTUP_READY();
   }
   // The login node exists before this script is loaded at the end of app.html.
   // Mount immediately instead of waiting for DOMContentLoaded (which may be
