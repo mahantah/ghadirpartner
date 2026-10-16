@@ -2,10 +2,7 @@ name: Deploy supplier canonical v8
 # retry-4
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-supplier-canonical-v8.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
