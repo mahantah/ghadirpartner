@@ -1,3 +1,4 @@
+/* GHADIR_STAFF_OTP_SAFARI_UI_FIX_V2_20261016 */
 /* GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016
    Enhances the existing live login: preserves original #lu #lp #loginbtn,
    existing password reset/OTP, session bootstrap and all application tabs.
@@ -45,8 +46,14 @@
     async function post(path,payload){
       const response=await fetch(path,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const body=await response.text();
-      if(!response.ok)throw new Error(body.slice(0,260)||'خطای ارتباط با سرور');
-      try{return JSON.parse(body)}catch(_){throw new Error('پاسخ سرور معتبر نیست')}
+      let parsed=null;
+      try{parsed=JSON.parse(body)}catch(_){}
+      if(!response.ok){
+        const detail=parsed && typeof parsed==='object' ? (parsed.message||parsed.error||parsed.msg) : '';
+        throw new Error(typeof detail==='string'&&detail.trim() ? detail : (parsed?'درخواست انجام نشد؛ دوباره تلاش کنید.':body.slice(0,180)||'خطای ارتباط با سرور'));
+      }
+      if(!parsed || typeof parsed!=='object')throw new Error('پاسخ سرور معتبر نیست');
+      return parsed;
     }
     function showMode(mode){
       const isOtp=mode==='otp';$('gp-otp-tab').setAttribute('aria-selected',String(isOtp));$('gp-password-tab').setAttribute('aria-selected',String(!isOtp));
@@ -86,7 +93,7 @@
     async function verify(){
       if(busy)return;
       const identity=$('gp-otp-identity').value.trim();
-      const code=$('gp-otp-code').value.replace(/[۰-۹]/g,c=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).trim();
+      const code=$('gp-otp-code').value.replace(/[۰-۹٠-٩]/g,c=>String('۰۱۲۳۴۵۶۷۸۹'.includes(c)?'۰۱۲۳۴۵۶۷۸۹'.indexOf(c):'٠١٢٣٤٥٦٧٨٩'.indexOf(c))).trim();
       if(!/^\d{6}$/.test(code)){status('کد تأیید باید شش رقم باشد.',true);return;}
       lock(true);
       try{
@@ -97,11 +104,22 @@
     }
     $('gp-otp-verify').addEventListener('click',verify);
     $('gp-otp-code').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();verify()}});
-    $('gp-otp-code').addEventListener('input',e=>{e.target.value=e.target.value.replace(/[^0-9۰-۹]/g,'').slice(0,6)});
+    $('gp-otp-code').addEventListener('input',e=>{e.target.value=e.target.value.replace(/[^0-9۰-۹٠-٩]/g,'').slice(0,6)});
     $('gp-otp-edit').addEventListener('click',()=>{step='request';$('gp-otp-step').hidden=true;$('gp-otp-request').hidden=false;$('gp-otp-identity').readOnly=false;$('gp-otp-code').value='';status('نام کاربری را اصلاح کنید و کد جدید بگیرید.',false);$('gp-otp-identity').focus()});
+    // Resend without resetting the OTP step: on 30-second throttle the previous
+    // verified request remains usable and the user can retry the same code.
     $('gp-otp-resend').addEventListener('click',async()=>{
-      if(busy)return;step='request';$('gp-otp-identity').readOnly=false;$('gp-otp-request').hidden=false;
-      $('gp-otp-form').requestSubmit();
+      if(busy)return;
+      const identity=$('gp-otp-identity').value.trim();
+      if(!identity){status('نام کاربری یا شماره موبایل را وارد کنید.',true);return;}
+      lock(true);
+      try{
+        const result=await post('/api/staff-login-otp/request',{identity});
+        step='verify';$('gp-otp-code').value='';$('gp-otp-step').hidden=false;
+        $('gp-otp-request').hidden=true;$('gp-otp-identity').readOnly=true;
+        status(result.message||'اگر حساب فعال و شماره موبایل ثبت‌شده باشد، کد ارسال می‌شود.',false);
+        $('gp-otp-code').focus();
+      }catch(e){status(e.message,true)}finally{lock(false)}
     });
     // Existing password login remains available as a fallback; no API replacement.
     showMode('otp');
