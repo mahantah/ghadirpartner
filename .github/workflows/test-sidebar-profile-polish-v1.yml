@@ -1,0 +1,130 @@
+name: Sidebar profile and orange logo tests
+on:
+  pull_request:
+    paths:
+      - 'assets/sidebar-profile-polish-v1.css'
+      - 'assets/sidebar-profile-polish-v1.js'
+      - 'scripts/patch-sidebar-profile-polish-v1.py'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-sidebar-profile-polish-v1.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Static syntax and CSS validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/sidebar-profile-polish-v1.js
+          python3 -m py_compile scripts/patch-sidebar-profile-polish-v1.py
+          python3 - <<'PY'
+          from pathlib import Path
+          css=Path('assets/sidebar-profile-polish-v1.css').read_text()
+          assert css.count('{')==css.count('}')
+          assert 'gp-orange-logo' in css and 'gp-profile-trigger' in css
+          svg=Path('assets/ghadir-logo-transparent.svg').read_text()
+          assert '<rect' not in svg and '<path' in svg
+          print('Scoped CSS and transparent orange SVG passed')
+          PY
+      - name: Verify repeatable patch and all original page sections
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/nav-build
+          cp app.html /tmp/nav-build/app.html
+          python3 scripts/patch-nav-morph-v1.py /tmp/nav-build
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/nav-build
+          cp /tmp/nav-build/app.html /tmp/nav-expected.html
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/nav-build
+          cmp /tmp/nav-expected.html /tmp/nav-build/app.html
+          grep -Fq 'data-tab="orders"' /tmp/nav-build/app.html
+          grep -Fq 'data-tab="warehouse"' /tmp/nav-build/app.html
+          grep -Fq 'data-tab="customers"' /tmp/nav-build/app.html
+          grep -Fq 'id="changePasswordBtn"' /tmp/nav-build/app.html
+          grep -Fq 'id="logoutbtn"' /tmp/nav-build/app.html
+          grep -Fq 'GHADIR_SIDEBAR_PROFILE_POLISH_V1_20261017' /tmp/nav-build/app.html
+      - name: Browser interaction and mobile overlap checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v google-chrome || command -v chromium
+          mkdir -p /tmp/nav-browser
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path.cwd().as_uri()
+          html="""<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
+          <style>
+          body{margin:0;background:#f5f6f8;font:14px Tahoma}
+          #app>header{display:block}
+          #app>.nav-overlay{position:fixed;inset:0;background:#0004}
+          #app>header .topnav{position:fixed;inset:0 0 0 auto;z-index:135;width:310px;height:100vh;box-sizing:border-box;padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;background:#0b2948;transform:translateX(105%);transition:transform .24s ease}
+          #app>header .topnav.sidebar-open{transform:translateX(0)}
+          #app>header .nav-toggle{position:fixed;right:10px;top:10px;z-index:140}
+          #app>header .topnav .sidebar-head{display:flex;align-items:center;gap:10px}
+          #app>header .topnav .sidebar-head img{width:50px;height:50px;padding:7px;background:#173c65;border:2px solid #e48133;box-shadow:0 2px 9px #0009;border-radius:20px}
+          #app>header .topnav button{padding:8px}
+          #app>header .topnav .userbox{margin-top:auto}
+          </style>
+          <link rel="stylesheet" href="ASSETS/nav-morph-v1.css">
+          <link rel="stylesheet" href="ASSETS/sidebar-profile-polish-v1.css"></head>
+          <body>
+          <div id="app"><header><button class="nav-toggle" type="button">☰</button>
+          <div class="topnav"><div class="sidebar-head"><div class="logo-frame"><img src="ASSETS/ghadir-logo-transparent.svg"></div><b>قدیر پارتنر</b><button class="sidebar-close" type="button">×</button></div>
+          <button type="button">جمع کردن منو</button><button data-tab="dashboard">پیشخوان</button><button data-tab="orders">سفارش‌ها</button>
+          <div class="userbox"><span id="who">کاربر آزمایشی</span><button id="changePasswordBtn">تغییر رمز</button><button id="logoutbtn">خروج</button></div></div></header>
+          <div class="nav-overlay"></div></div>
+          <script>window.passwordEvents=0;window.logoutEvents=0;
+          document.getElementById('changePasswordBtn').addEventListener('click',function(){window.passwordEvents++});
+          document.getElementById('logoutbtn').addEventListener('click',function(){window.logoutEvents++});</script>
+          <script src="ASSETS/nav-morph-v1.js"></script>
+          <script src="ASSETS/sidebar-profile-polish-v1.js"></script>
+          <div id="contract"></div>
+          <script>
+          window.addEventListener('load',function(){
+            setTimeout(function(){
+              try{
+                function expect(x,detail){if(!x)throw Error(detail)}
+                const nav=document.querySelector('.topnav'),toggle=document.querySelector('.nav-toggle');
+                toggle.click();
+                expect(nav.classList.contains('sidebar-open'),'Nav does not open');
+                expect(toggle.getAttribute('aria-expanded')==='true','Missing open ARIA state');
+                expect(document.querySelectorAll('.gp-nav-line').length===3,'Morph icon missing');
+                expect(!nav.querySelector('button.gp-sidebar-legacy-close:not([hidden])'),'Duplicate close button visible');
+                const head=nav.querySelector('.sidebar-head').getBoundingClientRect();
+                const close=toggle.getBoundingClientRect();
+                expect(close.bottom<head.top,'Close X overlaps header title/logo');
+                const logo=nav.querySelector('.gp-orange-logo');
+                expect(logo&&logo.getAttribute('src')==='/assets/ghadir-logo-transparent.svg','Wrong brand mark');
+                expect(getComputedStyle(logo).backgroundColor==='rgba(0, 0, 0, 0)','Logo has a background');
+                expect(getComputedStyle(logo).borderTopWidth==='0px','Logo has a frame');
+                const prof=document.getElementById('gp-profile-trigger');
+                expect(prof,'Profile trigger missing');
+                expect(document.querySelectorAll('.gp-profile-trigger').length===1,'Multiple profile triggers');
+                prof.click();
+                expect(prof.getAttribute('aria-expanded')==='true','Profile menu not expanded');
+                expect(!document.getElementById('gp-profile-actions').hidden,'Profile actions hidden');
+                document.getElementById('changePasswordBtn').click();
+                expect(window.passwordEvents===1,'Password handler lost');
+                expect(nav.classList.contains('sidebar-open')===false,'Navigation did not close after password');
+                toggle.click();prof.click();
+                document.getElementById('logoutbtn').click();
+                expect(window.logoutEvents===1,'Logout handler lost');
+                document.getElementById('contract').textContent='RESULT:PASS';
+              }catch(e){document.getElementById('contract').textContent='RESULT:FAIL '+e.message;}
+            },150);
+          });
+          </script></body></html>"""
+          Path('/tmp/nav-browser/fixture.html').write_text(html.replace('ASSETS',root+'/assets'))
+          PY
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,850' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=5000 \
+              --dump-dom "file:///tmp/nav-browser/fixture.html" > /tmp/nav-browser/result.html 2>/tmp/nav-browser/chrome.log
+            grep -q 'RESULT:PASS' /tmp/nav-browser/result.html || { tail -c 1200 /tmp/nav-browser/result.html; exit 1; }
+            echo "Browser layout + profile actions passed at $size"
+          done

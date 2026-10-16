@@ -82,10 +82,15 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-ui-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-menu-overlay-v2.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-nav-morph-v1.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-sidebar-profile-polish-v1.py" "$ROOT"
           mkdir -p "$ROOT/assets"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.css" "$ROOT/assets/nav-morph-v1.css"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.js" "$ROOT/assets/nav-morph-v1.js"
+          cp "$GITHUB_WORKSPACE/assets/sidebar-profile-polish-v1.css" "$ROOT/assets/sidebar-profile-polish-v1.css"
+          cp "$GITHUB_WORKSPACE/assets/sidebar-profile-polish-v1.js" "$ROOT/assets/sidebar-profile-polish-v1.js"
           node --check "$ROOT/assets/nav-morph-v1.js"
+          node --check "$ROOT/assets/sidebar-profile-polish-v1.js"
+          grep -q "GHADIR_SIDEBAR_PROFILE_POLISH_V1_20261017" "$ROOT/app.html"
           grep -q "GHADIR_NAV_MORPH_V1_20261017" "$ROOT/app.html"
           python3 "$GITHUB_WORKSPACE/scripts/patch-remove-selective-carton-label-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
@@ -271,6 +276,8 @@ jobs:
           put "$ROOT/assets/ghadir-logo-transparent.svg" -o /assets/ghadir-logo-transparent.svg
           put "$ROOT/assets/nav-morph-v1.css" -o /assets/nav-morph-v1.css
           put "$ROOT/assets/nav-morph-v1.js" -o /assets/nav-morph-v1.js
+          put "$ROOT/assets/sidebar-profile-polish-v1.css" -o /assets/sidebar-profile-polish-v1.css
+          put "$ROOT/assets/sidebar-profile-polish-v1.js" -o /assets/sidebar-profile-polish-v1.js
           put "$ROOT/assets/ghadir-contact-qr.png" -o /assets/ghadir-contact-qr.png
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
@@ -317,6 +324,8 @@ jobs:
           get /assets/ghadir-logo-transparent.svg -o /tmp/livecheck/assets/ghadir-logo-transparent.svg
           get /assets/nav-morph-v1.js -o /tmp/livecheck/assets/nav-morph-v1.js
           get /assets/nav-morph-v1.css -o /tmp/livecheck/assets/nav-morph-v1.css
+          get /assets/sidebar-profile-polish-v1.js -o /tmp/livecheck/assets/sidebar-profile-polish-v1.js
+          get /assets/sidebar-profile-polish-v1.css -o /tmp/livecheck/assets/sidebar-profile-polish-v1.css
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
           get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
           get /assets/ghadir-contact-qr.png -o /tmp/livecheck/assets/ghadir-contact-qr.png
@@ -330,6 +339,8 @@ jobs:
           php -l /tmp/livecheck/lib/staff-login-otp.php
           node --check /tmp/livecheck/assets/staff-login-otp.js
           node --check /tmp/livecheck/assets/nav-morph-v1.js
+          node --check /tmp/livecheck/assets/sidebar-profile-polish-v1.js
+          grep -q "GHADIR_SIDEBAR_PROFILE_POLISH_V1_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_NAV_MORPH_V1_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_STAFF_LOGIN_OTP_V1_20261016" /tmp/livecheck/index.php
           grep -q "GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016" /tmp/livecheck/app.html
