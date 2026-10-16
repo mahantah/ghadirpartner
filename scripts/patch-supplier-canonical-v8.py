@@ -138,7 +138,25 @@ if header_old in a:
     a=a.replace(header_old,'<th>شماره باکس</th><th>مدل</th><th>تامین‌کننده</th><th>انبار</th><th>رنگ</th>',1)
 
 base_row='<td>${esc(c.product)}</td><td>${esc(location)}</td>'
-sup_row='<td>${esc(c.product)}${c.supplier?`<div class="small">تامین‌کنننده: ${esc(c.supplier)}</div>`:\'\'}</td><td>${esc(location)}</td>'
+sup_row='<td>${esc(c.product)}${c.supplier?`<div class="small">تامین‌کننده: ${esc(c.supplier)}</div>`:\'\'}</td><td>${esc(location)}</td>'
+target_row='<td>${esc(c.product)}</td><td><b>${esc(c.supplier||\'-\')}</b></td><td>${esc(location)}</td>'
+if base_row in a:
+    a=a.replace(base_row,target_row,1)
+elif sup_row in a:
+    a=a.replace(sup_row,target_row,1)
+a=a.replace('colspan="11">هنوز کارتنی','colspan="12">هنوز کارتنی',1)
+
+fn=a.find("function invSearchText")
+fn_end=a.find("function renderInventory",fn)
+if fn>=0 and fn_end>fn:
+    seg=a[fn:fn_end]
+    if "x.supplier" not in seg:
+        seg=seg.replace("return [x.product,x.serial,x.imei,x.order_number,",
+                        "return [x.product,x.serial,x.imei,x.order_number,x.supplier,",1)
+        a=a[:fn]+seg+a[fn_end:]
+
+base='<div class="inv-product">${esc(x.product)}</div>'
+with_small='<div class="inv-product">${esc(x.product)}${x.supplier?`<div class="small">تامین‌کننده: ${esc(x.supplier)}</div>`:\'\'}</div>'
 target='<div class="inv-product">${esc(x.product)}<div class="small" style="margin-top:4px">تامین‌کننده: <b>${esc(x.supplier||\'-\')}</b></div></div>'
 if base in a:
     a=a.replace(base,target,1)
