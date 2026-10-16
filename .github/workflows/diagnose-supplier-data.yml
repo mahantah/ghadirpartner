@@ -1,7 +1,10 @@
 name: Diagnose supplier data
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-supplier-data.yml'
 
 permissions:
   contents: read
