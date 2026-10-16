@@ -121,3 +121,63 @@
 #login.gp-otp-skin .gp-otp-actions button{min-height:44px!important;touch-action:manipulation}
 #login.gp-otp-skin .gp-auth-status[data-error="1"]{display:block;line-height:2;color:#ffb9b2!important;background:rgba(192,47,38,.12);border-radius:12px;padding:10px 12px!important;margin-top:8px}
 @media(max-width:520px){#login.gp-otp-skin button.gp-uiverse{min-height:54px!important}#login.gp-otp-skin button.gp-uiverse>.button-outer,#login.gp-otp-skin button.gp-uiverse .button-inner{min-height:48px!important}}
+
+/* GHADIR_LOGIN_COMPACT_MATTE_V4_20261016
+   Only the login view: remove non-essential marketing copy and use solid,
+   high-contrast, matte action buttons that render reliably in iOS Safari.
+   Never hide status/errors, OTP labels, reset controls or staff role prompts.
+*/
+#login.gp-otp-skin .automation-login-brand small,
+#login.gp-otp-skin .gp-auth-mark,
+#login.gp-otp-skin .gp-auth-head p,
+#login.gp-otp-skin .gp-auth-note,
+#login.gp-otp-skin .auth-pill {
+  display:none!important;
+}
+#login.gp-otp-skin .automation-login-brand{margin-bottom:17px!important}
+#login.gp-otp-skin .gp-auth-head{margin-bottom:20px!important}
+#login.gp-otp-skin .gp-auth-head h2{margin:0!important;font-weight:900!important}
+#login.gp-otp-skin .gp-mode-switch{margin-bottom:22px!important}
+#login.gp-otp-skin .gp-auth-status:empty{display:none!important;padding:0!important;margin:0!important;min-height:0!important}
+#login.gp-otp-skin button.gp-uiverse,
+#login.gp-otp-skin button.gp-uiverse:not(:disabled):hover,
+#login.gp-otp-skin button.gp-uiverse:not(:disabled):active {
+  -webkit-appearance:none!important;appearance:none!important;
+  background:#c3570c!important;background-image:none!important;
+  border:1px solid #a84909!important;
+  border-radius:999px!important;
+  color:#fff!important;
+  box-shadow:0 3px 10px rgba(0,0,0,.18)!important;
+  filter:none!important;clip-path:none!important;-webkit-clip-path:none!important;
+  transform:none!important;
+  opacity:1!important;
+}
+#login.gp-otp-skin button.gp-uiverse:not(:disabled):hover,
+#login.gp-otp-skin button.gp-uiverse:not(:disabled):active {
+  background:#ad4a08!important;
+  box-shadow:0 2px 7px rgba(0,0,0,.24)!important;
+}
+#login.gp-otp-skin button.gp-uiverse>.button-outer,
+#login.gp-otp-skin button.gp-uiverse:hover>.button-outer,
+#login.gp-otp-skin button.gp-uiverse .button-inner,
+#login.gp-otp-skin button.gp-uiverse:hover .button-inner,
+#login.gp-otp-skin button.gp-uiverse:active .button-inner {
+  background:transparent!important;background-image:none!important;
+  box-shadow:none!important;filter:none!important;
+  clip-path:none!important;-webkit-clip-path:none!important;
+  border-radius:999px!important;
+}
+#login.gp-otp-skin button.gp-uiverse .button-inner span,
+#login.gp-otp-skin button.gp-uiverse:hover .button-inner span {
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+  background:none!important;background-image:none!important;
+  text-shadow:none!important;font-weight:900!important;
+}
+#login.gp-otp-skin button.gp-uiverse:disabled {
+  background:#8c4d22!important;background-image:none!important;
+  color:#fff!important;opacity:.7!important;
+}
+@media(max-width:520px){
+  #login.gp-otp-skin .automation-login-brand{margin-bottom:13px!important}
+  #login.gp-otp-skin .gp-auth-head{margin-bottom:17px!important}
+}
