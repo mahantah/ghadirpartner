@@ -36,3 +36,9 @@ Preserved: 5-minute lifetime, session binding, single use, five attempts, existi
 Do not run the full deployment workflow merely to ship this helper: that rebuild may omit later live-only patches. After explicit owner approval and a fresh authorized backup, use a reviewed targeted deployment of only `lib/staff-login-otp.php`, retaining the previous helper outside the public document root. Syntax-check before atomic replacement, perform controlled login checks, and restore the previous helper if validation fails. Do not replace app.html, API entrypoint, configuration, storage or MySQL state for this repair. No deployment workflow is added here.
 
 Dashboard redesign remains next, after this login flow is stabilized; it is not part of this branch.
+
+## Requested loading branding update
+
+The loader now uses the existing transparent company SVG instead of the GHADIR/PARTNER text tile. The animation geometry/timing is preserved; its palette is navy `#142B4B` and orange `#F58220`. The logo stays stationary and has no background, border or tile. Reduced-motion behavior is retained. Build injection cache tags advance to `20261016b3`.
+
+This addition changes the prior helper-only release scope: deployment, if approved, must also include the reviewed login CSS/JS and targeted app cache-tag update, backing up each affected file. Do not deploy the stale root app.html or rebuild the full live app merely for this change. No live deployment was performed.

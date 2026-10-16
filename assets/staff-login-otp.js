@@ -37,7 +37,7 @@
     head.insertAdjacentElement('afterend',tabs);tabs.insertAdjacentElement('afterend',otpRoot);
     shell.appendChild(note);
     const loading=document.createElement('div');loading.id='gp-staff-loading';loading.hidden=true;loading.setAttribute('role','status');loading.setAttribute('aria-live','polite');
-    loading.innerHTML='<div><div class="gp-loader" aria-hidden="true"><div class="gp-loader-cube gp-loader-color"></div><div class="gp-loader-cube gp-loader-glow"></div><span class="gp-loader-label">GHADIR<br>PARTNER</span></div><div class="gp-loader-copy">در حال بررسی و ورود امن ...</div></div>';
+    loading.innerHTML='<div><div class="gp-loader" aria-hidden="true"><div class="gp-loader-cube gp-loader-color"></div><div class="gp-loader-cube gp-loader-glow"></div><img class="gp-loader-logo" src="/assets/ghadir-logo-transparent.svg" alt="" width="96" height="96"></div><div class="gp-loader-copy">در حال بررسی و ورود امن ...</div></div>';
     document.body.appendChild(loading);
     let step='request',busy=false;
     const $=id=>document.getElementById(id);
