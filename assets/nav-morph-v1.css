@@ -1,0 +1,112 @@
+/* GHADIR_NAV_MORPH_V1_20261017
+   A single animated three-line / X button visually anchored in the top-right
+   corner of the sidebar header. Scoped to the admin shell only.
+*/
+#app > header .nav-toggle.gp-nav-morph {
+  position:fixed!important;
+  z-index:200!important;
+  right:12px!important;
+  top:calc(12px + env(safe-area-inset-top, 0px))!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:46px!important;
+  height:46px!important;
+  min-width:46px!important;
+  min-height:46px!important;
+  padding:0!important;
+  margin:0!important;
+  border-radius:14px!important;
+  border:1px solid rgba(255,255,255,.28)!important;
+  background:#f58220!important;
+  color:#fff!important;
+  box-shadow:0 4px 16px rgba(6,20,42,.24)!important;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  transform:none!important;
+  transition:background-color .24s ease,box-shadow .24s ease,border-color .24s ease!important;
+}
+#app > header .nav-toggle.gp-nav-morph:hover,
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] {
+  background:#df6c12!important;
+  border-color:rgba(255,255,255,.42)!important;
+  box-shadow:0 4px 14px rgba(0,0,0,.28)!important;
+}
+#app > header .nav-toggle.gp-nav-morph .gp-nav-lines {
+  position:relative;
+  width:22px;
+  height:22px;
+  display:block;
+  flex:none;
+  pointer-events:none;
+}
+#app > header .nav-toggle.gp-nav-morph .gp-nav-line {
+  display:block;
+  position:absolute;
+  top:10px;
+  left:0;
+  width:22px;
+  height:2.7px;
+  background:#fff;
+  border-radius:999px;
+  opacity:1;
+  transform-origin:center center;
+  transition:transform .3s cubic-bezier(.22,.8,.22,1),opacity .18s ease;
+  pointer-events:none;
+}
+#app > header .nav-toggle.gp-nav-morph .gp-nav-line:nth-child(1){transform:translateY(-7px)}
+#app > header .nav-toggle.gp-nav-morph .gp-nav-line:nth-child(2){transform:scaleX(1)}
+#app > header .nav-toggle.gp-nav-morph .gp-nav-line:nth-child(3){transform:translateY(7px)}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] .gp-nav-line:nth-child(1){transform:rotate(45deg)}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] .gp-nav-line:nth-child(2){transform:scaleX(0);opacity:0}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] .gp-nav-line:nth-child(3){transform:rotate(-45deg)}
+#app > header .nav-toggle.gp-nav-morph:focus-visible {
+  outline:3px solid #a9d6ff!important;
+  outline-offset:3px!important;
+}
+#app > header .topnav .sidebar-head {
+  position:relative!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  min-height:52px!important;
+  padding:5px 61px 12px 6px!important;
+  margin-bottom:6px!important;
+  border-bottom:1px solid rgba(255,255,255,.24)!important;
+}
+#app > header .topnav .sidebar-head b{
+  color:#fff!important;
+  font-size:16px!important;
+  font-weight:800!important;
+  white-space:nowrap;
+}
+#app > header .topnav .sidebar-close{display:none!important}
+#app > header .topnav,
+#app > header .topnav:not(.mobile-open){
+  transition:transform .3s cubic-bezier(.22,.8,.22,1)!important;
+  will-change:transform;
+}
+#app .nav-overlay{
+  transition:opacity .3s ease,visibility .3s ease!important;
+}
+@media(max-width:760px) {
+  #app > header .nav-toggle.gp-nav-morph {
+    right:10px!important;
+    top:calc(10px + env(safe-area-inset-top, 0px))!important;
+    width:44px!important;
+    height:44px!important;
+    min-width:44px!important;
+    min-height:44px!important;
+  }
+  #app > header .topnav .sidebar-head {
+    padding-right:59px!important;
+    min-height:51px!important;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  #app > header .nav-toggle.gp-nav-morph,
+  #app > header .nav-toggle.gp-nav-morph .gp-nav-line,
+  #app > header .topnav,
+  #app .nav-overlay {transition:none!important;animation:none!important}
+}
