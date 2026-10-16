@@ -76,6 +76,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-display-dom-v4.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-display-live-v5.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-edit-v6.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-canonical-v8.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-purchase-supplier-v9.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-retail-transfer-detach-carton-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-ui-v1.py" "$ROOT"
@@ -119,6 +120,8 @@ jobs:
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' "$ROOT/index.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' "$ROOT/app.html"
           php -l "$ROOT/index.php"
+          grep -q 'SUPPLIER_CANONICAL_BACKEND_V8_20261016' "$ROOT/index.php"
+          grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' "$ROOT/app.html"
           php -l "$ROOT/partners/index.php"
           php -l "$ROOT/lib/storage.php"
           php -l "$ROOT/lib/warehouse-v53438.php"
@@ -298,6 +301,8 @@ jobs:
           EOF
           test "$(cat /tmp/livecheck/VERSION.txt)" = "V5.3.4.38-INVENTORY-LAZY-API-FIX"
           php -l /tmp/livecheck/index.php
+          grep -q 'SUPPLIER_CANONICAL_BACKEND_V8_20261016' /tmp/livecheck/index.php
+          grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' /tmp/livecheck/app.html
           php -l /tmp/livecheck/lib/storage.php
           php -l /tmp/livecheck/lib/warehouse-v53438.php
           php -l /tmp/livecheck/lib/labels-v5348.php
