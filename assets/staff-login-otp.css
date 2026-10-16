@@ -56,3 +56,68 @@
 @keyframes gp-staff-loadtwo{50%{transform:rotate(-80deg)}}
 @media(max-width:520px){#login.gp-otp-skin{padding:16px!important;align-items:center!important}#login.gp-otp-skin .automation-login-card,#login.gp-otp-skin>.gp-auth-card{padding:24px 20px!important;width:100%!important;margin:0!important}#login.gp-otp-skin .gp-auth-head h2{font-size:23px}#login.gp-otp-skin .automation-login-brand img{width:56px!important;height:56px!important}}
 @media(prefers-reduced-motion:reduce){#login.gp-otp-skin *,#gp-staff-loading *{animation:none!important;transition:none!important}}
+
+/* GHADIR_STAFF_OTP_SAFARI_BUTTON_FIX_V2_20261016
+ * iOS WebKit can composite the old clip-path/overflow:clip/inset-shadow
+ * stack as a thin orange vertical strip. Keep the Uiverse pill silhouette,
+ * but use paint-only gradients and predictable flex geometry.
+ */
+#login.gp-otp-skin button.gp-uiverse,
+#login.gp-otp-skin button.gp-uiverse:hover,
+#login.gp-otp-skin button.gp-uiverse:active{
+  -webkit-appearance:none!important;appearance:none!important;
+  position:relative!important;isolation:isolate!important;
+  display:block!important;box-sizing:border-box!important;
+  width:100%!important;height:auto!important;min-height:56px!important;
+  padding:3px!important;margin:10px 0!important;
+  border:0!important;border-radius:999px!important;
+  background:linear-gradient(135deg,#ffe7cd 0%,#ffad59 45%,#f58220 100%)!important;
+  color:#12243c!important;
+  box-shadow:0 12px 26px rgba(245,130,32,.15),inset 0 1px 1px rgba(255,255,255,.65)!important;
+  overflow:hidden!important;clip-path:none!important;-webkit-clip-path:none!important;
+  transform:none!important;filter:none!important;
+  line-height:normal!important;
+  text-align:center!important;
+  transition:box-shadow .2s ease,background-color .2s ease!important;
+  -webkit-tap-highlight-color:transparent;
+}
+#login.gp-otp-skin button.gp-uiverse::before,
+#login.gp-otp-skin button.gp-uiverse::after{content:none!important;display:none!important}
+#login.gp-otp-skin button.gp-uiverse>.button-outer{
+  display:flex!important;align-items:stretch!important;justify-content:center!important;
+  width:100%!important;min-width:0!important;min-height:50px!important;height:auto!important;
+  margin:0!important;padding:0!important;border:0!important;border-radius:999px!important;
+  overflow:hidden!important;clip-path:none!important;-webkit-clip-path:none!important;
+  background:linear-gradient(145deg,#fff2e4,#ffc38a 48%,#f9a54c)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.78),inset 0 -2px rgba(73,30,4,.14)!important;
+  transform:none!important;filter:none!important;transition:none!important;
+}
+#login.gp-otp-skin button.gp-uiverse .button-inner,
+#login.gp-otp-skin button.gp-uiverse:hover .button-inner,
+#login.gp-otp-skin button.gp-uiverse:active .button-inner{
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  flex:1 1 auto!important;min-width:0!important;min-height:50px!important;height:auto!important;
+  padding:12px 16px!important;margin:0!important;border:0!important;border-radius:999px!important;
+  overflow:visible!important;clip-path:none!important;-webkit-clip-path:none!important;
+  background:transparent!important;background-image:none!important;
+  box-shadow:none!important;transform:none!important;filter:none!important;
+  transition:none!important;
+}
+#login.gp-otp-skin button.gp-uiverse .button-inner span,
+#login.gp-otp-skin button.gp-uiverse:hover .button-inner span{
+  display:block!important;position:static!important;
+  max-width:100%!important;white-space:normal!important;
+  color:#142941!important;-webkit-text-fill-color:#142941!important;
+  background:none!important;text-shadow:none!important;
+  font:900 14px/1.6 Tahoma,Arial,sans-serif!important;
+  letter-spacing:0!important;text-align:center!important;
+  transform:none!important;transition:none!important;
+}
+#login.gp-otp-skin button.gp-uiverse:focus-visible{outline:3px solid #82c6ff!important;outline-offset:3px!important}
+#login.gp-otp-skin button.gp-uiverse:disabled{opacity:.6!important;cursor:not-allowed!important}
+#login.gp-otp-skin button.gp-uiverse:not(:disabled):hover{
+  box-shadow:0 15px 30px rgba(245,130,32,.25),inset 0 1px rgba(255,255,255,.8)!important;
+}
+#login.gp-otp-skin .gp-otp-actions button{min-height:44px!important;touch-action:manipulation}
+#login.gp-otp-skin .gp-auth-status[data-error="1"]{display:block;line-height:2;color:#ffb9b2!important;background:rgba(192,47,38,.12);border-radius:12px;padding:10px 12px!important;margin-top:8px}
+@media(max-width:520px){#login.gp-otp-skin button.gp-uiverse{min-height:54px!important}#login.gp-otp-skin button.gp-uiverse>.button-outer,#login.gp-otp-skin button.gp-uiverse .button-inner{min-height:48px!important}}
