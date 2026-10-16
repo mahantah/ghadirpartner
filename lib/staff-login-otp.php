@@ -31,7 +31,7 @@ function ghadir_staff_login_otp_route(string $path, string $method): void {
         // Throttle even unknown identities in the current session.
         if ((int)($_SESSION['staff_otp_last_request'] ?? 0) + 30 > time()) fail('برای دریافت کد جدید کمی صبر کنید', 429);
         $_SESSION['staff_otp_last_request'] = time();
-        unset($_SESSION['staff_otp_request_id']);
+        // Keep the last usable challenge until a replacement is actually sent.
         $code = (string)random_int(100000, 999999);
         $tag = hash('sha256', session_id());
         $created = db(true, function (&$s) use ($identity, $code, $tag) {
@@ -68,7 +68,8 @@ function ghadir_staff_login_otp_route(string $path, string $method): void {
             ['kind' => 'staff_login_otp', 'vars' => ['otp' => $code]]);
         $sent = !empty($send['sent']);
         db(true, function (&$s) use ($created, $sent) {
-            foreach ($s['staff_login_otp_requests'] ?? [] as &$r) {
+            if (!isset($s['staff_login_otp_requests']) || !is_array($s['staff_login_otp_requests'])) return;
+            foreach ($s['staff_login_otp_requests'] as &$r) {
                 if ((int)($r['id'] ?? 0) !== $created['id']) continue;
                 $r['status'] = $sent ? 'sent' : 'sms_failed';
                 if (!$sent) unset($r['otp_hash']);
@@ -86,8 +87,8 @@ function ghadir_staff_login_otp_route(string $path, string $method): void {
     $tag = hash('sha256', session_id());
     $result = db(true, function (&$s) use ($identity, $otp, $tag, $requestId) {
         $u = ghadir_staff_otp_user($s, $identity);
-        if (!$u) return ['status' => 'invalid'];
-        foreach ($s['staff_login_otp_requests'] ?? [] as &$r) {
+        if (!$u || !isset($s['staff_login_otp_requests']) || !is_array($s['staff_login_otp_requests'])) return ['status' => 'invalid'];
+        foreach ($s['staff_login_otp_requests'] as &$r) {
             if ((int)($r['id'] ?? 0) !== $requestId || (int)($r['user_id'] ?? 0) !== (int)$u['id']) continue;
             if (!hash_equals((string)($r['session_tag'] ?? ''), $tag) || ($r['status'] ?? '') !== 'sent') return ['status' => 'invalid'];
             if (strtotime((string)($r['expires_at'] ?? '')) < time()) {

@@ -1,0 +1,21 @@
+name: Staff OTP contract tests (no deployment)
+on:
+  pull_request:
+    paths:
+      - 'lib/staff-login-otp.php'
+      - 'tests/staff-login-otp.php'
+      - '.github/workflows/test-staff-login-otp.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Syntax and isolated OTP lifecycle tests
+        run: |
+          php -l lib/staff-login-otp.php
+          php -l tests/staff-login-otp.php
+          php tests/staff-login-otp.php
+          node --check assets/staff-login-otp.js
