@@ -1,0 +1,128 @@
+name: Release iOS Safari OTP button fix (one-time)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-ios-otp-button-20261016.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: "${{ github.event.head_commit.message == 'release: apply iOS Safari OTP button fix 2026-10-16' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install secure transfer tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp curl nodejs
+
+      - name: Prepare current production login files and cache-busting references
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          mkdir -p "$RUNNER_TEMP/ios-otp-before" "$RUNNER_TEMP/ios-otp-after"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o "$RUNNER_TEMP/ios-otp-before/app.html"
+          get /assets/staff-login-otp.css -o "$RUNNER_TEMP/ios-otp-before/staff-login-otp.css"
+          get /assets/staff-login-otp.js -o "$RUNNER_TEMP/ios-otp-before/staff-login-otp.js"
+          bye
+          EOF
+          cp "$RUNNER_TEMP/ios-otp-before/app.html" "$RUNNER_TEMP/ios-otp-after/app.html"
+          cp assets/staff-login-otp.css "$RUNNER_TEMP/ios-otp-after/staff-login-otp.css"
+          cp assets/staff-login-otp.js "$RUNNER_TEMP/ios-otp-after/staff-login-otp.js"
+          grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' "$RUNNER_TEMP/ios-otp-after/app.html"
+          grep -q 'GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016' "$RUNNER_TEMP/ios-otp-after/app.html"
+          grep -q 'GHADIR_STAFF_OTP_SAFARI_BUTTON_FIX_V2_20261016' "$RUNNER_TEMP/ios-otp-after/staff-login-otp.css"
+          grep -q 'GHADIR_STAFF_OTP_SAFARI_UI_FIX_V2_20261016' "$RUNNER_TEMP/ios-otp-after/staff-login-otp.js"
+          node --check "$RUNNER_TEMP/ios-otp-after/staff-login-otp.js"
+          python3 - "$RUNNER_TEMP/ios-otp-after/app.html" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); s=p.read_text(encoding='utf-8')
+          paths=['staff-login-otp.css','staff-login-otp.js']
+          for path in paths:
+              old=f'/assets/{path}?v=20261016"'
+              new=f'/assets/{path}?v=20261016b2"'
+              if s.count(old)!=1:
+                  raise SystemExit(f'Unexpected cache tag for {path}; abort without upload')
+              s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          test -s "$RUNNER_TEMP/ios-otp-after/app.html"
+          test -s "$RUNNER_TEMP/ios-otp-after/staff-login-otp.css"
+          test -s "$RUNNER_TEMP/ios-otp-after/staff-login-otp.js"
+
+      - name: Publish only login CSS, JS and app cache tags, rollback if validation fails
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          DEPLOY_STARTED=0
+          rollback() {
+            status=$?
+            if [[ "$DEPLOY_STARTED" == "1" ]]; then
+              echo 'Login UI verification failed: restore previous CSS, JS and app.html'
+              lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$RUNNER_TEMP/ios-otp-before/app.html" -o /app.html
+          put "$RUNNER_TEMP/ios-otp-before/staff-login-otp.css" -o /assets/staff-login-otp.css
+          put "$RUNNER_TEMP/ios-otp-before/staff-login-otp.js" -o /assets/staff-login-otp.js
+          bye
+          EOF
+            fi
+            exit "$status"
+          }
+          trap rollback ERR
+          DEPLOY_STARTED=1
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$RUNNER_TEMP/ios-otp-after/staff-login-otp.css" -o /assets/staff-login-otp.css
+          put "$RUNNER_TEMP/ios-otp-after/staff-login-otp.js" -o /assets/staff-login-otp.js
+          put "$RUNNER_TEMP/ios-otp-after/app.html" -o /app.html
+          bye
+          EOF
+          curl -fsS --max-time 25 -H 'Cache-Control: no-cache' -o "$RUNNER_TEMP/new-app.html" 'https://ghadirpartner.ir/app.html'
+          grep -Fq 'staff-login-otp.css?v=20261016b2' "$RUNNER_TEMP/new-app.html"
+          grep -Fq 'staff-login-otp.js?v=20261016b2' "$RUNNER_TEMP/new-app.html"
+          curl -fsS --max-time 25 -H 'Cache-Control: no-cache' -o "$RUNNER_TEMP/new-otp.css" 'https://ghadirpartner.ir/assets/staff-login-otp.css?v=20261016b2'
+          grep -Fq 'GHADIR_STAFF_OTP_SAFARI_BUTTON_FIX_V2_20261016' "$RUNNER_TEMP/new-otp.css"
+          curl -fsS --max-time 25 -H 'Cache-Control: no-cache' -o "$RUNNER_TEMP/new-otp.js" 'https://ghadirpartner.ir/assets/staff-login-otp.js?v=20261016b2'
+          grep -Fq 'GHADIR_STAFF_OTP_SAFARI_UI_FIX_V2_20261016' "$RUNNER_TEMP/new-otp.js"
+          curl -fsS --max-time 25 -o "$RUNNER_TEMP/healthz.json" 'https://ghadirpartner.ir/healthz'
+          grep -Fq 'V5.3.4.38' "$RUNNER_TEMP/healthz.json"
+          DEPLOY_STARTED=0
+          trap - ERR
+          echo 'iOS OTP button CSS/JS and cache tags deployed; health check passed. No real OTP attempts were performed.'
