@@ -1,4 +1,5 @@
 /* GHADIR_STAFF_OTP_SAFARI_UI_FIX_V2_20261016 */
+/* GHADIR_LOGIN_COMPACT_MATTE_V4_20261016 */
 /* GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016
    Enhances the existing live login: preserves original #lu #lp #loginbtn,
    existing password reset/OTP, session bootstrap and all application tabs.
@@ -22,20 +23,18 @@
     const brand=login.querySelector('.automation-login-brand');
     if(!brand){
       const header=document.createElement('div');header.className='automation-login-brand';
-      header.innerHTML='<img src="/assets/ghadir-logo-transparent.svg" alt="لوگوی قدیر پرداخت"><div><b>قدیر پارتنر</b><small>GHADIR PARTNER</small></div>';
+      header.innerHTML='<img src="/assets/ghadir-logo-transparent.svg" alt="لوگوی قدیر پرداخت"><div><b>قدیر پارتنر</b></div>';
       shell.insertBefore(header,shell.firstChild);
     }
     const head=document.createElement('div');head.className='gp-auth-head';
-    head.innerHTML='<span class="gp-auth-mark">GHADIR PARTNER · SECURE STAFF ACCESS</span><h2>ورود به اتوماسیون</h2><p>با کد یک‌بارمصرف پیامکی وارد شوید یا از رمز عبور خود استفاده کنید.</p>';
+    head.innerHTML='<h2>ورود به اتوماسیون</h2>';
     const tabs=document.createElement('div');tabs.className='gp-mode-switch';tabs.setAttribute('role','tablist');
     tabs.innerHTML='<button type="button" role="tab" id="gp-otp-tab" aria-selected="true">ورود با کد OTP</button><button type="button" role="tab" id="gp-password-tab" aria-selected="false">ورود با رمز عبور</button>';
     const otpRoot=document.createElement('div');otpRoot.id='gp-staff-otp-flow';
     otpRoot.innerHTML='<form id="gp-otp-form" autocomplete="on" novalidate><label class="gp-auth-label" for="gp-otp-identity">نام کاربری یا شماره موبایل</label><input id="gp-otp-identity" autocomplete="username" placeholder="نام کاربری یا شماره ثبت‌شده" required><button type="submit" id="gp-otp-request" class="gp-uiverse"><span class="button-outer"><span class="button-inner"><span>دریافت کد ورود</span></span></span></button><div class="gp-otp-step" id="gp-otp-step" hidden><label class="gp-auth-label" for="gp-otp-code">کد یک‌بارمصرف پیامکی</label><input id="gp-otp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" dir="ltr" placeholder="------" required><button type="button" id="gp-otp-verify" class="gp-uiverse"><span class="button-outer"><span class="button-inner"><span>تأیید و ورود به سامانه</span></span></span></button><div class="gp-otp-actions"><button type="button" id="gp-otp-resend">ارسال مجدد کد</button><button type="button" id="gp-otp-edit">ویرایش نام کاربری</button></div></div><div id="gp-otp-status" class="gp-auth-status" aria-live="polite" role="status"></div></form>';
-    const note=document.createElement('div');note.className='gp-auth-note';note.textContent='ورود فقط برای کاربران فعال اتوماسیون با نقش مجاز امکان‌پذیر است.';
     const insertion=brand||shell.firstChild;
     if(insertion&&insertion.parentElement===shell){insertion.insertAdjacentElement('afterend',head);}else shell.insertBefore(head,shell.firstChild);
     head.insertAdjacentElement('afterend',tabs);tabs.insertAdjacentElement('afterend',otpRoot);
-    shell.appendChild(note);
     const loading=document.createElement('div');loading.id='gp-staff-loading';loading.hidden=true;loading.setAttribute('role','status');loading.setAttribute('aria-live','polite');
     loading.innerHTML='<div><div class="gp-loader" aria-hidden="true"><div class="gp-loader-cube gp-loader-color"></div><div class="gp-loader-cube gp-loader-glow"></div><img class="gp-loader-logo" src="/assets/ghadir-logo-transparent.svg" alt="" width="96" height="96"></div><div class="gp-loader-copy">در حال بررسی و ورود امن ...</div></div>';
     document.body.appendChild(loading);
