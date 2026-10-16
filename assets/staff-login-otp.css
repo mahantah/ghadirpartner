@@ -181,3 +181,47 @@
   #login.gp-otp-skin .automation-login-brand{margin-bottom:13px!important}
   #login.gp-otp-skin .gp-auth-head{margin-bottom:17px!important}
 }
+
+/* GHADIR_LOGIN_INSTANT_SWITCH_ALIGNED_CORNERS_V5_20261017
+   Prevent the legacy-password form from flashing while the enhanced OTP form
+   initializes. The timed fallback restores the legacy form if JS fails.
+   Matching nested radii: card 28px, switch 22px, segment 17px.
+*/
+@keyframes gp-login-legacy-fallback { to { visibility:visible; } }
+#login:not(.gp-otp-skin):not(.hidden) {
+  visibility:hidden!important;
+  animation:gp-login-legacy-fallback 0s 2.5s step-end forwards;
+}
+#login.gp-otp-skin {
+  visibility:visible!important;
+  animation:none!important;
+}
+#login.gp-otp-skin .automation-login-card,
+#login.gp-otp-skin>.gp-auth-card {
+  border-radius:28px!important;
+}
+#login.gp-otp-skin .gp-mode-switch {
+  border-radius:22px!important;
+  gap:5px!important;
+  padding:4px!important;
+}
+#login.gp-otp-skin .gp-mode-switch button {
+  border-radius:17px!important;
+  transition:none!important;
+  animation:none!important;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+#login.gp-otp-skin .gp-mode-switch button[aria-selected="true"] {
+  border-radius:17px!important;
+}
+#login.gp-otp-skin input {
+  border-radius:17px!important;
+}
+@media (max-width:520px) {
+  #login.gp-otp-skin .automation-login-card,
+  #login.gp-otp-skin>.gp-auth-card {border-radius:24px!important;}
+  #login.gp-otp-skin .gp-mode-switch {border-radius:20px!important;}
+  #login.gp-otp-skin .gp-mode-switch button,
+  #login.gp-otp-skin .gp-mode-switch button[aria-selected="true"] {border-radius:15px!important;}
+}
