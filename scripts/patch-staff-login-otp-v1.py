@@ -31,8 +31,8 @@ api=api.replace(auth_anchor,new_endpoint+auth_anchor,1)
 if app.count('</head>')!=1 or app.count('</body>')!=1: raise SystemExit('Unexpected HTML structure')
 if 'id="login"' not in app or 'id="lu"' not in app or 'id="lp"' not in app or 'id="loginbtn"' not in app:
     raise SystemExit('Legacy credential controls not found: migration would risk locking staff out')
-app=app.replace('</head>', '<!-- GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016 -->\n<link rel="stylesheet" href="/assets/staff-login-otp.css?v=20261016b3">\n</head>',1)
-app=app.replace('</body>', '<script src="/assets/staff-login-otp.js?v=20261016b3"></script>\n</body>',1)
+app=app.replace('</head>', '<!-- GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016 -->\n<link rel="stylesheet" href="/assets/staff-login-otp.css?v=20261016b4">\n</head>',1)
+app=app.replace('</body>', '<script src="/assets/staff-login-otp.js?v=20261016b4"></script>\n</body>',1)
 
 # Remove only the square-backed brand image from the sign-in area; don't change
 # icons elsewhere in the system. The SVG is recreated from user-provided logo.
