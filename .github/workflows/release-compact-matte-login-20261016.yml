@@ -63,7 +63,7 @@ jobs:
           paths=['staff-login-otp.css','staff-login-otp.js']
           for path in paths:
               import re
-              matches=re.findall(rf'/assets/{re.escape(path)}\\?v=20261016(?:b2|b3|b4)?"',s)
+              matches=re.findall(rf'/assets/{re.escape(path)}\?v=20261016(?:b2|b3|b4)?"',s)
               if len(matches)!=1:
                   raise SystemExit(f'Unexpected cache tag for {path}; abort without upload')
               s=s.replace(matches[0],f'/assets/{path}?v=20261016b4"',1)
