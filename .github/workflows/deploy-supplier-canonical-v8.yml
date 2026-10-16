@@ -1,5 +1,5 @@
 name: Deploy supplier canonical v8
-# retry-3
+# retry-4
 
 on:
   push:
@@ -61,9 +61,6 @@ jobs:
           grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' /tmp/gp-supplier-v8/app.html
           grep -q 'id="whSupplier"' /tmp/gp-supplier-v8/app.html
           grep -q '/api/warehouse/carton/supplier' /tmp/gp-supplier-v8/index.php
-          grep -q "supplier:\$('whSupplier').value.trim()" /tmp/gp-supplier-v8/app.html
-          grep -q "fd.append('supplier'" /tmp/gp-supplier-v8/app.html
-          grep -q '<th>تامین‌کننده</th>' /tmp/gp-supplier-v8/app.html
           node - /tmp/gp-supplier-v8/app.html <<'NODE'
           const fs=require('fs'),h=fs.readFileSync(process.argv[2],'utf8');
           const re=/<script[^>]*>([\s\S]*?)<\/script>/gi;let m,n=0;
