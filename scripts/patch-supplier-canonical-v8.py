@@ -145,17 +145,6 @@ if base in a:
 elif with_small in a:
     a=a.replace(with_small,target,1)
 
-e1=a.find("function editInv(id){")
-e2=a.find("async function unassignInv",e1)
-if e1>=0 and e2>e1:
-    seg=a[e1:e2]
-    if 'id="eisupplier"' not in seg:
-        seg=seg.replace('</div></div><div class="toolbar" style="margin-top:10px">',
-                        '</div><div><div class="small">تامین‌کننده</div><input id="eisupplier" value="${esc(x.supplier||\\'\\')}" placeholder="نام تامین‌کننده" style="width:100%"></div></div><div class="toolbar" style="margin-top:10px">',1)
-    seg=seg.replace("body:JSON.stringify({id,serial:$('eis').value,imei})",
-                    "body:JSON.stringify({id,serial:$('eis').value,imei,supplier:$('eisupplier').value.trim()})",1)
-    a=a[:e1]+seg+a[e2:]
-
 if "function editWarehouseSupplier(" not in a:
     insert=a.find("async function deleteWarehouseSerial")
     helper="""function editWarehouseSupplier(id){let c=(WH.cartons||[]).find(x=>+x.id===+id);if(!c)return;modal(`<h3>ویرایش تامین‌کننده</h3><p><b>${esc(c.code)}</b> — ${esc(c.product)}</p><input id="ewhsupplier" value="${esc(c.supplier||'')}" placeholder="نام تامین‌کننده" style="width:100%"><div class="small" style="margin-top:7px">این نام برای تمام سریال‌های همین باکس ذخیره می‌شود.</div><div class="toolbar" style="margin-top:10px"><button onclick="saveWarehouseSupplier(${id})">ذخیره</button><button class="btnlight" onclick="closeModal()">بستن</button></div>`)}
