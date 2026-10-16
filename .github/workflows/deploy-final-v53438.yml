@@ -84,6 +84,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-remove-selective-carton-label-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-performance-v1.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-staff-login-otp-v1.py" "$ROOT"
           base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > "$ROOT/assets/ghadir-contact-qr.png"
           grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
           grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' "$ROOT/app.html"
@@ -120,6 +121,10 @@ jobs:
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' "$ROOT/index.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' "$ROOT/app.html"
           php -l "$ROOT/index.php"
+          php -l "$ROOT/lib/staff-login-otp.php"
+          node --check "$ROOT/assets/staff-login-otp.js"
+          grep -q "GHADIR_STAFF_LOGIN_OTP_V1_20261016" "$ROOT/index.php"
+          grep -q "GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016" "$ROOT/app.html"
           grep -q 'SUPPLIER_CANONICAL_BACKEND_V8_20261016' "$ROOT/index.php"
           grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' "$ROOT/app.html"
           php -l "$ROOT/partners/index.php"
@@ -248,16 +253,21 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          put "$ROOT/index.php" -o /index.php
-          put "$ROOT/app.html" -o /app.html
-          put "$ROOT/partners/index.php" -o /partners/index.php
+          # Dependencies first: never expose a new index.php before its OTP module exists.
           put "$ROOT/lib/storage.php" -o /lib/storage.php
+          put "$ROOT/lib/staff-login-otp.php" -o /lib/staff-login-otp.php
           put "$ROOT/lib/warehouse-v53438.php" -o /lib/warehouse-v53438.php
           put "$ROOT/lib/labels-v5348.php" -o /lib/labels-v5348.php
+          put "$ROOT/assets/staff-login-otp.css" -o /assets/staff-login-otp.css
+          put "$ROOT/assets/staff-login-otp.js" -o /assets/staff-login-otp.js
+          put "$ROOT/assets/ghadir-logo-transparent.svg" -o /assets/ghadir-logo-transparent.svg
           put "$ROOT/assets/ghadir-contact-qr.png" -o /assets/ghadir-contact-qr.png
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
           put "$ROOT/assets/warehouse-ui-refine-v53438.js" -o /assets/warehouse-ui-refine-v53438.js
+          put "$ROOT/partners/index.php" -o /partners/index.php
+          put "$ROOT/index.php" -o /index.php
+          put "$ROOT/app.html" -o /app.html
           put "$ROOT/VERSION.txt" -o /VERSION.txt
           bye
           EOF
@@ -291,6 +301,10 @@ jobs:
           get /index.php -o /tmp/livecheck/index.php
           get /app.html -o /tmp/livecheck/app.html
           get /lib/storage.php -o /tmp/livecheck/lib/storage.php
+          get /lib/staff-login-otp.php -o /tmp/livecheck/lib/staff-login-otp.php
+          get /assets/staff-login-otp.js -o /tmp/livecheck/assets/staff-login-otp.js
+          get /assets/staff-login-otp.css -o /tmp/livecheck/assets/staff-login-otp.css
+          get /assets/ghadir-logo-transparent.svg -o /tmp/livecheck/assets/ghadir-logo-transparent.svg
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
           get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
           get /assets/ghadir-contact-qr.png -o /tmp/livecheck/assets/ghadir-contact-qr.png
@@ -301,6 +315,10 @@ jobs:
           EOF
           test "$(cat /tmp/livecheck/VERSION.txt)" = "V5.3.4.38-INVENTORY-LAZY-API-FIX"
           php -l /tmp/livecheck/index.php
+          php -l /tmp/livecheck/lib/staff-login-otp.php
+          node --check /tmp/livecheck/assets/staff-login-otp.js
+          grep -q "GHADIR_STAFF_LOGIN_OTP_V1_20261016" /tmp/livecheck/index.php
+          grep -q "GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016" /tmp/livecheck/app.html
           grep -q 'SUPPLIER_CANONICAL_BACKEND_V8_20261016' /tmp/livecheck/index.php
           grep -q 'SUPPLIER_CANONICAL_UI_V8_20261016' /tmp/livecheck/app.html
           php -l /tmp/livecheck/lib/storage.php
