@@ -1,3 +1,4 @@
+/* GHADIR_LOGIN_INSTANT_SWITCH_ALIGNED_CORNERS_V5_20261017 */
 /* GHADIR_STAFF_OTP_SAFARI_UI_FIX_V2_20261016 */
 /* GHADIR_LOGIN_COMPACT_MATTE_V4_20261016 */
 /* GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016
@@ -123,5 +124,10 @@
     // Existing password login remains available as a fallback; no API replacement.
     showMode('otp');
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  // The login node exists before this script is loaded at the end of app.html.
+  // Mount immediately instead of waiting for DOMContentLoaded (which may be
+  // delayed by the large legacy inline application script on slower mobiles).
+  if(document.getElementById('login'))init();
+  else if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
+  else init();
 })();
