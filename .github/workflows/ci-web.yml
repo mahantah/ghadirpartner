@@ -905,7 +905,8 @@ jobs:
           grep -Fq 'scripts/preswitch_safety.py' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'preswitch_safety.py" classify' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'patch-protected-carton-ops-v1.py' .github/workflows/deploy-final-v53438.yml
-          grep -Fq 'ghadir_protected_should_detach_retail' scripts/patch-retail-transfer-detach-carton-v1.py
+          grep -Fq 'ghadir_is_protected_carton_code' scripts/patch-retail-transfer-detach-carton-v1.py
+          grep -Fq 'ghadir_protected_should_detach_retail' scripts/patch-protected-carton-ops-v1.py
           ! grep -Fq 'treat a 500 response as pass' .github/workflows/deploy-final-v53438.yml
           echo 'Pre-switch safety classifier and fixtures verified'
 

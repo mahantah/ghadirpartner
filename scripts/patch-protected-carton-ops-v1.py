@@ -32,10 +32,14 @@ for target in candidates:
     elif req_alt in s and inject_alt not in s:
         s = s.replace(req_alt, req_alt + inject_alt, 1)
 
-    detach = "if($from===1&&$to===2&&$oldCartonId>0){"
     detach_fix = "if($from===1&&$to===2&&$oldCartonId>0&&ghadir_protected_should_detach_retail($oldCartonCode!==''?$oldCartonCode:$code)){"
-    if detach in s:
-        s = s.replace(detach, detach_fix, 1)
+    for detach in (
+        "if($from===1&&$to===2&&$oldCartonId>0){",
+        "if($from===1&&$to===2&&$oldCartonId>0&&!(function_exists('ghadir_is_protected_carton_code')&&ghadir_is_protected_carton_code($oldCartonCode!==''?$oldCartonCode:$code))){",
+    ):
+        if detach in s:
+            s = s.replace(detach, detach_fix, 1)
+            break
 
     transfer_fail = "if(!$indexes)fail('باکس یا سریال در انبار مبدأ پیدا نشد');"
     transfer_guard = (
