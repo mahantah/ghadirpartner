@@ -1,0 +1,14 @@
+---
+description: UI and UX changes for orders, customer serials, warehouse and login without breaking native actions
+globs: app.html,assets/**/*.css,assets/**/*.js,scripts/patch-*.py,partners/**/*.html,partners/**/*.js,mobile.html
+alwaysApply: false
+---
+
+For the Ghadir Partner user interface:
+- Right-to-left Persian text and Jalali dates are required. Desktop, iPhone Safari and narrow mobile views should be tested; do not assume a Chrome-only fixture covers Safari.
+- Design system: navy #102a43, orange #f58220, accessible contrast, clearly visible focus, minimum comfortable tap targets.
+- Before removing/renaming a control, trace its original DOM ID, event handlers, authorization gate, backend/API usage and printing/scanning behavior. Keep the same authorized actions, not merely visually similar substitutes.
+- Avoid overlapping sidebars, ghost overlays and permanently reserved desktop gutters. Inspect computed layout and the *assembled/live build*, not only the root template. Distinguish closed menu, open menu and mobile header.
+- When converting action labels to icons, give every action an accessible name, keyboard support and hover/focus tooltip; mobile users need a usable way to identify actions. Keep order-specific operations and access control unchanged.
+- For customer serial filtering, only filter with real data and maintain correct per-customer native counts when no filter is active. Do not remove rows on delayed hydration.
+- Scope styles to a concrete component/section; avoid globally styling all buttons or checkboxes. Add regression tests reproducing the reported bug.
