@@ -6,6 +6,9 @@ body{margin:0;font:14px Tahoma,Arial;background:#f3f6fa}
 #app > header .topnav{position:fixed;inset:0 0 0 auto;z-index:135;width:min(310px,88vw);height:100vh;box-sizing:border-box;display:flex;align-items:stretch;flex-direction:column;gap:8px;padding:16px 14px;overflow-y:auto;transform:translateX(105%);transition:transform .24s ease;background:linear-gradient(#0b2948,#0d3155)}
 #app > header .topnav.sidebar-open{transform:translateX(0)}
 #app > header .topnav button{min-height:48px;color:white;background:#25496f;border:1px solid #ffffff33;border-radius:12px}
+.nav-group{position:relative;display:inline-flex}
+.nav-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:120;display:none;width:235px;padding:8px;background:#fff}
+.nav-group.open>.nav-submenu{display:grid}
 #app > header .topnav .sidebar-head{display:flex;align-items:center;gap:10px;border-bottom:1px solid #ffffff33}
 #app > header .topnav .sidebar-head img{width:52px;height:52px;padding:5px;border-radius:16px;background:#34577c;box-shadow:0 4px 14px #0006}
 #app > header .topnav .sidebar-head b{color:#fff}
@@ -24,7 +27,7 @@ body{margin:0;font:14px Tahoma,Arial;background:#f3f6fa}
 <button type="button" class="duplicate-close">جمع کردن منو</button>
 <button type="button" data-tab="dashboard">پیشخوان</button>
 <button type="button" data-tab="orders">سفارش‌ها</button>
-<button type="button" data-tab="warehouse">مدیریت انبار</button>
+<div class="nav-group" id="warehouseNavGroup"><button type="button" class="nav-group-toggle" id="warehouseNavToggle">انبار</button><div class="nav-submenu"><button type="button" data-tab="inventory" id="inventoryTabBtn">سریال‌های مشتریان</button><button type="button" data-tab="warehouse" id="warehouseTabBtn">مخزن انبار</button></div></div>
 <button type="button" data-tab="products">لیست قیمت</button>
 <button type="button" data-tab="customers">مشتریان و فروش</button>
 <button type="button" data-tab="settings">تنظیمات سامانه</button>
@@ -34,7 +37,8 @@ body{margin:0;font:14px Tahoma,Arial;background:#f3f6fa}
 <div id="contract-result"></div>
 <script>window.gpPasswordClicks=0;window.gpLogoutClicks=0;
 document.getElementById('changePasswordBtn').addEventListener('click',function(){window.gpPasswordClicks++});
-document.getElementById('logoutbtn').addEventListener('click',function(){window.gpLogoutClicks++});</script>
+document.getElementById('logoutbtn').addEventListener('click',function(){window.gpLogoutClicks++});
+document.getElementById('warehouseNavToggle').addEventListener('click',function(ev){ev.stopPropagation();document.getElementById('warehouseNavGroup').classList.toggle('open')});</script>
 <script src="../assets/nav-morph-v1.js"></script>
 <script src="../assets/sidebar-profile-polish-v1.js"></script>
 <script src="../assets/sidebar-edge-profile-v2.js"></script>
@@ -61,6 +65,14 @@ window.addEventListener('load',function(){
           const prect=profile.getBoundingClientRect();
           expect(prect.width>120 && prect.top>=0 && prect.bottom<=window.innerHeight+1,
                  'profile trigger outside visible viewport '+prect.top+' '+prect.bottom);
+          const whToggle=document.getElementById('warehouseNavToggle');
+          const whBtn=document.getElementById('warehouseTabBtn');
+          expect(whToggle && whBtn,'warehouse nav group missing');
+          whToggle.click();
+          expect(document.getElementById('warehouseNavGroup').classList.contains('open'),'warehouse submenu did not open');
+          const wr=whBtn.getBoundingClientRect();
+          expect(wr.width>80 && wr.height>=40 && wr.top>=bounds.top-1 && wr.bottom<=window.innerHeight+1,
+                 'مخزن submenu clipped '+wr.top+' '+wr.bottom+' '+wr.height);
           profile.click();
           const actions=document.getElementById('gp-profile-actions');
           expect(!actions.hidden,'profile actions not expanded');

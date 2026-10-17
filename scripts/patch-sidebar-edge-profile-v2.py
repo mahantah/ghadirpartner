@@ -46,7 +46,7 @@ s = s.replace(old, new, 1)
 s = s.replace(
     "</head>",
     '<!-- ' + MARK + ' -->\n'
-    '<link rel="stylesheet" href="/assets/sidebar-edge-profile-v2.css?v=20261017e1">\n</head>',
+    '<link rel="stylesheet" href="/assets/sidebar-edge-profile-v2.css?v=20261017e2">\n</head>',
     1
 )
 s = s.replace(

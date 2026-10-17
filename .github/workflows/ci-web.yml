@@ -507,6 +507,8 @@ jobs:
           assert 'right:calc(min(310px,88vw) - 22px)' in c
           assert 'right:calc(min(330px,88vw) - 22px)' in c
           assert 'position:static!important' in c
+          assert '.nav-group.open > .nav-submenu' in c
+          assert 'clipped by .topnav{overflow-y:auto}' in c
           print('CSS syntax and profile layout contracts OK')
           PY
           mkdir -p /tmp/sidebar-compiled
@@ -525,6 +527,7 @@ jobs:
           grep -Fq 'id="changePasswordBtn"' /tmp/first-build.html
           grep -Fq 'id="logoutbtn"' /tmp/first-build.html
           grep -Fq '/assets/sidebar-edge-profile-v2.js?v=20261017e1' /tmp/first-build.html
+          grep -Fq '/assets/sidebar-edge-profile-v2.css?v=20261017e2' /tmp/first-build.html
       - name: Test real browser interaction at desktop and small mobile sizes
         shell: bash
         run: |
