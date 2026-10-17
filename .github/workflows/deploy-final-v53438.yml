@@ -73,7 +73,7 @@ jobs:
           s=p.read_text()
           tags=[
               '<script src="/assets/order-multiprint-v53438.js?v=53438mp3"></script>',
-              '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui4"></script>',
+              '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui5"></script>',
               '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint4"></script>'
           ]
           if '</body>' not in s:
@@ -228,8 +228,11 @@ jobs:
           node --check "$ROOT/assets/warehouse-carton-multilabel-v53438.js"
           node --check "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'warehouse-ui-refine-v53438.js' "$ROOT/app.html"
+          grep -q 'warehouse-ui-refine-v53438.js?v=53438ui5' "$ROOT/app.html"
           grep -q 'سریال‌های مشتریان' "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'ثبت تجمیع‌شده' "$ROOT/assets/warehouse-ui-refine-v53438.js"
+          grep -q 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' "$ROOT/assets/warehouse-ui-refine-v53438.js"
+          grep -q 'gpHydrateCartonSerialsFromInventory' "$ROOT/assets/warehouse-ui-refine-v53438.js"
           echo "root=$ROOT" >> "$GITHUB_OUTPUT"
 
       - name: Backup live core files
@@ -525,6 +528,8 @@ jobs:
           grep -q '/api/order/return' /tmp/livecheck/lib/warehouse-v53438.php
           grep -q 'warehouseDaily' /tmp/livecheck/assets/warehouse-v53438.js
           grep -q 'GP_UI_HOTFIX_20261010' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
+          grep -q 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
+          grep -q 'warehouse-ui-refine-v53438.js?v=53438ui5' /tmp/livecheck/app.html
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' /tmp/livecheck/index.php
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/livecheck/index.php

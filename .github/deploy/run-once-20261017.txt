@@ -21,3 +21,5 @@ Retry 8 (2026-10-17): I90-097 stayed allocated after in-warehouse-only unassign,
 Retry 9 (2026-10-17): run 39067294958 passed the carton guard after repairing 360 serials, then live verify failed on stale label strings (old 21mm / old Persian QR sentence). Align verify with carton-label v2 (32mm + new scantext). Do not bypass protected_carton_state_mismatch.
 
 Retry 10 (2026-10-17): warehouse submenu is clipped by the sidebar overflow, so مخزن cannot open. Keep carton guard; deploy the in-flow nav-group CSS.
+
+Retry 11 (2026-10-17): daily ledger is still baseline+movements so ghost product names go negative and today is not physical current; carton.serials stays empty after the I90 restore. Anchor the day grid to current and hydrate carton serials from inventory. Do not bypass protected_carton_state_mismatch.
