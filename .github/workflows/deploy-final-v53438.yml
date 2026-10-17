@@ -86,6 +86,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-sidebar-edge-profile-v2.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-sidebar-collapse-v3.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-sidebar-real-edge-v4.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-serial-filters-v1.py" "$ROOT"
           mkdir -p "$ROOT/assets"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.css" "$ROOT/assets/nav-morph-v1.css"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.js" "$ROOT/assets/nav-morph-v1.js"
@@ -96,6 +97,10 @@ jobs:
           cp "$GITHUB_WORKSPACE/assets/sidebar-collapse-v3.css" "$ROOT/assets/sidebar-collapse-v3.css"
           cp "$GITHUB_WORKSPACE/assets/sidebar-real-edge-v4.css" "$ROOT/assets/sidebar-real-edge-v4.css"
           cp "$GITHUB_WORKSPACE/assets/sidebar-real-edge-v4.js" "$ROOT/assets/sidebar-real-edge-v4.js"
+          cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v1.css" "$ROOT/assets/warehouse-serial-filters-v1.css"
+          cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v1.js" "$ROOT/assets/warehouse-serial-filters-v1.js"
+          node --check "$ROOT/assets/warehouse-serial-filters-v1.js"
+          grep -q "GHADIR_WAREHOUSE_SERIAL_FILTERS_GHOST_V1_20261017" "$ROOT/app.html"
           node --check "$ROOT/assets/sidebar-real-edge-v4.js"
           grep -q "GHADIR_SIDEBAR_REAL_EDGE_V4_20261017" "$ROOT/app.html"
           grep -q "GHADIR_DESKTOP_SIDEBAR_COLLAPSE_V3_20261017" "$ROOT/app.html"
@@ -296,6 +301,8 @@ jobs:
           put "$ROOT/assets/sidebar-collapse-v3.css" -o /assets/sidebar-collapse-v3.css
           put "$ROOT/assets/sidebar-real-edge-v4.css" -o /assets/sidebar-real-edge-v4.css
           put "$ROOT/assets/sidebar-real-edge-v4.js" -o /assets/sidebar-real-edge-v4.js
+          put "$ROOT/assets/warehouse-serial-filters-v1.css" -o /assets/warehouse-serial-filters-v1.css
+          put "$ROOT/assets/warehouse-serial-filters-v1.js" -o /assets/warehouse-serial-filters-v1.js
           put "$ROOT/assets/ghadir-contact-qr.png" -o /assets/ghadir-contact-qr.png
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
@@ -349,6 +356,8 @@ jobs:
           get /assets/sidebar-collapse-v3.css -o /tmp/livecheck/assets/sidebar-collapse-v3.css
           get /assets/sidebar-real-edge-v4.css -o /tmp/livecheck/assets/sidebar-real-edge-v4.css
           get /assets/sidebar-real-edge-v4.js -o /tmp/livecheck/assets/sidebar-real-edge-v4.js
+          get /assets/warehouse-serial-filters-v1.css -o /tmp/livecheck/assets/warehouse-serial-filters-v1.css
+          get /assets/warehouse-serial-filters-v1.js -o /tmp/livecheck/assets/warehouse-serial-filters-v1.js
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
           get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
           get /assets/ghadir-contact-qr.png -o /tmp/livecheck/assets/ghadir-contact-qr.png
@@ -368,6 +377,8 @@ jobs:
           grep -q "GHADIR_DESKTOP_SIDEBAR_COLLAPSE_V3_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_SIDEBAR_REAL_EDGE_V4_20261017" /tmp/livecheck/app.html
           node --check /tmp/livecheck/assets/sidebar-real-edge-v4.js
+          node --check /tmp/livecheck/assets/warehouse-serial-filters-v1.js
+          grep -q "GHADIR_WAREHOUSE_SERIAL_FILTERS_GHOST_V1_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_SIDEBAR_PROFILE_POLISH_V1_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_NAV_MORPH_V1_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_STAFF_LOGIN_OTP_V1_20261016" /tmp/livecheck/index.php
