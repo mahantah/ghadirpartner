@@ -3,3 +3,5 @@ This file triggers a one-time production release when merged to main.
 The temporary trigger in deploy-final-v53438.yml should be removed after the release is verified.
 
 Retry after repairing production build shell heredoc syntax. Attempt 2; do not deploy without CI.
+
+Retry 3: prior build stopped because legacy carton ticket CSS omitted `.t-center`. Support both template variants and validate with CI before release.

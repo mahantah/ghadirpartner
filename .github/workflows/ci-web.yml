@@ -845,3 +845,35 @@ jobs:
           PY
           bash -n /tmp/production-build-shell.sh
           echo 'Production build shell syntax and heredoc delimiters validated'
+
+  warehouse-carton-qr-css-compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Test warehouse label layout CSS variants
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import tempfile, subprocess, sys
+          script=Path('scripts/patch-carton-label-layout-v2.py').resolve()
+          for center in ('', '.t-center{height:12mm;}'):
+              with tempfile.TemporaryDirectory() as temp:
+                  path=Path(temp)/'lib'/'labels-v5348.php'
+                  path.parent.mkdir(parents=True)
+                  path.write_text('<?php\n'
+                    'function gp_carton_ticket_html($c)\n{\n'
+                    ' return \'<article class="ticket">old</article>\';\n}\n'
+                    'function gp_print_carton_labels_three_up($cartons,$profile)\n{\n'
+                    " echo '<style>.qr-mini{width:12mm}.qr-mini img{width:12mm}"
+                    +center+"</style>';\n}\n")
+                  subprocess.run([sys.executable,str(script),temp],check=True)
+                  output=path.read_text()
+                  assert 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' in output
+                  assert output.count('.t-center{')==1,output.count('.t-center{')
+                  assert '.t-center{height:32mm;' in output
+                  assert '.qr-mini .qr-static{width:32mm;' in output
+                  subprocess.run([sys.executable,str(script),temp],check=True)
+                  assert path.read_text()==output,'rerun modified label template'
+          PY
