@@ -878,6 +878,7 @@ jobs:
                   assert path.read_text()==output,'rerun modified label template'
           PY
 
+
   production-build-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -892,7 +893,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           src=Path('.github/workflows/deploy-final-v53438.yml').read_text()
           start=src.index('      - name: Build exact V5.3.4.38 + warehouse/returns patch')
           block=src.index('        run: |',start)+len('        run: |')
@@ -900,12 +900,13 @@ jobs:
           lines=src[block:end].strip('\n').splitlines()
           assert all(line.startswith('          ') or not line.strip() for line in lines)
           shell='\n'.join(line[10:] if line.strip() else '' for line in lines)+'\n'
-          # After each patch, report whether critical server marker is still present.
-          pattern=r'(?m)^(python3 "\$GITHUB_WORKSPACE/scripts/([^"]+)" "\$ROOT")$'
-          def instrument(match):
-              file=match.group(2)
-              return match.group(1)+'\n'+'if grep -q SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011 "$ROOT/index.php"; then echo "MARKER '+file+' PRESENT"; else echo "MARKER '+file+' MISSING"; fi'
-          shell=re.sub(pattern,instrument,shell)
+          for name in ('patch-serial-continuation-location.py','patch-order-serial-carton-display.py',
+            'patch-warehouse-supplier-qr.py','patch-supplier-canonical-v8.py',
+            'patch-purchase-supplier-v9.py','patch-performance-v1.py','patch-staff-login-otp-v1.py'):
+              command='python3 "$GITHUB_WORKSPACE/scripts/'+name+'" "$ROOT"'
+              diagnostic='\nif grep -Fq SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011 "$ROOT/index.php"; then echo "PRESENT after '+name+'"; else echo "MISSING after '+name+'"; fi'
+              assert command in shell,name
+              shell=shell.replace(command,command+diagnostic,1)
           Path('/tmp/release-build-integration.sh').write_text(shell)
           PY
           mkdir -p /tmp/release-build-output
