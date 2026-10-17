@@ -273,12 +273,27 @@ jobs:
           header('Content-Type: application/json; charset=utf-8');
           if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
           $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          $pdo=null;
           try{
+            require_once __DIR__.'/lib/protected-cartons.php';
             $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
-            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();if(!$r)throw new RuntimeException('state missing');
+            $pdo->beginTransaction();
+            $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1 FOR UPDATE")->fetch();if(!$r)throw new RuntimeException('state missing');
             $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
             $dir=__DIR__.'/storage/Backups';@mkdir($dir,0750,true);$name='ghadir-mysql-pre-exact-v53438-'.date('Ymd-His').'.json';
             if(file_put_contents($dir.'/'.$name,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE),LOCK_EX)===false)throw new RuntimeException('backup failed');
+            $repair=ghadir_protected_unassign_reserved($s,'I90-097');
+            $revision=(int)$r['revision'];
+            if(!empty($repair['changed'])){
+              $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+              if($encoded===false)throw new RuntimeException('encode failed');
+              $revision=$revision+1;
+              $checksum=hash('sha256',$encoded);
+              $st=$pdo->prepare('UPDATE ghadir_state SET state_json=?,revision=?,checksum=?,updated_at=NOW() WHERE id=1');
+              $st->execute([$encoded,$revision,$checksum]);
+              $st=$pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)');
+              $st->execute([$revision,$checksum,strlen($encoded)]);
+            }
             $wanted=['I90-097','I90-098','I90-099','I90-100','I90-101','I90-102','I90-103','I90-109','I90-110','I90-111','I90-112','I90-113','I90-114','I90-115','I90-116','I90-123','I90-124','I90-125'];
             $cart=[];foreach($s['cartons']??[] as $c)$cart[(string)($c['code']??'')]=$c;
             foreach($wanted as $code){
@@ -292,8 +307,10 @@ jobs:
                 throw new RuntimeException('target mismatch '.$code.' kind='.$kind.' expected=20 actual='.$actual.' free='.$free.' reserved='.$reserved);
               }
             }
-            echo json_encode(['ok'=>true,'revision'=>(int)$r['revision'],'backup'=>$name,'counts'=>['inventory'=>count($s['inventory']??[]),'cartons'=>count($s['cartons']??[]),'orders'=>count($s['orders']??[])]],JSON_UNESCAPED_UNICODE);
+            $pdo->commit();
+            echo json_encode(['ok'=>true,'revision'=>$revision,'backup'=>$name,'repair'=>$repair,'counts'=>['inventory'=>count($s['inventory']??[]),'cartons'=>count($s['cartons']??[]),'orders'=>count($s['orders']??[])]],JSON_UNESCAPED_UNICODE);
           }catch(Throwable $e){
+            if($pdo instanceof PDO&&$pdo->inTransaction())$pdo->rollBack();
             http_response_code(500);
             $msg=$e->getMessage();
             $carton=null;$kind=null;$actual=null;$free=null;$reserved=null;
@@ -334,11 +351,19 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$GITHUB_WORKSPACE/lib/protected-cartons.php" -o /lib/protected-cartons.php
           put "/tmp/$FILE" -o "/$FILE"
           bye
           EOF
           HTTP_STATUS="$(curl -sS --max-time 40 --output /tmp/ghp-preswitch-result.json --write-out '%{http_code}' "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
           python3 "$GITHUB_WORKSPACE/scripts/preswitch_safety.py" classify /tmp/ghp-preswitch-result.json "$HTTP_STATUS"
+          python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/ghp-preswitch-result.json'))
+          r=x.get('repair') or {}
+          if r:
+              print('I90-097 repair released=%s skipped_shipped=%s changed=%s'%(r.get('released'),r.get('skipped_shipped'),r.get('changed')))
+          PY
 
       - name: Deploy exact V5.3.4.38 core + add-on
         env:

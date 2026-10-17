@@ -205,6 +205,86 @@ function ghadir_protected_refuse_if_code(array $s, string $code, string $op): vo
     }
 }
 
+function ghadir_protected_unassign_reserved(array &$s, ?string $onlyCode = null): array {
+    $codes = $onlyCode !== null && $onlyCode !== ''
+        ? [strtoupper(trim($onlyCode))]
+        : ghadir_protected_carton_codes();
+    $released = 0;
+    $skippedShipped = 0;
+    $orders = [];
+    $serialsByOrder = [];
+    foreach ($codes as $code) {
+        if (!ghadir_is_protected_carton_code($code)) {
+            continue;
+        }
+        $carton = ghadir_protected_carton_lookup($s, $code);
+        if ($carton === null) {
+            continue;
+        }
+        $cid = (int)($carton['id'] ?? 0);
+        foreach ($s['inventory'] as &$iv) {
+            $linked = ((int)($iv['carton_id'] ?? 0) === $cid && $cid > 0)
+                || strcasecmp((string)($iv['carton_code'] ?? ''), $code) === 0;
+            if (!$linked || (int)($iv['order_id'] ?? 0) === 0) {
+                continue;
+            }
+            if ((int)($iv['warehouse_id'] ?? 0) < 1) {
+                $skippedShipped++;
+                continue;
+            }
+            $oid = (int)$iv['order_id'];
+            $on = (string)($iv['order_number'] ?? '');
+            $sn = strtoupper(trim((string)($iv['serial'] ?? '')));
+            $iv['order_id'] = 0;
+            $iv['order_number'] = '';
+            $released++;
+            if ($oid > 0) {
+                $orders[$oid] = $on !== '' ? $on : ('#'.$oid);
+                if ($sn !== '') {
+                    $serialsByOrder[$oid][$sn] = true;
+                }
+            }
+        }
+        unset($iv);
+    }
+    if (!isset($s['orders']) || !is_array($s['orders'])) {
+        $s['orders'] = [];
+    }
+    foreach ($s['orders'] as &$order) {
+        $oid = (int)($order['id'] ?? 0);
+        if ($oid < 1 || empty($serialsByOrder[$oid])) {
+            continue;
+        }
+        $remove = $serialsByOrder[$oid];
+        $n = 0;
+        if (!isset($order['items']) || !is_array($order['items'])) {
+            $order['items'] = [];
+        }
+        foreach ($order['items'] as &$item) {
+            $before = count($item['serials'] ?? []);
+            $item['serials'] = array_values(array_filter(
+                $item['serials'] ?? [],
+                static fn($sn) => empty($remove[strtoupper((string)$sn)])
+            ));
+            $n += $before - count($item['serials']);
+        }
+        unset($item);
+        if ($n > 0) {
+            $order['updated_at'] = function_exists('now') ? now() : date('Y-m-d H:i:s');
+            if (function_exists('hist')) {
+                hist($order, 'preswitch-guard', $n.' سریال کارتن محافظت‌شده آزاد شد');
+            }
+        }
+    }
+    unset($order);
+    return [
+        'changed' => $released > 0,
+        'released' => $released,
+        'skipped_shipped' => $skippedShipped,
+        'orders' => array_values(array_unique(array_values($orders))),
+    ];
+}
+
 function ghadir_protected_refuse_carton_id(array $s, int $cartonId, string $op): void {
     if ($cartonId < 1) {
         return;

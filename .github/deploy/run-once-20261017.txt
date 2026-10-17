@@ -13,3 +13,5 @@ Final deployment request after passing production-build-integration CI (17/17 ch
 Retry 5: preserve all database safety checks; classify and report the pre-switch HTTP 500 safely without revealing live database state, and only deploy if the required snapshot and guards pass.
 
 Retry 6 (2026-10-17): PR #36 is on main. Request a guarded production retry so the pre-switch probe can name the failing I90 carton with kind/counts. Do not bypass protected_carton_state_mismatch; deploy only if snapshot and carton guards pass.
+
+Retry 7 (2026-10-17): after backup, unassign in-warehouse reserved serials of I90-097 only, then re-run the existing carton guard. Shipped serials are left unchanged. Do not bypass protected_carton_state_mismatch.
