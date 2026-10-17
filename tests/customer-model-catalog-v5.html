@@ -1,0 +1,76 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<style>body{font:14px Tahoma,Arial;background:#f4f6f8}.card{padding:12px;background:white}.inv-serial-row{display:flex;gap:14px}.inv-group{display:block}</style></head><body>
+<section id="warehouse"><div class="card">مخزن</div></section>
+<section id="inventory"><div id="inventoryGroups"></div></section>
+<button type="button" data-tab="inventory" id="inventory-tab">سریال‌های مشتریان</button>
+<script>
+let INV=[{serial:'SN_I90',product:'دستگاه كارتخوان I90',added_at:'2026-10-17 12:30:00'}];
+let PROD=[];let ORD=[];let WH={cartons:[],inventory:[]};
+function jalaliDate(){return '1405/07/25'}
+function group(total,product,serial) {
+ let el=document.createElement('details');el.className='inv-group';el.open=true;
+ el.innerHTML='<summary>مشتری الف <span class="inv-count">'+total+' سریال</span></summary><div class="inv-detail">'+
+ '<div class="inv-serial-row"><div class="inv-product">'+product+'<div class="small">تأمین‌کننده: هما</div></div>'+
+ '<div class="inv-code"><b>SN:</b> '+serial+'</div></div></div>';
+ return el;
+}
+</script>
+<script src="../assets/warehouse-serial-filters-v5.js"></script>
+<div id="test-result">PENDING</div>
+<script>
+window.addEventListener('load',function(){
+ const out=document.getElementById('test-result'),groups=document.getElementById('inventoryGroups');
+ function ok(q,msg){if(!q)throw Error(msg)}
+ function names(){return Array.from(document.querySelector('#gp-inventory-filter-box [data-filter="model"]').options).map(o=>o.value)}
+ function run(){
+  try{
+   const sel=document.querySelector('#gp-inventory-filter-box [data-filter="model"]');
+   const box=document.getElementById('gp-inventory-filter-box');
+   ok(sel&&box,'model dropdown missing');
+   ok(names().some(n=>n.toLowerCase().includes('i90')),'starting I90 missing');
+   ok(!names().some(n=>n.toLowerCase().includes('i80')),'fixture should start with only I90');
+   groups.appendChild(group('۷','دستگاه كارتخوان I90','SN_I90'));
+   // /api/bootstrap arrives with master product catalog *after* UI init.
+   PROD=[
+    {name:'دستگاه كارتخوان I90',serial_required:true},
+    {name:'دستگاه كارتخوان I80',serial_required:true},
+    {name:'دستگاه كارتخوان AF-75',serial_required:1},
+    {name:'رول حرارتی',serial_required:false}
+   ];
+   ORD=[{id:12,items:[{product:'Verifone V400',serials:['VF-1234']},
+                       {product:'رول حرارتی',serials:[]}]}];
+   WH={cartons:[{code:'X1',product:'Sunmi P2'}],inventory:[]};
+   sel.dispatchEvent(new Event('focus'));
+   const options=names();
+   for(const name of ['I90','I80','AF-75','Verifone V400','Sunmi P2']) {
+      ok(options.some(x=>x.toLowerCase().includes(name.toLowerCase())),
+         'device model missing after catalog load: '+name+'; list='+options);
+   }
+   ok(options.filter(x=>x.toLowerCase().includes('i90')).length===1,
+      'duplicate I90 from catalog and inventory');
+   ok(!options.some(x=>x.includes('رول حرارتی')),
+      'non-serial product incorrectly included in device model options');
+   ok(groups.querySelector('.inv-count').textContent==='۷ سریال',
+      'native customer count unexpectedly modified');
+   const i90=options.find(x=>x.toLowerCase().includes('i90'));
+   sel.value=i90;sel.dispatchEvent(new Event('change',{bubbles:true}));
+   ok(groups.querySelector('.inv-serial-row').style.display!=='none','I90 serial wrongly filtered');
+   box.querySelector('.gp-reset-filter').click();
+   ok(groups.querySelector('.inv-count').textContent==='۷ سریال','native count not restored');
+   ok(groups.querySelector('.inv-serial-row').style.display!=='none','reset did not restore serial');
+   // Asynchronous addition of a new tracked product after initial catalog render.
+   PROD.push({name:'PAX A920',serial_required:'1'});
+   document.getElementById('inventory-tab').click();
+   setTimeout(function(){
+     try{
+      ok(names().includes('PAX A920'),'delayed serial-tracked model not refreshed');
+      ok(groups.querySelector('.inv-count').textContent==='۷ سریال',
+         'customer total changed after catalog refresh');
+      out.textContent='MODEL_CATALOG_V5_PASS';
+     }catch(e){out.textContent='MODEL_CATALOG_V5_FAIL '+e.message}
+   },160);
+  }catch(e){out.textContent='MODEL_CATALOG_V5_FAIL '+e.message}
+ }
+ setTimeout(run,100);
+});
+</script></body></html>
