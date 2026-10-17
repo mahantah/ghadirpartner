@@ -186,15 +186,15 @@
     var timer=null,wasOpen=nav.classList.contains('sidebar-open');
     function hideNow(){
       if(!nav.classList.contains('sidebar-open')){
-        nav.classList.add('gp-nav-fully-closed');
-        overlay?.classList.remove('visible');
+        if(!nav.classList.contains('gp-nav-fully-closed'))nav.classList.add('gp-nav-fully-closed');
+        if(overlay?.classList.contains('visible'))overlay.classList.remove('visible');
       }
     }
     function sync(){
       clearTimeout(timer);
       var open=nav.classList.contains('sidebar-open');
       if(open){
-        nav.classList.remove('gp-nav-fully-closed');
+        if(nav.classList.contains('gp-nav-fully-closed'))nav.classList.remove('gp-nav-fully-closed');
         wasOpen=true;
       }else if(wasOpen){
         // Keep exit transition visible, then remove the element completely.
@@ -206,7 +206,7 @@
     // flush the closed transform so opening still animates smoothly.
     toggle.addEventListener('click',function(){
       if(!nav.classList.contains('sidebar-open')){
-        nav.classList.remove('gp-nav-fully-closed');
+        if(nav.classList.contains('gp-nav-fully-closed'))nav.classList.remove('gp-nav-fully-closed');
         void nav.offsetWidth;
       }
     },true);
