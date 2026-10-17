@@ -33,8 +33,14 @@ if pf_end<0: raise SystemExit('gp_print_carton_labels_three_up end not found')
 seg=s[pf:pf_end+3]
 seg,n=re.subn(r'\.qr-mini\{[^}]*\}\.qr-mini [^{}]+\{[^}]*\}', '.qr-mini{position:absolute;top:1.8mm;left:2.2mm;width:32mm;height:32mm;display:flex;align-items:center;justify-content:center;background:#fff}.qr-mini .qr-static{width:32mm;height:32mm;display:block;object-fit:contain;image-rendering:pixelated}', seg, count=1)
 if n!=1: raise SystemExit('carton QR CSS block not found')
-seg,n=re.subn(r'\.t-center\{[^}]*\}', '.t-center{height:32mm;margin:0 13mm 0 34mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}', seg, count=1)
-if n!=1: raise SystemExit('t-center CSS block not found')
+center_css='.t-center{height:32mm;margin:0 13mm 0 34mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}'
+seg,n=re.subn(r'\\.t-center\\{[^}]*\\}', center_css, seg, count=1)
+if n!=1:
+    # Older label templates may omit the .t-center rule entirely.
+    # The rebuilt ticket now uses the class, so insert the style next to the QR.
+    qr_end=re.search(r'\\.qr-mini \\.qr-static\\{[^}]*\\}', seg)
+    if not qr_end: raise SystemExit('carton QR CSS insertion point not found')
+    seg=seg[:qr_end.end()]+center_css+seg[qr_end.end():]
 s=s[:pf]+seg+s[pf_end+3:]
 labels.write_text(s,encoding='utf-8')
 print('carton contact QR v3 applied')
