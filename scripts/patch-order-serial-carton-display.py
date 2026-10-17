@@ -100,7 +100,8 @@ if FRONT_MARK not in a:
     if end<0:
         raise SystemExit("orderItemSerials anchor not found")
 
-    block=r'''/* ORDER_SERIAL_CARTON_DISPLAY_FIX_20261011 */
+    block=r'''/* SERIAL_LOCATION_DISPLAY_FIX_20261011 */
+/* ORDER_SERIAL_CARTON_DISPLAY_FIX_20261011 */
 const ORDER_SERIAL_META=new Map();
 async function ensureOrderSerialMeta(orderId){
   const id=Number(orderId||0);if(!id)return;

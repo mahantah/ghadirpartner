@@ -43,6 +43,22 @@ if($p==='/api/inventory'&&$m==='GET'){{auth();out(db(false,function($s){{
     unset($iv);return $rows;
 }}));}}
 """
+# Canonical GET replacement spans the preceding serial-inventory fix marker.
+# Retain the marker in the new route, and validate the actual serial warehouse
+# assignment survived: it is part of the warehouse continuity contract.
+serial_marker="SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011"
+preserve_serial_marker=serial_marker in s[st:en]
+if preserve_serial_marker:
+    if "'warehouse_id'=>1" not in s:
+        raise SystemExit("Serial warehouse assignment was lost before canonical supplier rewrite")
+    inv_get="/* "+serial_marker+" */\n"+inv_get
+# The earlier serial-continuation patch leaves its marker immediately before
+# the /api/scan route. Replacing the inventory GET slice must not drop it.
+# Its actual inventory modifications are elsewhere in the file.
+old_inv_section=s[st:en]
+serial_marker='/* SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011 */'
+if serial_marker in old_inv_section and serial_marker not in inv_get:
+    inv_get += serial_marker+'\n'
 s=s[:st]+inv_get+s[en:]
 
 rs=s.find("if($p==='/api/warehouse/import'||$p==='/api/warehouse/import-file')")
