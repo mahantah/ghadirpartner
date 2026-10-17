@@ -11,3 +11,5 @@ Release retry 4 (2026-10-17): full 15+ job CI and exact production build preflig
 Final deployment request after passing production-build-integration CI (17/17 checks).
 
 Retry 5: preserve all database safety checks; classify and report the pre-switch HTTP 500 safely without revealing live database state, and only deploy if the required snapshot and guards pass.
+
+Retry 6 (2026-10-17): PR #36 is on main. Request a guarded production retry so the pre-switch probe can name the failing I90 carton with kind/counts. Do not bypass protected_carton_state_mismatch; deploy only if snapshot and carton guards pass.
