@@ -1,0 +1,71 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<style>body{font:14px Tahoma} .inv-group{display:block}.inv-serial-row{display:flex;gap:8px}.inv-code{padding:4px}</style>
+</head><body>
+<section id="warehouse"><div class="card"><h3>مخزن کارتن‌ها</h3></div></section>
+<section id="inventory"><div class="card">سریال مشتریان</div><div id="inventoryGroups"></div></section>
+<button id="inventoryTab" data-tab="inventory">سریال مشتریان</button>
+<script>
+let INV=[];
+let WH={cartons:[],inventory:[]};
+function jalaliDate(d){return '1405/07/17';}
+</script>
+<script src="../assets/warehouse-serial-filters-v3.js"></script>
+<div id="test-result">PENDING</div>
+<script>
+window.addEventListener('load',function(){
+ const result=document.getElementById('test-result');
+ const groups=document.getElementById('inventoryGroups');
+ function assert(x,message){if(!x)throw Error(message)}
+ function mkGroup(rows){
+  const el=document.createElement('details');el.open=true;el.className='inv-group';
+  el.innerHTML='<summary>مشتری نمونه <span class="inv-count">0</span></summary><div class="inv-detail">'+rows+'</div>';
+  return el;
+ }
+ function row(product,sn,supplier){
+   return '<div class="inv-serial-row"><div class="inv-product">'+product+
+     (supplier?'<span class="gp-inv-supplier"> تأمین‌کننده / '+supplier+'</span>':'')+
+     '</div><div class="inv-code"><b>SN:</b> '+sn+'</div></div>';
+ }
+ function verify(){
+ try{
+   const sel=document.querySelector('#gp-inventory-filter-box [data-filter="model"]');
+   assert(sel,'Customer serial model selector missing');
+   assert(sel.options.length===1,'The initial empty inventory should not contain invented models');
+   // Simulate async /api/inventory result rendered after this UI module loads.
+   groups.appendChild(mkGroup(row('PAX A920','SN001','Homa')+row('Newland N910','SN002','Homa')));
+   setTimeout(function(){
+     try{
+       const options=Array.from(sel.options).map(o=>o.value);
+       assert(options.includes('PAX A920')&&options.includes('Newland N910'),
+              'Models not populated from asynchronously rendered customer serials: '+options);
+       assert(options.length===3,'Unexpected model options from a supplier badge');
+       sel.value='PAX A920';sel.dispatchEvent(new Event('change',{bubbles:true}));
+       const rows=groups.querySelectorAll('.inv-serial-row');
+       assert(rows[0].style.display!=='none','Selected model serial hidden');
+       assert(rows[1].style.display==='none','Other model not filtered');
+       // Restore selection, and simulate a new server inventory snapshot where
+       // the app updates its data first and re-renders later.
+       sel.value='';sel.dispatchEvent(new Event('change',{bubbles:true}));
+       INV=[{serial:'SN003',product:'Verifone V400',added_at:'2026-10-17 09:10:00'}];
+       sel.dispatchEvent(new Event('focus'));
+       assert(Array.from(sel.options).some(o=>o.value==='Verifone V400'),
+              'Model options not updated when dropdown is focused');
+       // Simulate user navigating back after another asynchronous render.
+       groups.appendChild(mkGroup(row('Sunmi P2','SN004','Vendor')));
+       setTimeout(function(){
+         try{
+           const names=Array.from(sel.options).map(o=>o.value);
+           assert(names.includes('Sunmi P2')&&names.includes('PAX A920')&&names.includes('Newland N910'),
+                  'Models lost during async list refresh: '+names);
+           assert(!Array.from(groups.querySelectorAll('.inv-group')).some(g=>g.style.display==='none'),
+                  'Customer groups unexpectedly hidden without a filter');
+           result.textContent='CUSTOMER_MODELS_V3_PASS';
+         }catch(e){result.textContent='CUSTOMER_MODELS_V3_FAIL '+e.message}
+       },120);
+     }catch(e){result.textContent='CUSTOMER_MODELS_V3_FAIL '+e.message}
+   },120);
+ }catch(e){result.textContent='CUSTOMER_MODELS_V3_FAIL '+e.message}
+ }
+ setTimeout(verify,80);
+});
+</script></body></html>

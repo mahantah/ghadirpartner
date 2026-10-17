@@ -1,0 +1,69 @@
+name: Customer serial model dropdown regression
+on:
+  pull_request:
+    paths:
+      - 'assets/warehouse-serial-filters-v3.js'
+      - 'scripts/patch-warehouse-serial-filters-v3.py'
+      - 'tests/customer-serial-model-dropdown-v3.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-customer-serial-model-dropdown-v3.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Syntax and safe production build integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-serial-filters-v3.js
+          python3 -m py_compile scripts/patch-warehouse-serial-filters-v3.py
+          python3 - <<'PY'
+          from pathlib import Path
+          js=Path('assets/warehouse-serial-filters-v3.js').read_text()
+          assert 'GHADIR_CUSTOMER_SERIAL_MODEL_OPTIONS_V3_20261017' in js
+          assert "updateInventoryModelChoices();" in js
+          assert 'groups.querySelectorAll(\'.inv-serial-row .inv-product\')' in js
+          assert "shown=!active || matches(" in js
+          print('Customer serial visibility and model source retained')
+          PY
+          mkdir -p /tmp/web-build
+          cp app.html /tmp/web-build/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/web-build
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/web-build
+          python3 scripts/patch-nav-morph-v1.py /tmp/web-build
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/web-build
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/web-build
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/web-build
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/web-build
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/web-build
+          python3 scripts/patch-warehouse-serial-filters-v2.py /tmp/web-build
+          python3 scripts/patch-warehouse-serial-filters-v3.py /tmp/web-build
+          cp /tmp/web-build/app.html /tmp/first-build.html
+          python3 scripts/patch-warehouse-serial-filters-v3.py /tmp/web-build
+          cmp /tmp/first-build.html /tmp/web-build/app.html
+          grep -Fq 'GHADIR_CUSTOMER_SERIAL_MODEL_OPTIONS_V3_20261017' /tmp/web-build/app.html
+          grep -Fq '/assets/warehouse-serial-filters-v3.js?v=20261017m3' /tmp/web-build/app.html
+          ! grep -Fq '/assets/warehouse-serial-filters-v2.js?v=20261017f2' /tmp/web-build/app.html
+          for m in 'id="inventoryGroups"' 'id="warehouseBody"' 'data-tab="inventory"' 'data-tab="customers"' 'id="logoutbtn"'; do
+            grep -Fq "$m" /tmp/web-build/app.html
+          done
+      - name: Test dynamically loaded serial models in desktop and mobile browsers
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '414,896' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=3500 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/customer-serial-model-dropdown-v3.html" > /tmp/customer-model-dropdown.html 2>/tmp/chrome.log
+            if ! grep -Fq 'CUSTOMER_MODELS_V3_PASS' /tmp/customer-model-dropdown.html; then
+              grep -o 'CUSTOMER_MODELS_V3_FAIL[^<]*' /tmp/customer-model-dropdown.html || true
+              tail -c 1300 /tmp/customer-model-dropdown.html
+              exit 1
+            fi
+            echo "Live model selector updates after async loading at $size"
+          done
