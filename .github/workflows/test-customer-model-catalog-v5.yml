@@ -1,0 +1,73 @@
+name: Customer serial models from registered product catalog
+on:
+  pull_request:
+    paths:
+      - 'assets/warehouse-serial-filters-v5.js'
+      - 'scripts/patch-customer-model-catalog-v5.py'
+      - 'tests/customer-model-catalog-v5.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-customer-model-catalog-v5.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Syntax and canonical production patch compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-serial-filters-v5.js
+          python3 -m py_compile scripts/patch-customer-model-catalog-v5.py
+          python3 - <<'PY'
+          from pathlib import Path
+          code=Path('assets/warehouse-serial-filters-v5.js').read_text()
+          assert 'GHADIR_CUSTOMER_MODEL_CATALOG_V5_20261017' in code
+          assert "typeof PROD!=='undefined'" in code
+          assert "serial_required" in code
+          assert "typeof INV!=='undefined'" in code
+          assert 'updateInventoryModelChoices' in code
+          assert 'data-gp-native-count' in code
+          print('Model sources and native customer serial counts preserved')
+          PY
+          mkdir -p /tmp/built-ui
+          cp app.html /tmp/built-ui/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/built-ui
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/built-ui
+          python3 scripts/patch-nav-morph-v1.py /tmp/built-ui
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/built-ui
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/built-ui
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/built-ui
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/built-ui
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/built-ui
+          python3 scripts/patch-warehouse-serial-filters-v2.py /tmp/built-ui
+          python3 scripts/patch-warehouse-serial-filters-v3.py /tmp/built-ui
+          python3 scripts/patch-customer-serial-counts-v4.py /tmp/built-ui
+          python3 scripts/patch-customer-model-catalog-v5.py /tmp/built-ui
+          cp /tmp/built-ui/app.html /tmp/once.html
+          python3 scripts/patch-customer-model-catalog-v5.py /tmp/built-ui
+          cmp /tmp/once.html /tmp/built-ui/app.html
+          grep -Fq 'GHADIR_CUSTOMER_MODEL_CATALOG_V5_20261017' /tmp/once.html
+          grep -Fq '/assets/warehouse-serial-filters-v5.js?v=20261017m5' /tmp/once.html
+          ! grep -Fq '/assets/warehouse-serial-filters-v4.js?v=20261017c4' /tmp/once.html
+          for mark in 'id="inventoryGroups"' 'data-tab="inventory"' 'id="warehouseBody"' 'id="logoutbtn"' 'data-tab="customers"'; do
+            grep -Fq "$mark" /tmp/once.html
+          done
+      - name: Browser regression at phone and desktop widths
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '414,896' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=4500 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/customer-model-catalog-v5.html" > /tmp/catalog-v5-result.html 2>/tmp/chrome.log
+            if ! grep -Fq 'MODEL_CATALOG_V5_PASS' /tmp/catalog-v5-result.html; then
+              grep -o 'MODEL_CATALOG_V5_FAIL[^<]*' /tmp/catalog-v5-result.html || true
+              tail -c 1300 /tmp/catalog-v5-result.html
+              exit 1
+            fi
+            echo "Product catalog models (I80, AF-75), warehouse and order models passed at $size"
+          done
