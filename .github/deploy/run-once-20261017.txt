@@ -7,3 +7,5 @@ Retry after repairing production build shell heredoc syntax. Attempt 2; do not d
 Retry 3: prior build stopped because legacy carton ticket CSS omitted `.t-center`. Support both template variants and validate with CI before release.
 
 Release retry 4 (2026-10-17): full 15+ job CI and exact production build preflight passed at commit b2cfd53f852380818a211088a348ed850388340c. Run deployment on merge; retain existing backup, MySQL snapshot and rollback safeguards.
+
+Final deployment request after passing production-build-integration CI (17/17 checks).
