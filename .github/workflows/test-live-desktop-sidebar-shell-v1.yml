@@ -1,0 +1,72 @@
+name: Desktop legacy 282px sidebar shell regression
+on:
+  pull_request:
+    paths:
+      - 'assets/remove-legacy-desktop-sidebar-shell-v1.css'
+      - 'scripts/patch-remove-legacy-desktop-sidebar-shell-v1.py'
+      - 'scripts/test-live-desktop-sidebar-shell-v1.py'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-live-desktop-sidebar-shell-v1.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate CSS and repeatable production patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/patch-remove-legacy-desktop-sidebar-shell-v1.py
+          python3 -m py_compile scripts/test-live-desktop-sidebar-shell-v1.py
+          python3 - <<'PY'
+          from pathlib import Path
+          css=Path('assets/remove-legacy-desktop-sidebar-shell-v1.css').read_text()
+          assert css.count('{')==css.count('}')
+          for marker in ('min-width:761px','position:static!important','background:transparent!important',
+                         'max-width:0!important','margin:0!important','sidebar-open'):
+              assert marker in css,marker
+          print("Desktop shell CSS and navigation preservation checks OK")
+          PY
+          mkdir -p /tmp/built-web
+          cp app.html /tmp/built-web/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/built-web
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/built-web
+          python3 scripts/patch-nav-morph-v1.py /tmp/built-web
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/built-web
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/built-web
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/built-web
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/built-web
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/built-web
+          python3 scripts/patch-warehouse-serial-filters-v2.py /tmp/built-web
+          python3 scripts/patch-warehouse-serial-filters-v3.py /tmp/built-web
+          python3 scripts/patch-customer-serial-counts-v4.py /tmp/built-web
+          python3 scripts/patch-customer-model-catalog-v5.py /tmp/built-web
+          python3 scripts/patch-remove-legacy-desktop-sidebar-shell-v1.py /tmp/built-web
+          cp /tmp/built-web/app.html /tmp/once.html
+          python3 scripts/patch-remove-legacy-desktop-sidebar-shell-v1.py /tmp/built-web
+          cmp /tmp/once.html /tmp/built-web/app.html
+          grep -Fq 'GHADIR_REMOVE_LEGACY_DESKTOP_SIDEBAR_SHELL_V1_20261017' /tmp/once.html
+          for marker in 'data-tab="orders"' 'data-tab="inventory"' 'id="logoutbtn"' 'id="inventoryGroups"' 'id="warehouseBody"'; do
+            grep -Fq "$marker" /tmp/once.html
+          done
+      - name: Reproduce screenshot issue using live CSS and verify actual browser geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 3 -fsSL --max-time 30 'https://ghadirpartner.ir/app.html?check=282px' -o /tmp/live-app.html
+          python3 scripts/test-live-desktop-sidebar-shell-v1.py /tmp/live-app.html "$GITHUB_WORKSPACE" /tmp/real-live-sidebar-fixture.html
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '900,850' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=3000 \
+              --dump-dom file:///tmp/real-live-sidebar-fixture.html > /tmp/live-shell-dom.html 2>/tmp/chrome.log
+            if ! grep -Fq 'LEGACY_SHELL_FIXED_PASS' /tmp/live-shell-dom.html; then
+              grep -o 'LEGACY_SHELL_FIXED_FAIL[^<]*' /tmp/live-shell-dom.html || true
+              tail -c 1400 /tmp/live-shell-dom.html
+              exit 1
+            fi
+            echo "Live deployed CSS: 282px permanent navy shell eliminated at $size, menu retained"
+          done
