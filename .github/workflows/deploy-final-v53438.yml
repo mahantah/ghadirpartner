@@ -94,6 +94,8 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-supplier-canonical-v8.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-purchase-supplier-v9.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-retail-transfer-detach-carton-v1.py" "$ROOT"
+          cp "$GITHUB_WORKSPACE/lib/protected-cartons.php" "$ROOT/lib/protected-cartons.php"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-protected-carton-ops-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-ui-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-mobile-menu-overlay-v2.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-nav-morph-v1.py" "$ROOT"
@@ -165,6 +167,9 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' "$ROOT/app.html"
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' "$ROOT/index.php"
           { grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' "$ROOT/index.php" || grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' "$ROOT/lib/warehouse-v53438.php"; }
+          grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' "$ROOT/index.php"
+          grep -q 'ghadir_protected_should_detach_retail' "$ROOT/index.php"
+          php -l "$ROOT/lib/protected-cartons.php"
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' "$ROOT/app.html"
           grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_V9_20261015' "$ROOT/index.php"
           grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_UI_V9_20261015' "$ROOT/app.html"
@@ -275,13 +280,28 @@ jobs:
             if(file_put_contents($dir.'/'.$name,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE),LOCK_EX)===false)throw new RuntimeException('backup failed');
             $wanted=['I90-097','I90-098','I90-099','I90-100','I90-101','I90-102','I90-103','I90-109','I90-110','I90-111','I90-112','I90-113','I90-114','I90-115','I90-116','I90-123','I90-124','I90-125'];
             $cart=[];foreach($s['cartons']??[] as $c)$cart[(string)($c['code']??'')]=$c;
-            foreach($wanted as $code){if(!isset($cart[$code]))throw new RuntimeException('missing '.$code);$cid=(int)$cart[$code]['id'];$rows=array_values(array_filter($s['inventory']??[],fn($x)=>(int)($x['carton_id']??0)===$cid||(string)($x['carton_code']??'')===$code));$free=count(array_filter($rows,fn($x)=>(int)($x['order_id']??0)===0));if(count($rows)!==20||$free!==20)throw new RuntimeException('target mismatch '.$code);}
+            foreach($wanted as $code){
+              if(!isset($cart[$code]))throw new RuntimeException('missing '.$code);
+              $cid=(int)$cart[$code]['id'];
+              $rows=array_values(array_filter($s['inventory']??[],fn($x)=>(int)($x['carton_id']??0)===$cid||(string)($x['carton_code']??'')===$code));
+              $free=count(array_filter($rows,fn($x)=>(int)($x['order_id']??0)===0));
+              $actual=count($rows);$reserved=$actual-$free;
+              if($actual!==20||$free!==20){
+                $kind=$actual!==20&&$reserved>0?'count_and_allocated':($actual!==20?'count_mismatch':'allocated');
+                throw new RuntimeException('target mismatch '.$code.' kind='.$kind.' expected=20 actual='.$actual.' free='.$free.' reserved='.$reserved);
+              }
+            }
             echo json_encode(['ok'=>true,'revision'=>(int)$r['revision'],'backup'=>$name,'counts'=>['inventory'=>count($s['inventory']??[]),'cartons'=>count($s['cartons']??[]),'orders'=>count($s['orders']??[])]],JSON_UNESCAPED_UNICODE);
           }catch(Throwable $e){
             http_response_code(500);
             $msg=$e->getMessage();
-            $carton=null;
+            $carton=null;$kind=null;$actual=null;$free=null;$reserved=null;
             if(preg_match('/\b(I90-\d{3})\b/i',$msg,$m))$carton=strtoupper($m[1]);
+            if(preg_match('/kind=([a-z_]+)/i',$msg,$m))$kind=strtolower($m[1]);
+            if(preg_match('/actual=(\d+)/',$msg,$m))$actual=(int)$m[1];
+            if(preg_match('/free=(\d+)/',$msg,$m))$free=(int)$m[1];
+            if(preg_match('/reserved=(\d+)/',$msg,$m))$reserved=(int)$m[1];
+            if(str_starts_with(strtolower($msg),'missing '))$kind=$kind?:'missing';
             $low=strtolower($msg);
             $guard=(str_contains($low,'target mismatch')||str_contains($low,'missing i90-'))
               ?'protected_carton_state_mismatch'
@@ -289,7 +309,7 @@ jobs:
               :((str_contains($low,'sqlstate')||str_contains($low,'pdo'))?'database_error'
               :((str_contains($low,'state missing')||str_contains($low,'state invalid'))?'database_state_missing_or_invalid':'server_precheck_error')));
             // Sanitized fields only: no state dump, serials, or credentials.
-            echo json_encode(['ok'=>false,'error'=>$msg,'guard'=>$guard,'carton'=>$carton],JSON_UNESCAPED_UNICODE);
+            echo json_encode(['ok'=>false,'error'=>$msg,'guard'=>$guard,'carton'=>$carton,'kind'=>$kind,'expected'=>20,'actual'=>$actual,'free'=>$free,'reserved'=>$reserved],JSON_UNESCAPED_UNICODE);
           }
           PHP
           python3 - <<PY
@@ -338,6 +358,7 @@ jobs:
           # Dependencies first: never expose a new index.php before its OTP module exists.
           put "$ROOT/lib/storage.php" -o /lib/storage.php
           put "$ROOT/lib/staff-login-otp.php" -o /lib/staff-login-otp.php
+          put "$ROOT/lib/protected-cartons.php" -o /lib/protected-cartons.php
           put "$ROOT/lib/warehouse-v53438.php" -o /lib/warehouse-v53438.php
           put "$ROOT/lib/labels-v5348.php" -o /lib/labels-v5348.php
           put "$ROOT/assets/staff-login-otp.css" -o /assets/staff-login-otp.css
@@ -427,6 +448,7 @@ jobs:
           get /assets/order-action-burger-v1.css -o /tmp/livecheck/assets/order-action-burger-v1.css
           get /assets/order-action-burger-v1.js -o /tmp/livecheck/assets/order-action-burger-v1.js
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
+          get /lib/protected-cartons.php -o /tmp/livecheck/lib/protected-cartons.php
           get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
           get /assets/ghadir-contact-qr.png -o /tmp/livecheck/assets/ghadir-contact-qr.png
           get /assets/warehouse-v53438.js -o /tmp/livecheck/assets/warehouse-v53438.js
@@ -479,6 +501,8 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' /tmp/livecheck/index.php
           { grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/livecheck/index.php || grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/livecheck/lib/warehouse-v53438.php; }
+          grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' /tmp/livecheck/index.php
+          php -l /tmp/livecheck/lib/protected-cartons.php
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_V9_20261015' /tmp/livecheck/index.php
           grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_UI_V9_20261015' /tmp/livecheck/app.html

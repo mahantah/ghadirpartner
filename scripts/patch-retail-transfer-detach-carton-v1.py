@@ -76,7 +76,7 @@ if($p==='/api/warehouse/transfer'&&$m==='POST'){
             $oldCartonId=(int)($iv['carton_id']??0);
             $oldCartonCode=trim((string)($iv['carton_code']??''));
 
-            if($from===1&&$to===2&&$oldCartonId>0){
+            if($from===1&&$to===2&&$oldCartonId>0&&!(function_exists('ghadir_is_protected_carton_code')&&ghadir_is_protected_carton_code($oldCartonCode!==''?$oldCartonCode:$code))){
                 if(trim((string)($iv['supplier']??''))===''&&!empty($cartonSupplier[$oldCartonId]))
                     $iv['supplier']=$cartonSupplier[$oldCartonId];
 
