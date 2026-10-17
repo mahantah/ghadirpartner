@@ -1,0 +1,67 @@
+/* GHADIR_DESKTOP_SIDEBAR_COLLAPSE_V3_20261017
+   Fix desktop/mobile sidebar stuck open while hamburger morphs.
+   Legacy stylesheet sets .topnav:not(.mobile-open) transform regardless of
+   sidebar-open state; these rules reflect the actual .sidebar-open class.
+   Do not change data-tab routes, access rules or account actions.
+*/
+#app > header .topnav:not(.sidebar-open),
+#app > header .topnav:not(.mobile-open):not(.sidebar-open) {
+  position:fixed!important;
+  right:0!important;
+  left:auto!important;
+  transform:translate3d(110%,0,0)!important;
+  -webkit-transform:translate3d(110%,0,0)!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  transition:transform .30s cubic-bezier(.22,.8,.22,1),
+             -webkit-transform .30s cubic-bezier(.22,.8,.22,1),
+             visibility 0s linear .30s!important;
+}
+#app > header .topnav.sidebar-open,
+#app > header .topnav.sidebar-open:not(.mobile-open) {
+  position:fixed!important;
+  right:0!important;
+  left:auto!important;
+  transform:translate3d(0,0,0)!important;
+  -webkit-transform:translate3d(0,0,0)!important;
+  visibility:visible!important;
+  pointer-events:auto!important;
+  transition:transform .30s cubic-bezier(.22,.8,.22,1),
+             -webkit-transform .30s cubic-bezier(.22,.8,.22,1),
+             visibility 0s linear 0s!important;
+}
+#app > header .nav-toggle.gp-nav-morph {
+  z-index:210!important;
+}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="false"]{
+  right:10px!important;
+}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"]{
+  right:calc(min(310px,88vw) - 22px)!important;
+}
+#app .nav-overlay:not(.visible) {
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+#app .nav-overlay.visible {
+  opacity:1!important;
+  visibility:visible!important;
+  pointer-events:auto!important;
+}
+@media(max-width:760px){
+  #app > header .topnav.sidebar-open,
+  #app > header .topnav:not(.sidebar-open) {
+    width:min(330px,88vw)!important;
+  }
+  #app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] {
+    right:calc(min(330px,88vw) - 22px)!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  #app > header .topnav,
+  #app > header .topnav.sidebar-open,
+  #app > header .topnav:not(.sidebar-open) {
+    transition:none!important;
+  }
+}
