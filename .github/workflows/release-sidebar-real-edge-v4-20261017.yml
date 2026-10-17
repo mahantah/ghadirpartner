@@ -1,0 +1,115 @@
+name: Release real-edge hamburger icon, no backplate (one-time)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-sidebar-real-edge-v4-20261017.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: "${{ github.event.head_commit.message == 'release: apply real-edge menu icon 2026-10-17' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install FTPS and verification tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp curl nodejs
+      - name: Preserve live file and prepare restricted UI patch
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          mkdir -p "$RUNNER_TEMP/edge-v4-before" "$RUNNER_TEMP/edge-v4-after"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o "$RUNNER_TEMP/edge-v4-before/app.html"
+          bye
+          EOF
+          test -s "$RUNNER_TEMP/edge-v4-before/app.html"
+          cp "$RUNNER_TEMP/edge-v4-before/app.html" "$RUNNER_TEMP/edge-v4-after/app.html"
+          for marker in 'GHADIR_NAV_MORPH_V1_20261017' 'GHADIR_SIDEBAR_EDGE_PROFILE_V2_20261017' 'GHADIR_DESKTOP_SIDEBAR_COLLAPSE_V3_20261017' 'GHADIR_LOGIN_STARTUP_SPLASH_V1_20261017' 'GHADIR_STAFF_LOGIN_OTP_UI_V1_20261016'; do
+            grep -Fq "$marker" "$RUNNER_TEMP/edge-v4-after/app.html"
+          done
+          python3 scripts/patch-sidebar-real-edge-v4.py "$RUNNER_TEMP/edge-v4-after"
+          grep -Fq 'GHADIR_SIDEBAR_REAL_EDGE_V4_20261017' "$RUNNER_TEMP/edge-v4-after/app.html"
+          grep -Fq '/assets/sidebar-real-edge-v4.css?v=20261017r1' "$RUNNER_TEMP/edge-v4-after/app.html"
+          grep -Fq '/assets/sidebar-real-edge-v4.js?v=20261017r1' "$RUNNER_TEMP/edge-v4-after/app.html"
+          node --check assets/sidebar-real-edge-v4.js
+          for marker in 'id="login"' 'data-tab="orders"' 'data-tab="warehouse"' 'data-tab="customers"' 'id="changePasswordBtn"' 'id="logoutbtn"'; do
+            grep -Fq "$marker" "$RUNNER_TEMP/edge-v4-after/app.html"
+          done
+      - name: Upload only sidebar UI and validate live, revert on failure
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          DEPLOY_STARTED=0
+          rollback() {
+            status=$?
+            if [[ "$DEPLOY_STARTED" == "1" ]]; then
+              echo 'Menu edge V4 release failed checks; restoring previous live app.'
+              lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$RUNNER_TEMP/edge-v4-before/app.html" -o /app.html
+          rm -f /assets/sidebar-real-edge-v4.css
+          rm -f /assets/sidebar-real-edge-v4.js
+          bye
+          EOF
+            fi
+            exit "$status"
+          }
+          trap rollback ERR
+          DEPLOY_STARTED=1
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "assets/sidebar-real-edge-v4.css" -o /assets/sidebar-real-edge-v4.css
+          put "assets/sidebar-real-edge-v4.js" -o /assets/sidebar-real-edge-v4.js
+          put "$RUNNER_TEMP/edge-v4-after/app.html" -o /app.html
+          bye
+          EOF
+          curl -fsS --retry 3 --max-time 25 -H 'Cache-Control: no-cache' -o "$RUNNER_TEMP/live.html" 'https://ghadirpartner.ir/app.html'
+          grep -Fq 'GHADIR_SIDEBAR_REAL_EDGE_V4_20261017' "$RUNNER_TEMP/live.html"
+          grep -Fq '/assets/sidebar-real-edge-v4.css?v=20261017r1' "$RUNNER_TEMP/live.html"
+          grep -Fq '/assets/sidebar-real-edge-v4.js?v=20261017r1' "$RUNNER_TEMP/live.html"
+          curl -fsS --retry 3 --max-time 25 -H 'Cache-Control: no-cache' -o "$RUNNER_TEMP/live-edge-v4.css" 'https://ghadirpartner.ir/assets/sidebar-real-edge-v4.css?v=20261017r1'
+          grep -Fq 'GHADIR_SIDEBAR_REAL_EDGE_V4_20261017' "$RUNNER_TEMP/live-edge-v4.css"
+          curl -fsS --retry 3 --max-time 25 -H 'Cache-Control: no-cache' -o "$RUNNER_TEMP/live-edge-v4.js" 'https://ghadirpartner.ir/assets/sidebar-real-edge-v4.js?v=20261017r1'
+          grep -Fq 'GHADIR_SIDEBAR_REAL_EDGE_V4_20261017' "$RUNNER_TEMP/live-edge-v4.js"
+          node --check "$RUNNER_TEMP/live-edge-v4.js"
+          curl -fsS --retry 3 --max-time 25 -o "$RUNNER_TEMP/health.json" 'https://ghadirpartner.ir/healthz'
+          grep -Fq 'V5.3.4.38' "$RUNNER_TEMP/health.json"
+          DEPLOY_STARTED=0
+          trap - ERR
+          echo 'Measured-edge menu icon is published with no backing plate. CSS/JS, app and health check passed.'
