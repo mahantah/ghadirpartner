@@ -167,9 +167,9 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' "$ROOT/app.html"
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' "$ROOT/index.php"
           { grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' "$ROOT/index.php" || grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' "$ROOT/lib/warehouse-v53438.php"; }
-          grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' "$ROOT/index.php"
-          grep -q 'ghadir_protected_transfer_guard' "$ROOT/index.php"
-          grep -q 'ghadir_protected_should_detach_retail' "$ROOT/index.php"
+          { grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' "$ROOT/index.php" || grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' "$ROOT/lib/warehouse-v53438.php"; }
+          { grep -q 'ghadir_protected_transfer_guard' "$ROOT/index.php" || grep -q 'ghadir_protected_transfer_guard' "$ROOT/lib/warehouse-v53438.php"; }
+          { grep -q 'ghadir_protected_should_detach_retail' "$ROOT/index.php" || grep -q 'ghadir_protected_should_detach_retail' "$ROOT/lib/warehouse-v53438.php"; }
           php -l "$ROOT/lib/protected-cartons.php"
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' "$ROOT/app.html"
           grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_V9_20261015' "$ROOT/index.php"
@@ -502,7 +502,7 @@ jobs:
           grep -q 'WAREHOUSE_SUPPLIER_LIVE_V5_20261014' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_V6_20261014' /tmp/livecheck/index.php
           { grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/livecheck/index.php || grep -q 'WAREHOUSE_RETAIL_DETACH_CARTON_V1_20261015' /tmp/livecheck/lib/warehouse-v53438.php; }
-          grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' /tmp/livecheck/index.php
+          { grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' /tmp/livecheck/index.php || grep -q 'WAREHOUSE_PROTECTED_CARTON_OPS_V1_20261017' /tmp/livecheck/lib/warehouse-v53438.php; }
           php -l /tmp/livecheck/lib/protected-cartons.php
           grep -q 'WAREHOUSE_SUPPLIER_EDIT_UI_V6_20261014' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_PURCHASE_SUPPLIER_V9_20261015' /tmp/livecheck/index.php
