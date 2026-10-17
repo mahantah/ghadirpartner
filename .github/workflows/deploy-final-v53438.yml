@@ -92,6 +92,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-customer-serial-counts-v4.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-customer-model-catalog-v5.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-remove-legacy-desktop-sidebar-shell-v1.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-order-action-burger-v1.py" "$ROOT"
           mkdir -p "$ROOT/assets"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.css" "$ROOT/assets/nav-morph-v1.css"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.js" "$ROOT/assets/nav-morph-v1.js"
@@ -110,6 +111,10 @@ jobs:
           cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v4.js" "$ROOT/assets/warehouse-serial-filters-v4.js"
           cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v5.js" "$ROOT/assets/warehouse-serial-filters-v5.js"
           cp "$GITHUB_WORKSPACE/assets/remove-legacy-desktop-sidebar-shell-v1.css" "$ROOT/assets/remove-legacy-desktop-sidebar-shell-v1.css"
+          cp "$GITHUB_WORKSPACE/assets/order-action-burger-v1.css" "$ROOT/assets/order-action-burger-v1.css"
+          cp "$GITHUB_WORKSPACE/assets/order-action-burger-v1.js" "$ROOT/assets/order-action-burger-v1.js"
+          node --check "$ROOT/assets/order-action-burger-v1.js"
+          grep -q "GHADIR_ORDER_ACTION_BURGER_V1_20261017" "$ROOT/app.html"
           grep -q "GHADIR_REMOVE_LEGACY_DESKTOP_SIDEBAR_SHELL_V1_20261017" "$ROOT/app.html"
           node --check "$ROOT/assets/warehouse-serial-filters-v5.js"
           grep -q "GHADIR_CUSTOMER_MODEL_CATALOG_V5_20261017" "$ROOT/app.html"
@@ -329,6 +334,8 @@ jobs:
           put "$ROOT/assets/warehouse-serial-filters-v4.js" -o /assets/warehouse-serial-filters-v4.js
           put "$ROOT/assets/warehouse-serial-filters-v5.js" -o /assets/warehouse-serial-filters-v5.js
           put "$ROOT/assets/remove-legacy-desktop-sidebar-shell-v1.css" -o /assets/remove-legacy-desktop-sidebar-shell-v1.css
+          put "$ROOT/assets/order-action-burger-v1.css" -o /assets/order-action-burger-v1.css
+          put "$ROOT/assets/order-action-burger-v1.js" -o /assets/order-action-burger-v1.js
           put "$ROOT/assets/ghadir-contact-qr.png" -o /assets/ghadir-contact-qr.png
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
@@ -390,6 +397,8 @@ jobs:
           get /assets/warehouse-serial-filters-v4.js -o /tmp/livecheck/assets/warehouse-serial-filters-v4.js
           get /assets/warehouse-serial-filters-v5.js -o /tmp/livecheck/assets/warehouse-serial-filters-v5.js
           get /assets/remove-legacy-desktop-sidebar-shell-v1.css -o /tmp/livecheck/assets/remove-legacy-desktop-sidebar-shell-v1.css
+          get /assets/order-action-burger-v1.css -o /tmp/livecheck/assets/order-action-burger-v1.css
+          get /assets/order-action-burger-v1.js -o /tmp/livecheck/assets/order-action-burger-v1.js
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
           get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
           get /assets/ghadir-contact-qr.png -o /tmp/livecheck/assets/ghadir-contact-qr.png
@@ -415,6 +424,8 @@ jobs:
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v4.js
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v5.js
           grep -q "GHADIR_REMOVE_LEGACY_DESKTOP_SIDEBAR_SHELL_V1_20261017" /tmp/livecheck/app.html
+          grep -q "GHADIR_ORDER_ACTION_BURGER_V1_20261017" /tmp/livecheck/app.html
+          node --check /tmp/livecheck/assets/order-action-burger-v1.js
           grep -q "GHADIR_CUSTOMER_MODEL_CATALOG_V5_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_CUSTOMER_SERIAL_COUNTS_V4_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_CUSTOMER_SERIAL_MODEL_OPTIONS_V3_20261017" /tmp/livecheck/app.html
