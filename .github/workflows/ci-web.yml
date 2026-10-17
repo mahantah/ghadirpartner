@@ -877,3 +877,31 @@ jobs:
                   subprocess.run([sys.executable,str(script),temp],check=True)
                   assert path.read_text()==output,'rerun modified label template'
           PY
+
+  production-build-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install release build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-cli unzip patch nodejs
+      - name: Execute complete production build without touching the server
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('.github/workflows/deploy-final-v53438.yml').read_text()
+          start=src.index('      - name: Build exact V5.3.4.38 + warehouse/returns patch')
+          block=src.index('        run: |',start)+len('        run: |')
+          end=src.index('\n      - name: Backup live core files',block)
+          lines=src[block:end].strip('\n').splitlines()
+          assert all(line.startswith('          ') or not line.strip() for line in lines)
+          shell='\n'.join(line[10:] if line.strip() else '' for line in lines)+'\n'
+          Path('/tmp/release-build-integration.sh').write_text(shell)
+          PY
+          mkdir -p /tmp/release-build-output
+          export GITHUB_OUTPUT=/tmp/release-build-output/output
+          bash -Eeuo pipefail /tmp/release-build-integration.sh
+          echo 'Full release build completed without FTP, database, or server access'
