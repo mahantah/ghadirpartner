@@ -193,6 +193,7 @@ jobs:
           grep -q 'WAREHOUSE_CARTON_QR_LARGE_20261012' "$ROOT/lib/labels-v5348.php"
           grep -q 'WAREHOUSE_CARTON_QR_CONTACT_V3_20261012' "$ROOT/lib/labels-v5348.php"
           grep -q 'width:32mm;height:32mm' "$ROOT/lib/labels-v5348.php"
+          grep -q 'QR = اطلاعات تماس قدیر پرداخت | بارکد = شماره کارتن' "$ROOT/lib/labels-v5348.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' "$ROOT/index.php"
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' "$ROOT/app.html"
           php -l "$ROOT/index.php"
@@ -427,9 +428,11 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ROOT: ${{ steps.build.outputs.root }}
         shell: bash
         run: |
           set -euo pipefail
+          trap 'echo "Live verify failed at line ${LINENO}: ${BASH_COMMAND}" >&2' ERR
           ok=0
           for i in {1..12}; do
             root="$(curl -sS --max-time 25 -o /tmp/root.html -w '%{http_code}' https://ghadirpartner.ir/ || true)"
@@ -485,6 +488,8 @@ jobs:
           bye
           EOF
           test "$(cat /tmp/livecheck/VERSION.txt)" = "V5.3.4.38-INVENTORY-LAZY-API-FIX"
+          echo "livecheck app.html built=$(wc -c < "$ROOT/app.html") live=$(wc -c < /tmp/livecheck/app.html)"
+          echo "livecheck labels built=$(wc -c < "$ROOT/lib/labels-v5348.php") live=$(wc -c < /tmp/livecheck/lib/labels-v5348.php)"
           php -l /tmp/livecheck/index.php
           php -l /tmp/livecheck/lib/staff-login-otp.php
           node --check /tmp/livecheck/assets/staff-login-otp.js
@@ -546,8 +551,7 @@ jobs:
           base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > /tmp/expected-ghadir-contact-qr.png
           cmp /tmp/expected-ghadir-contact-qr.png /tmp/livecheck/assets/ghadir-contact-qr.png
           grep -q 'width:32mm;height:32mm' /tmp/livecheck/lib/labels-v5348.php
-          grep -q 'QR و بارکد این لیبل مربوط به شماره کارتن هستند' /tmp/livecheck/lib/labels-v5348.php
-          grep -q 'width:21mm;height:21mm' /tmp/livecheck/lib/labels-v5348.php
+          grep -q 'QR = اطلاعات تماس قدیر پرداخت | بارکد = شماره کارتن' /tmp/livecheck/lib/labels-v5348.php
           grep -q 'sessionLifetime=86400' /tmp/livecheck/index.php
           grep -q 'میلیارد تومان' /tmp/livecheck/app.html
 

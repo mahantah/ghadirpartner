@@ -17,3 +17,5 @@ Retry 6 (2026-10-17): PR #36 is on main. Request a guarded production retry so t
 Retry 7 (2026-10-17): after backup, unassign in-warehouse reserved serials of I90-097 only, then re-run the existing carton guard. Shipped serials are left unchanged. Do not bypass protected_carton_state_mismatch.
 
 Retry 8 (2026-10-17): I90-097 stayed allocated after in-warehouse-only unassign, so restore exited-but-still-linked protected serials to warehouse 1, clear order_id, then re-run the existing guard. Do not bypass protected_carton_state_mismatch.
+
+Retry 9 (2026-10-17): run 39067294958 passed the carton guard after repairing 360 serials, then live verify failed on stale label strings (old 21mm / old Persian QR sentence). Align verify with carton-label v2 (32mm + new scantext). Do not bypass protected_carton_state_mismatch.
