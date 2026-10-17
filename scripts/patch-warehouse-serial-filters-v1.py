@@ -22,9 +22,11 @@ if MARK in s:
 for req in ('id="warehouseBody"','id="inventoryGroups"',
             "GHADIR_SIDEBAR_REAL_EDGE_V4_20261017",
             'id="changePasswordBtn"','id="logoutbtn"',
-            "چاپ و دانلود یکجای لیبل سریال‌ها"):
+            "sidebar-open"):
     if req not in s:
         raise SystemExit("Required existing DOM missing: "+req)
+# The separate bulk-label card is optional: some live releases already omit it.
+# The UI module removes it when present without touching per-carton printing.
 if s.count("</head>")!=1 or s.count("</body>")!=1:
     raise SystemExit("Unexpected HTML structure")
 s=s.replace("</head>",
