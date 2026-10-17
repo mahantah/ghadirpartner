@@ -1,0 +1,85 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;font:14px Tahoma,Arial;background:#f3f6fa}
+#app > header{position:relative;z-index:20}
+#app > header .nav-toggle{position:fixed;z-index:140;right:12px;top:12px;width:46px;height:46px;background:#f58220;color:white}
+#app > header .topnav{position:fixed;inset:0 0 0 auto;z-index:135;width:min(310px,88vw);height:100vh;box-sizing:border-box;display:flex;align-items:stretch;flex-direction:column;gap:8px;padding:16px 14px;overflow-y:auto;transform:translateX(105%);transition:transform .24s ease;background:linear-gradient(#0b2948,#0d3155)}
+#app > header .topnav.sidebar-open{transform:translateX(0)}
+#app > header .topnav button{min-height:48px;color:white;background:#25496f;border:1px solid #ffffff33;border-radius:12px}
+#app > header .topnav .sidebar-head{display:flex;align-items:center;gap:10px;border-bottom:1px solid #ffffff33}
+#app > header .topnav .sidebar-head img{width:52px;height:52px;padding:5px;border-radius:16px;background:#34577c;box-shadow:0 4px 14px #0006}
+#app > header .topnav .sidebar-head b{color:#fff}
+#app > header .userbox{position:absolute;top:50%;left:20px;transform:translateY(-50%);display:flex;gap:8px}
+#app > header .topnav .userbox{margin-top:auto}
+#app .nav-overlay{position:fixed;inset:0;background:#0005;z-index:19;pointer-events:none}
+#app .nav-overlay.visible{pointer-events:all}
+@media(max-width:760px){#app > header .topnav{width:min(330px,88vw);height:100dvh;padding:calc(12px + env(safe-area-inset-top)) 12px 14px}}
+</style>
+<link rel="stylesheet" href="../assets/nav-morph-v1.css">
+<link rel="stylesheet" href="../assets/sidebar-profile-polish-v1.css">
+<link rel="stylesheet" href="../assets/sidebar-edge-profile-v2.css">
+</head><body>
+<div id="app"><header><button class="nav-toggle" type="button">☰</button><div class="topnav">
+<div class="sidebar-head"><div class="logo-frame"><img src="../assets/ghadir-logo-transparent.svg"></div><b>قدیر پارتنر</b><button type="button" class="sidebar-close">×</button></div>
+<button type="button" class="duplicate-close">جمع کردن منو</button>
+<button type="button" data-tab="dashboard">پیشخوان</button>
+<button type="button" data-tab="orders">سفارش‌ها</button>
+<button type="button" data-tab="warehouse">مدیریت انبار</button>
+<button type="button" data-tab="products">لیست قیمت</button>
+<button type="button" data-tab="customers">مشتریان و فروش</button>
+<button type="button" data-tab="settings">تنظیمات سامانه</button>
+<button type="button" data-tab="reports">گزارش فروش</button>
+<div class="userbox"><span id="who">Taheri</span><button type="button" id="changePasswordBtn">تغییر رمز</button><button type="button" id="logoutbtn">خروج</button></div>
+</div></header><div class="nav-overlay"></div></div>
+<div id="contract-result"></div>
+<script>window.gpPasswordClicks=0;window.gpLogoutClicks=0;
+document.getElementById('changePasswordBtn').addEventListener('click',function(){window.gpPasswordClicks++});
+document.getElementById('logoutbtn').addEventListener('click',function(){window.gpLogoutClicks++});</script>
+<script src="../assets/nav-morph-v1.js"></script>
+<script src="../assets/sidebar-profile-polish-v1.js"></script>
+<script src="../assets/sidebar-edge-profile-v2.js"></script>
+<script>
+window.addEventListener('load',function(){
+  window.setTimeout(function(){
+    const out=document.getElementById('contract-result');
+    function expect(yes,message){if(!yes)throw Error(message)}
+    try{
+      const nav=document.querySelector('.topnav'),toggle=document.querySelector('.nav-toggle');
+      expect(!nav.querySelector('.duplicate-close'),'extra written close button still exists');
+      const userbox=document.querySelector('.userbox');
+      expect(userbox.parentElement===nav,'account controls not inside the menu');
+      expect(userbox.querySelector('#who')?.textContent==='Taheri','username node missing');
+      toggle.click();
+      expect(nav.classList.contains('sidebar-open'),'menu did not open');
+      window.setTimeout(function(){
+        try{
+          const bounds=nav.getBoundingClientRect(),icon=toggle.getBoundingClientRect();
+          expect(icon.left < bounds.left && icon.right > bounds.left,'hamburger/X not docked on OUTER sidebar edge');
+          expect(toggle.getAttribute('aria-expanded')==='true','toggle state not open');
+          const profile=document.getElementById('gp-profile-trigger');
+          expect(profile,'profile button absent');
+          const prect=profile.getBoundingClientRect();
+          expect(prect.width>120 && prect.top>=0 && prect.bottom<=window.innerHeight+1,
+                 'profile trigger outside visible viewport '+prect.top+' '+prect.bottom);
+          profile.click();
+          const actions=document.getElementById('gp-profile-actions');
+          expect(!actions.hidden,'profile actions not expanded');
+          const ar=actions.getBoundingClientRect();
+          expect(ar.width>120 && ar.top>=0 && ar.bottom<=window.innerHeight+1,
+                 'profile submenu clipped '+ar.top+' '+ar.bottom);
+          const change=document.getElementById('changePasswordBtn');
+          const logout=document.getElementById('logoutbtn');
+          expect(change.getBoundingClientRect().height>=42 && logout.getBoundingClientRect().height>=42,
+                 'profile action buttons not visible');
+          change.click();
+          expect(window.gpPasswordClicks===1,'existing password click handler detached');
+          toggle.click();profile.click();logout.click();
+          expect(window.gpLogoutClicks===1,'existing logout handler detached');
+          expect(!nav.querySelector('.duplicate-close'),'duplicate close reinserted');
+          out.textContent='RESULT:PASS';
+        }catch(e){out.textContent='RESULT:FAIL '+e.message;}
+      },650);
+    }catch(e){out.textContent='RESULT:FAIL '+e.message;}
+  },200);
+});
+</script></body></html>
