@@ -14,7 +14,7 @@
     var heading=card.querySelector('.section-title h3');
     // Prior live releases may call this bulk-print card by another title.
     // Do not remove the carton table or a per-carton print action.
-    var title=(heading&&heading.textContent||'').replace(/\\s+/g,' ').trim();
+    var title=(heading&&heading.textContent||'').replace(/\s+/g,' ').trim();
     var separateBulkPrint = title.includes('لیبل') &&
       (title.includes('چاپ')||title.includes('دانلود')) &&
       !card.querySelector('#warehouseBody') &&
