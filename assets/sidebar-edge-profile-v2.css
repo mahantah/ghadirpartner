@@ -93,6 +93,42 @@
 #app > header .topnav {
   overscroll-behavior:contain;
 }
+/* Warehouse group is an in-flow disclosure. The ZIP dropdown is
+   position:absolute and gets clipped by .topnav{overflow-y:auto},
+   so مخزن / سریال / دفتر روزانه never become clickable. */
+#app > header .topnav .nav-group{
+  position:static!important;
+  display:flex!important;
+  flex-direction:column!important;
+  width:100%!important;
+  align-items:stretch!important;
+}
+#app > header .topnav .nav-group > .nav-group-toggle{
+  width:100%!important;
+}
+#app > header .topnav .nav-submenu{
+  position:static!important;
+  inset:auto!important;
+  top:auto!important;
+  right:auto!important;
+  left:auto!important;
+  width:100%!important;
+  margin:6px 0 0!important;
+  padding:0!important;
+  display:none;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+#app > header .topnav .nav-group.open > .nav-submenu{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:6px!important;
+}
+#app > header .topnav .nav-submenu :is(button,a[data-tab]){
+  width:100%!important;
+  text-align:right!important;
+}
 /* The old toolbar account area is intentionally relocated into the menu. */
 #app > header > .userbox.gp-profile-host {display:none!important}
 @media(max-width:760px){
