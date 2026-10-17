@@ -34,6 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'echo "Production build failed at line ${LINENO}: ${BASH_COMMAND}" >&2' ERR
           BASE="GhadirPartner-Web-V5.3.4.38-FINAL-TOMAN-SESSION24H-HOMA-SERVICE.zip"
           test -f "$BASE"
           rm -rf /tmp/v53438 /tmp/delta
