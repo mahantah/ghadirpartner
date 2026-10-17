@@ -1,0 +1,64 @@
+/* GHADIR_WAREHOUSE_SERIAL_FILTERS_GHOST_V1_20261017
+   UI-only filters for cartons + serials. No print API or backend changes.
+   Remove composited ghost backdrop when hamburger menu closes.
+*/
+#app .nav-overlay:not(.visible) {
+  display:none!important;
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  filter:none!important;
+  background:transparent!important;
+}
+#app .nav-overlay.visible{
+  display:block!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+#app > header .topnav:not(.sidebar-open) {
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  filter:none!important;
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+}
+#app > header .topnav.sidebar-open {
+  background:linear-gradient(180deg,#0b2948 0%,#0d3155 100%)!important;
+  box-shadow:-14px 0 35px rgba(4,18,35,.18)!important;
+}
+.gp-warehouse-filters {margin:13px 0!important;padding:14px 16px!important;}
+.gp-warehouse-filters .gp-filter-heading{
+  font-weight:800;color:#102a43;margin-bottom:10px;
+}
+.gp-warehouse-filters .gp-filter-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));
+  gap:9px;align-items:end;
+}
+.gp-warehouse-filters .gp-filter-grid label{
+  display:grid;gap:5px;min-width:0;font-size:12px;font-weight:700;color:#41546d;
+}
+.gp-warehouse-filters select,.gp-warehouse-filters input{
+  width:100%;min-width:0;max-width:100%;min-height:43px;
+  border:1px solid #ccd8e7;background:#fff;color:#152d4a;
+  border-radius:11px;padding:8px 10px;box-sizing:border-box;
+}
+.gp-warehouse-filters .gp-filter-foot{
+  display:flex;gap:10px;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;margin-top:10px;
+}
+.gp-warehouse-filters .gp-reset-filter{
+  min-height:40px;background:#edf3f9;color:#1b3a5e;
+  border:1px solid #ccd8e7;border-radius:12px;
+  padding:7px 13px;cursor:pointer;
+}
+.gp-warehouse-filters .gp-filter-summary{color:#586c84;font-size:12px;}
+@media(max-width:760px){
+  .gp-warehouse-filters{padding:12px!important;}
+  .gp-warehouse-filters .gp-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:380px){
+  .gp-warehouse-filters .gp-filter-grid{grid-template-columns:1fr;}
+}
