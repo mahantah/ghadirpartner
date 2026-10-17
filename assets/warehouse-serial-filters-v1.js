@@ -12,9 +12,14 @@
   // The standalone bulk-label card is unused; leave per-carton print intact.
   Array.from(warehouse.querySelectorAll('.card')).forEach(function(card){
     var heading=card.querySelector('.section-title h3');
-    if(heading && (heading.textContent||'').trim()==='چاپ و دانلود یکجای لیبل سریال‌ها'){
-      card.remove();
-    }
+    // Prior live releases may call this bulk-print card by another title.
+    // Do not remove the carton table or a per-carton print action.
+    var title=(heading&&heading.textContent||'').replace(/\\s+/g,' ').trim();
+    var separateBulkPrint = title.includes('لیبل') &&
+      (title.includes('چاپ')||title.includes('دانلود')) &&
+      !card.querySelector('#warehouseBody') &&
+      (title.includes('یکجا')||title.includes('گروهی')||title.includes('سریال'));
+    if(separateBulkPrint)card.remove();
   });
   function toLatin(v){return String(v||'').replace(/[۰-۹]/g,function(x){return String(x.charCodeAt(0)-1776)})
       .replace(/[٠-٩]/g,function(x){return String(x.charCodeAt(0)-1632)})}
