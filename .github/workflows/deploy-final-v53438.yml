@@ -59,22 +59,22 @@ jobs:
             cp "$GITHUB_WORKSPACE/assets/order-multiprint-v53438.js" assets/order-multiprint-v53438.js
             cp "$GITHUB_WORKSPACE/assets/warehouse-carton-multilabel-v53438.js" assets/warehouse-carton-multilabel-v53438.js
             cp "$GITHUB_WORKSPACE/assets/warehouse-ui-refine-v53438.js" assets/warehouse-ui-refine-v53438.js
-            python3 - <<'PY'
-            from pathlib import Path
-            p=Path('app.html')
-            s=p.read_text()
-            tags=[
-                '<script src="/assets/order-multiprint-v53438.js?v=53438mp3"></script>',
-                '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui4"></script>',
-                '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint4"></script>'
-            ]
-            if '</body>' not in s:
-                raise SystemExit('app.html closing body not found')
-            for tag in tags:
-                if tag not in s:
-                    s=s.replace('</body>',tag+'</body>',1)
-            p.write_text(s)
-            PY
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.html')
+          s=p.read_text()
+          tags=[
+              '<script src="/assets/order-multiprint-v53438.js?v=53438mp3"></script>',
+              '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui4"></script>',
+              '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint4"></script>'
+          ]
+          if '</body>' not in s:
+              raise SystemExit('app.html closing body not found')
+          for tag in tags:
+              if tag not in s:
+                  s=s.replace('</body>',tag+'</body>',1)
+          p.write_text(s)
+          PY
           )
           python3 "$GITHUB_WORKSPACE/scripts/patch-partial-shipment-per-serial.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-serial-continuation-location.py" "$ROOT"
