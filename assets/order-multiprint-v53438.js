@@ -18,7 +18,8 @@ function visibleOrderIds(){
 function syncUi(){
   const count=selected.size;
   const countEl=$('gpOrderPrintCount');
-  if(countEl) countEl.textContent=count.toLocaleString('fa-IR')+' سفارش انتخاب شده';
+  const countText=count.toLocaleString('fa-IR')+' سفارش انتخاب شده';
+  if(countEl && countEl.textContent!==countText) countEl.textContent=countText;
   ['gpPrintBijaks','gpPrintLabels'].forEach(id=>{const b=$(id);if(b)b.disabled=!count});
   const ids=visibleOrderIds();
   const master=$('gpOrderSelectAll');
