@@ -1,16 +1,6 @@
 ---
-description: Ghadir Partner repository architecture and safety rules for every Cursor Agent task
+description: Essential Ghadir Partner guardrails; detailed guidance lives in AGENTS.md
 alwaysApply: true
 ---
 
-You are working in the Ghadir Partner Persian RTL sales/warehouse web application. Read the repository root `AGENTS.md` before acting.
-
-**Source of truth:** production web = the pinned V5.3.4.38 ZIP + the ordered patch steps in `.github/workflows/deploy-final-v53438.yml`; root `app.html` and `VERSION.txt` can be outdated. Never promise a production fix based only on the root HTML.
-
-**Workflow:** diagnose -> create a dedicated branch -> implement minimal testable change -> run relevant syntax/fixture tests -> submit a PR -> wait for human approval. Do not merge `main` or deploy without explicit authorization. Preserve all existing business behavior, access rules, OTP, serial and carton traceability.
-
-**Protected data:** never access or commit live customer data, `storage/ghadir_data.json`, `config.php`, `partners/config.php`, database dumps or secrets. Use mock/sanitized records.
-
-**Safety blocker:** `protected_carton_state_mismatch` / HTTP 500 in the pre-deploy MySQL snapshot must be diagnosed, NOT bypassed. Never suppress safety guards to make a workflow green.
-
-If full verification or access is unavailable, describe exactly what is not verified. Do not claim successful deployment.
+Read `AGENTS.md` once per task. Stay concise: targeted search and file ranges, minimal diffs, short test logs; no repeated whole-repo scans or full build-file dumps. Work on a branch + PR, never deploy/merge without approval. Keep existing business behavior and roles. Never read/commit customer data or secrets. Do not bypass `protected_carton_state_mismatch` safeguards. Be explicit about unverified results.
