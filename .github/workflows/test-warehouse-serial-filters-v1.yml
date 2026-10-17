@@ -1,0 +1,66 @@
+name: Warehouse serial filters and closed-menu backdrop tests
+on:
+  pull_request:
+    paths:
+      - 'assets/warehouse-serial-filters-v1.css'
+      - 'assets/warehouse-serial-filters-v1.js'
+      - 'scripts/patch-warehouse-serial-filters-v1.py'
+      - 'tests/warehouse-serial-filters-v1.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-warehouse-serial-filters-v1.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Syntax, idempotent build, preserved operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-serial-filters-v1.js
+          python3 -m py_compile scripts/patch-warehouse-serial-filters-v1.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('assets/warehouse-serial-filters-v1.css').read_text()
+          assert s.count('{')==s.count('}')
+          assert '#app .nav-overlay:not(.visible)' in s
+          assert 'display:none!important' in s
+          print('CSS contract OK')
+          PY
+          mkdir -p /tmp/built
+          cp app.html /tmp/built/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/built
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/built
+          python3 scripts/patch-nav-morph-v1.py /tmp/built
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/built
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/built
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/built
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/built
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/built
+          cp /tmp/built/app.html /tmp/before-second-run.html
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/built
+          cmp /tmp/built/app.html /tmp/before-second-run.html
+          for marker in 'id="warehouseBody"' 'id="inventoryGroups"' 'id="changePasswordBtn"' 'id="logoutbtn"' 'data-tab="orders"' 'data-tab="warehouse"' 'چاپ و دانلود یکجای لیبل سریال‌ها' 'GHADIR_WAREHOUSE_SERIAL_FILTERS_GHOST_V1_20261017'; do
+            grep -Fq "$marker" /tmp/built/app.html
+          done
+          grep -Fq '/print/warehouse-label?id=' /tmp/built/app.html
+          ! grep -Fq 'GHADIR_WAREHOUSE_SERIAL_FILTERS_GHOST_V1_20261017' index.php
+      - name: Browser end-to-end UI filters in desktop and mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '414,896' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=5000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/warehouse-serial-filters-v1.html" > /tmp/warehouse-filter-result.html 2>/tmp/chrome.log
+            if ! grep -Fq 'WAREHOUSE_FILTERS_PASS' /tmp/warehouse-filter-result.html; then
+              grep -o 'WAREHOUSE_FILTERS_FAIL[^<]*' /tmp/warehouse-filter-result.html || true
+              tail -c 1400 /tmp/warehouse-filter-result.html
+              exit 1
+            fi
+            echo "Warehouse model/date sorting, serial grouping and closed overlay passed at $size"
+          done

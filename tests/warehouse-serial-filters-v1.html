@@ -1,0 +1,78 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../assets/warehouse-serial-filters-v1.css">
+<style>body{font:14px Tahoma;background:#f4f7fb} .card{padding:12px;border-radius:14px;background:white}.hidden{display:none}#app .nav-overlay{position:fixed;inset:0;background:#0008;backdrop-filter:blur(8px)}#app .topnav{position:fixed;width:270px;background:#091d3a}</style></head><body>
+<div id="app"><header><div class="topnav"></div></header><div class="nav-overlay"></div></div>
+<section id="warehouse">
+<div class="card"><div class="section-title"><h3>ورود کارتن به مخزن</h3></div></div>
+<div class="card" id="legacy-label-card"><div class="section-title"><h3>چاپ و دانلود یکجای لیبل سریال‌ها</h3></div><button>چاپ همه</button></div>
+<div class="card" id="warehouse-list-card"><table><tbody id="warehouseBody">
+<tr><td>A-002</td><td>Model B</td><td><button class="print-carton" onclick="window.printClicks++">چاپ لیبل</button></td></tr>
+<tr><td>A-001</td><td>Model A</td><td><button class="print-carton" onclick="window.printClicks++">چاپ لیبل</button></td></tr>
+<tr><td>A-003</td><td>Model A</td><td><button class="print-carton" onclick="window.printClicks++">چاپ لیبل</button></td></tr>
+</tbody></table></div>
+</section>
+<section id="inventory"><div class="card">انبار سریال‌ها</div>
+<div id="inventoryGroups">
+<details class="inv-group" open><summary>سریال‌های آزاد <span class="inv-count">۲ سریال</span></summary>
+<div class="inv-detail">
+<div class="inv-serial-row"><div class="inv-product">Model A</div><div class="inv-code">SN: SERIALA</div></div>
+<div class="inv-serial-row"><div class="inv-product">Model B</div><div class="inv-code">SN: SERIALB</div></div>
+</div></details></div></section>
+<script>
+window.printClicks=0;
+let WH={cartons:[
+{id:1,code:'A-001',product:'Model A',created_at:'2026-10-01 10:00:00'},
+{id:2,code:'A-002',product:'Model B',created_at:'2026-10-03 10:00:00'},
+{id:3,code:'A-003',product:'Model A',created_at:'2026-10-04 10:00:00'}],
+inventory:[
+{serial:'SERIALA',product:'Model A',added_at:'2026-10-01 10:00:00',carton_id:1},
+{serial:'SERIALB',product:'Model B',added_at:'2026-10-03 10:00:00',carton_id:2}]};
+let INV=[
+{serial:'SERIALA',product:'Model A',added_at:'2026-10-01 10:00:00'},
+{serial:'SERIALB',product:'Model B',added_at:'2026-10-03 10:00:00'}];
+function jalaliDate(s){var m=String(s).match(/2026-10-(\d\d)/);return m?'1405/07/'+m[1]:''}
+</script>
+<script src="../assets/warehouse-serial-filters-v1.js"></script>
+<div id="fixture-result">PENDING</div>
+<script>
+window.addEventListener('load',function(){
+ setTimeout(function(){
+  var out=document.getElementById('fixture-result');
+  function check(ok,msg){if(!ok)throw Error(msg)}
+  function dispatch(el){el.dispatchEvent(new Event('change',{bubbles:true}))}
+  try{
+    check(!document.getElementById('legacy-label-card'),'Unused label card not removed');
+    document.querySelector('.print-carton').click();
+    check(window.printClicks===1,'Per-carton print action disabled');
+    const wh=document.getElementById('gp-warehouse-filter-box');
+    const iv=document.getElementById('gp-inventory-filter-box');
+    check(wh&&iv,'filters not installed on both screens');
+    const whModel=wh.querySelector('[data-filter="model"]');
+    check(whModel.options.length===3,'Model choices missing');
+    whModel.value='Model A';dispatch(whModel);
+    let trs=Array.from(document.querySelectorAll('#warehouseBody tr'));
+    check(trs.filter(t=>t.style.display!=='none').length===2,'Warehouse model filter wrong');
+    check(trs.find(t=>t.textContent.includes('A-002')).style.display==='none','Wrong model not excluded');
+    const dfrom=wh.querySelector('[data-filter="from"]');
+    dfrom.value='۱۴۰۵/۰۷/۰۴';dispatch(dfrom);
+    check(trs.filter(t=>t.style.display!=='none').length===1,'Jalali date range not enforced');
+    wh.querySelector('.gp-reset-filter').click();
+    trs=Array.from(document.querySelectorAll('#warehouseBody tr'));
+    check(trs.filter(t=>t.style.display!=='none').length===3,'Warehouse reset failed');
+    check(trs[0].textContent.includes('A-003'),'Date descending order failed');
+    const whOrder=wh.querySelector('[data-filter="order"]');
+    whOrder.value='old';dispatch(whOrder);
+    trs=Array.from(document.querySelectorAll('#warehouseBody tr'));
+    check(trs[0].textContent.includes('A-001'),'Date ascending sort failed');
+    const ivModel=iv.querySelector('[data-filter="model"]');
+    ivModel.value='Model A';dispatch(ivModel);
+    const invRows=Array.from(document.querySelectorAll('#inventoryGroups .inv-serial-row'));
+    check(invRows.filter(x=>x.style.display!=='none').length===1,'Inventory serial model filter failed');
+    check(getComputedStyle(document.querySelector('.nav-overlay')).display==='none','Closed overlay backdrop still visible');
+    document.querySelector('.nav-overlay').classList.add('visible');
+    check(getComputedStyle(document.querySelector('.nav-overlay')).display==='block','Open overlay hidden');
+    out.textContent='WAREHOUSE_FILTERS_PASS';
+  }catch(e){out.textContent='WAREHOUSE_FILTERS_FAIL '+e.message}
+ },180);
+});
+</script></body></html>
