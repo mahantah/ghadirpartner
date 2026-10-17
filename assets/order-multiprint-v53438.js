@@ -74,7 +74,8 @@ function ensureUi(){
     head.insertBefore(th,head.firstElementChild);
     $('gpOrderSelectAll').addEventListener('change',e=>togglePage(e.target.checked));
   }
-  const tools=orders.querySelector('.compact-filter .toolbar');
+  // The toolbar may move in responsive layouts; always keep print controls visible.
+  const tools=orders.querySelector('.compact-filter .toolbar') || orders.querySelector('.compact-filter') || orders;
   if(tools&&!$('gpOrderPrintTools')){
     const box=document.createElement('div');
     box.id='gpOrderPrintTools';
@@ -152,9 +153,19 @@ window.gpBatchPrintOrders=batchPrint;
 window.gpOrderPrintSelected=selected;
 
 const css=document.createElement('style');
-css.textContent='.gp-order-print-cell{width:44px!important;min-width:44px!important;text-align:center!important}.gp-order-print-cell input{width:18px!important;height:18px!important;min-width:18px!important;margin:0;accent-color:#f58220}.gp-order-print-tools{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.gp-order-print-tools .badge{white-space:nowrap}@media(max-width:900px){.gp-order-print-tools{width:100%}}';
+css.textContent='#orders .compact-filter > .toolbar{flex-wrap:wrap!important}#orders .gp-order-print-tools{flex:1 0 100%;width:100%;min-width:0;justify-content:flex-start;overflow:visible}.gp-order-print-cell{width:44px!important;min-width:44px!important;text-align:center!important}.gp-order-print-cell input{width:18px!important;height:18px!important;min-width:18px!important;margin:0;accent-color:#f58220}.gp-order-print-tools{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.gp-order-print-tools .badge{white-space:nowrap}@media(max-width:900px){.gp-order-print-tools{width:100%}}';
 document.head.appendChild(css);
 
 ensureUi();
 setTimeout(ensureUi,300);
+const ordersRoot=$('orders');
+if(ordersRoot){
+  // Reapply checkboxes and batch-print buttons after ajax / table rerenders.
+  let pending=false;
+  new MutationObserver(records=>{
+    if(pending || !records.some(r=>r.addedNodes.length || r.removedNodes.length))return;
+    pending=true;
+    Promise.resolve().then(()=>{pending=false;ensureUi()});
+  }).observe(ordersRoot,{childList:true,subtree:true});
+}
 })();
