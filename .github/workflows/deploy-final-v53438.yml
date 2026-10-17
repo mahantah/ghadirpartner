@@ -1,13 +1,9 @@
 name: Deploy Exact V5.3.4.38
 
-# Run once on the cleanup merge when this explicit sentinel path is added;
-# workflow_dispatch remains the normal long-term production release method.
+# Controlled production release: manual launch only.
+# Build, live-file backup, database snapshot guard, verify and rollback remain enabled.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/deploy/run-once-20261017.txt'
 
 permissions:
   contents: read
