@@ -54,7 +54,7 @@ jobs:
           grep -Fq '/assets/warehouse-serial-filters-v2.js?v=20261017f2' /tmp/compiled-ui/app.html
           ! grep -Fq '/assets/warehouse-serial-filters-v1.js?v=20261017f1' /tmp/compiled-ui/app.html
           grep -Fq '/print/warehouse-label?id=' /tmp/compiled-ui/app.html
-      - name: Real browser: customer serial recovery and no dark menu residue
+      - name: "Real browser - customer serial recovery and no dark menu residue"
         shell: bash
         run: |
           set -euo pipefail
