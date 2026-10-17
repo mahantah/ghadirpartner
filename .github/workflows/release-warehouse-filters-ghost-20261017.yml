@@ -1,4 +1,5 @@
 name: Release warehouse filters and closed-sidebar cleanup (one-time)
+# Retry: live deployment does not require a legacy bulk-label heading.
 on:
   push:
     branches: [main]
