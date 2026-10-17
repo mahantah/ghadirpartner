@@ -1,0 +1,79 @@
+name: Animated order action burger regression
+on:
+  pull_request:
+    paths:
+      - 'assets/order-action-burger-v1.css'
+      - 'assets/order-action-burger-v1.js'
+      - 'scripts/patch-order-action-burger-v1.py'
+      - 'tests/order-action-burger-v1.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-order-action-burger-v1.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate JavaScript CSS and production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/order-action-burger-v1.js
+          python3 -m py_compile scripts/patch-order-action-burger-v1.py
+          python3 - <<'PY'
+          from pathlib import Path
+          css=Path('assets/order-action-burger-v1.css').read_text()
+          js=Path('assets/order-action-burger-v1.js').read_text()
+          assert css.count('{')==css.count('}')
+          for part in ['#orders .gp-order-burger-wrap .burger','transform:rotate(405deg)',
+                       'transform:rotate(-405deg)','visibility:hidden!important']:
+            assert part in css,part
+          for part in ['toggleOrderMenu','button.click()',"document.getElementById('orders')",
+                       "document.body,{childList:true}","new MutationObserver"]:
+            assert part in js,part
+          assert 'toggleCustomerMenu' not in js
+          print('Order action burger is scoped and preserves native order handler')
+          PY
+          mkdir -p /tmp/order-build
+          cp app.html /tmp/order-build/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/order-build
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/order-build
+          python3 scripts/patch-nav-morph-v1.py /tmp/order-build
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/order-build
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/order-build
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/order-build
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/order-build
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/order-build
+          python3 scripts/patch-warehouse-serial-filters-v2.py /tmp/order-build
+          python3 scripts/patch-warehouse-serial-filters-v3.py /tmp/order-build
+          python3 scripts/patch-customer-serial-counts-v4.py /tmp/order-build
+          python3 scripts/patch-customer-model-catalog-v5.py /tmp/order-build
+          python3 scripts/patch-remove-legacy-desktop-sidebar-shell-v1.py /tmp/order-build
+          python3 scripts/patch-order-action-burger-v1.py /tmp/order-build
+          cp /tmp/order-build/app.html /tmp/once.html
+          python3 scripts/patch-order-action-burger-v1.py /tmp/order-build
+          cmp /tmp/order-build/app.html /tmp/once.html
+          grep -Fq 'GHADIR_ORDER_ACTION_BURGER_V1_20261017' /tmp/once.html
+          grep -Fq '/assets/order-action-burger-v1.js?v=20261017b1' /tmp/once.html
+          grep -Fq '/assets/order-action-burger-v1.css?v=20261017b1' /tmp/once.html
+          for marker in 'toggleOrderMenu' 'closeOrderMenus' 'data-tab="orders"' 'data-tab="inventory"' 'id="logoutbtn"'; do
+            grep -Fq "$marker" /tmp/once.html
+          done
+      - name: Browser test action menus in phone and desktop viewports
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for viewport in '390,844' '414,896' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$viewport" --virtual-time-budget=5500 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/order-action-burger-v1.html" > /tmp/order-burger-result.html 2>/tmp/chrome.log
+            if ! grep -Fq 'ORDER_ACTION_BURGER_PASS' /tmp/order-burger-result.html; then
+              grep -o 'ORDER_ACTION_BURGER_FAIL[^<]*' /tmp/order-burger-result.html || true
+              tail -c 1700 /tmp/order-burger-result.html
+              exit 1
+            fi
+            echo "Original order actions + burger-to-X animation, close and paging passed at $viewport"
+          done
