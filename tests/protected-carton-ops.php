@@ -86,7 +86,7 @@ $before = ghadir_protected_carton_inspect($full, 'I90-097');
 gp_assert($before['kind'] === 'allocated' && (int)$before['reserved'] === 20, 'I90-097 fully allocated fixture');
 $fix = ghadir_protected_unassign_reserved($full, 'I90-097');
 gp_assert($fix['changed'] === true && (int)$fix['released'] === 20, 'released 20 in-warehouse serials');
-gp_assert($fix['skipped_shipped'] === 0, 'none shipped');
+gp_assert((int)($fix['restored_warehouse'] ?? 0) === 0, 'in-warehouse rows need no restore');
 $after = ghadir_protected_carton_inspect($full, 'I90-097');
 gp_assert($after['ok'] === true && (int)$after['free'] === 20, 'I90-097 free after unassign');
 gp_assert($full['orders'][0]['items'][0]['serials'] === [], 'order serials cleared');
@@ -99,7 +99,8 @@ foreach ($shipped['inventory'] as &$iv) {
 }
 unset($iv);
 $no = ghadir_protected_unassign_reserved($shipped, 'I90-097');
-gp_assert($no['changed'] === false && (int)$no['skipped_shipped'] === 20, 'shipped serials stay allocated');
+gp_assert($no['changed'] === true && (int)$no['restored_warehouse'] === 20, 'exited serials return to warehouse 1');
+gp_assert(ghadir_protected_carton_inspect($shipped, 'I90-097')['ok'] === true, 'I90-097 free after restore');
 
 if (($argv[1] ?? '') === 'diagnose') {
     $state = json_decode((string)file_get_contents($argv[2] ?? ''), true);

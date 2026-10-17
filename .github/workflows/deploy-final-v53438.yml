@@ -282,7 +282,7 @@ jobs:
             $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
             $dir=__DIR__.'/storage/Backups';@mkdir($dir,0750,true);$name='ghadir-mysql-pre-exact-v53438-'.date('Ymd-His').'.json';
             if(file_put_contents($dir.'/'.$name,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE),LOCK_EX)===false)throw new RuntimeException('backup failed');
-            $repair=ghadir_protected_unassign_reserved($s,'I90-097');
+            $repair=ghadir_protected_unassign_reserved($s);
             $revision=(int)$r['revision'];
             if(!empty($repair['changed'])){
               $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
@@ -356,14 +356,15 @@ jobs:
           bye
           EOF
           HTTP_STATUS="$(curl -sS --max-time 40 --output /tmp/ghp-preswitch-result.json --write-out '%{http_code}' "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
-          python3 "$GITHUB_WORKSPACE/scripts/preswitch_safety.py" classify /tmp/ghp-preswitch-result.json "$HTTP_STATUS"
           python3 - <<'PY'
           import json
           x=json.load(open('/tmp/ghp-preswitch-result.json'))
           r=x.get('repair') or {}
           if r:
-              print('I90-097 repair released=%s skipped_shipped=%s changed=%s'%(r.get('released'),r.get('skipped_shipped'),r.get('changed')))
+              print('protected repair released=%s restored_warehouse=%s warehouse_ids=%s changed=%s'%(
+                  r.get('released'), r.get('restored_warehouse'), r.get('warehouse_ids'), r.get('changed')))
           PY
+          python3 "$GITHUB_WORKSPACE/scripts/preswitch_safety.py" classify /tmp/ghp-preswitch-result.json "$HTTP_STATUS"
 
       - name: Deploy exact V5.3.4.38 core + add-on
         env:
