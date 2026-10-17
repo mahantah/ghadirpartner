@@ -874,6 +874,9 @@ jobs:
                   assert output.count('.t-center{')==1,output.count('.t-center{')
                   assert '.t-center{height:32mm;' in output
                   assert '.qr-mini .qr-static{width:32mm;' in output
+                  assert 'QR = اطلاعات تماس قدیر پرداخت | بارکد = شماره کارتن' in output
+                  assert 'QR و بارکد این لیبل مربوط به شماره کارتن هستند' not in output
+                  assert 'width:21mm;height:21mm' not in output
                   subprocess.run([sys.executable,str(script),temp],check=True)
                   assert path.read_text()==output,'rerun modified label template'
           PY
