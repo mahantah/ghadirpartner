@@ -1,0 +1,65 @@
+name: Sidebar edge and profile visibility tests
+on:
+  pull_request:
+    paths:
+      - 'assets/sidebar-edge-profile-v2.css'
+      - 'assets/sidebar-edge-profile-v2.js'
+      - 'scripts/patch-sidebar-edge-profile-v2.py'
+      - 'tests/sidebar-edge-profile-v2.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-sidebar-edge-profile-v2.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check syntax and repeatable compiled-app patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/sidebar-edge-profile-v2.js
+          python3 -m py_compile scripts/patch-sidebar-edge-profile-v2.py
+          python3 - <<'PY'
+          from pathlib import Path
+          c=Path('assets/sidebar-edge-profile-v2.css').read_text()
+          assert c.count('{')==c.count('}')
+          assert 'right:calc(min(310px,88vw) - 22px)' in c
+          assert 'right:calc(min(330px,88vw) - 22px)' in c
+          assert 'position:static!important' in c
+          print('CSS syntax and profile layout contracts OK')
+          PY
+          mkdir -p /tmp/sidebar-compiled
+          cp app.html /tmp/sidebar-compiled/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/sidebar-compiled
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/sidebar-compiled
+          python3 scripts/patch-nav-morph-v1.py /tmp/sidebar-compiled
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/sidebar-compiled
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/sidebar-compiled
+          cp /tmp/sidebar-compiled/app.html /tmp/first-build.html
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/sidebar-compiled
+          cmp /tmp/sidebar-compiled/app.html /tmp/first-build.html
+          grep -Fq 'GHADIR_SIDEBAR_EDGE_PROFILE_USERBOX_V2_20261017' /tmp/first-build.html
+          grep -Fq 'data-tab="warehouse"' /tmp/first-build.html
+          grep -Fq 'data-tab="orders"' /tmp/first-build.html
+          grep -Fq 'id="changePasswordBtn"' /tmp/first-build.html
+          grep -Fq 'id="logoutbtn"' /tmp/first-build.html
+          grep -Fq '/assets/sidebar-edge-profile-v2.js?v=20261017e1' /tmp/first-build.html
+      - name: Test real browser interaction at desktop and small mobile sizes
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '390,680' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=5500 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/sidebar-edge-profile-v2.html" > /tmp/sidebar-result.html 2>/tmp/sidebar-chrome.log
+            if ! grep -Fq 'RESULT:PASS' /tmp/sidebar-result.html; then
+              grep -o 'RESULT:FAIL[^<]*' /tmp/sidebar-result.html || true
+              tail -c 1500 /tmp/sidebar-result.html
+              exit 1
+            fi
+            echo "Sidebar edge, removed label, and visible profile actions passed at $size"
+          done

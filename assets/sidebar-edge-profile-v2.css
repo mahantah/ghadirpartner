@@ -1,0 +1,108 @@
+/* GHADIR_SIDEBAR_EDGE_PROFILE_V2_20261017
+   Shared animated hamburger/X sits ON the outside edge of the right-side
+   drawer when open. Profile actions stay inside the drawer scroll viewport.
+*/
+#app > header .nav-toggle.gp-nav-morph {
+  right:10px!important;
+  top:calc(11px + env(safe-area-inset-top,0px))!important;
+  transition:right .30s cubic-bezier(.22,.8,.22,1),
+             background-color .24s ease,box-shadow .24s ease!important;
+}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] {
+  /* Drawer is right-docked: its OUTER edge is the left side. */
+  right:calc(min(310px,88vw) - 22px)!important;
+}
+#app > header .topnav button.gp-sidebar-legacy-close,
+#app > header .topnav [data-gp-hide-duplicate-close="1"] {
+  display:none!important;
+}
+#app > header .topnav .sidebar-head,
+#app > header .topnav .gp-sidebar-heading {
+  min-width:0!important;
+  padding-right:6px!important;
+  padding-left:6px!important;
+  margin-top:0!important;
+}
+/* A footer inside the sidebar, never an absolutely positioned desktop
+   header control or a translated element outside the visible viewport. */
+#app > header .topnav .userbox.gp-profile-host,
+#app > header .topnav .mobile-nav-userbox.gp-profile-host {
+  position:sticky!important;
+  top:auto!important;right:auto!important;left:auto!important;bottom:0!important;
+  transform:none!important;
+  display:block!important;
+  box-sizing:border-box!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  flex:0 0 auto!important;
+  align-self:stretch!important;
+  grid-template-columns:none!important;
+  margin:12px 0 0!important;
+  padding:10px 0 max(8px, env(safe-area-inset-bottom,0px))!important;
+  background:#0b2948!important;
+  z-index:4!important;
+  border-top:1px solid rgba(255,255,255,.2)!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+#app > header .topnav .userbox.gp-profile-host .gp-profile-wrap{
+  position:relative!important;
+  display:block!important;
+  width:100%!important;
+  overflow:visible!important;
+}
+#app > header .topnav .gp-profile-trigger{
+  display:flex!important;
+  width:100%!important;
+  min-height:51px!important;
+  margin:0!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+#app > header .topnav .gp-profile-actions {
+  /* In-flow disclosure: not clipped by overflow-y:auto or a short iPhone. */
+  position:static!important;
+  inset:auto!important;
+  bottom:auto!important;
+  top:auto!important;
+  left:auto!important;
+  right:auto!important;
+  display:flex!important;
+  margin-top:8px!important;
+  padding:7px!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+  max-height:min(190px,36dvh)!important;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+  z-index:7!important;
+  background:#102c4d!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+#app > header .topnav .gp-profile-actions[hidden] {display:none!important}
+#app > header .topnav .gp-profile-actions button{
+  position:relative!important;
+  display:flex!important;
+  flex:0 0 auto!important;
+  visibility:visible!important;
+  opacity:1!important;
+  min-height:46px!important;
+}
+#app > header .topnav {
+  overscroll-behavior:contain;
+}
+/* The old toolbar account area is intentionally relocated into the menu. */
+#app > header > .userbox.gp-profile-host {display:none!important}
+@media(max-width:760px){
+  #app > header .nav-toggle.gp-nav-morph[aria-expanded="true"]{
+    right:calc(min(330px,88vw) - 22px)!important;
+  }
+  #app > header .topnav .userbox.gp-profile-host{
+    padding-bottom:max(8px,env(safe-area-inset-bottom,0px))!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  #app > header .nav-toggle.gp-nav-morph{transition:none!important}
+}
