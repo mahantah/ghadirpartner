@@ -1,0 +1,102 @@
+/* GHADIR_ORDER_ACTION_BURGER_V1_20261017
+   Adapted from Uiverse.io by JaydipPrajapati1910.
+   Scoped EXCLUSIVELY to per-order action buttons: #orders.
+   The original native order action button stays in the same cell and
+   retains its click handler and bounding rect for popover positioning.
+*/
+#orders .gp-order-burger-wrap {
+  position:relative!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:48px!important;
+  height:44px!important;
+  max-width:48px!important;
+  vertical-align:middle;
+  isolation:isolate;
+}
+#orders .gp-order-burger-wrap .burger {
+  position:relative!important;
+  width:40px!important;
+  height:30px!important;
+  min-width:40px!important;
+  min-height:30px!important;
+  flex:none;
+  display:block!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  border:0!important;
+  padding:0!important;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+#orders .gp-order-burger-wrap .burger input[type="checkbox"] {
+  position:absolute!important;
+  opacity:0!important;
+  inset:0!important;
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  margin:0!important;
+  padding:0!important;
+  cursor:pointer;
+}
+#orders .gp-order-burger-wrap .burger span {
+  display:block;
+  position:absolute;
+  height:4px!important;
+  width:100%!important;
+  background:#102a43!important;
+  border-radius:9px;
+  opacity:1;
+  left:0;
+  transform:rotate(0deg);
+  transform-origin:left center;
+  transition:transform .25s ease-in-out,opacity .25s ease-in-out,width .25s ease-in-out,top .25s ease-in-out,left .25s ease-in-out;
+  pointer-events:none;
+}
+#orders .gp-order-burger-wrap .burger span:nth-of-type(1) {
+  top:0;transform-origin:left center;
+}
+#orders .gp-order-burger-wrap .burger span:nth-of-type(2) {
+  top:50%;transform:translateY(-50%);
+  transform-origin:left center;
+}
+#orders .gp-order-burger-wrap .burger span:nth-of-type(3) {
+  top:100%;transform-origin:left center;transform:translateY(-50%);
+}
+#orders .gp-order-burger-wrap .burger input:checked ~ span:nth-of-type(1) {
+  top:0;left:5px;transform:rotate(405deg);
+}
+#orders .gp-order-burger-wrap .burger input:checked ~ span:nth-of-type(2) {
+  width:0%!important;opacity:0;
+}
+#orders .gp-order-burger-wrap .burger input:checked ~ span:nth-of-type(3) {
+  top:28px;left:5px;transform:rotate(-405deg);
+}
+#orders .gp-order-burger-wrap .burger:focus-within {
+  outline:2px solid #f58220;
+  outline-offset:5px;
+  border-radius:5px;
+}
+/* Keep the ORIGINAL button alive so its onclick and currentTarget rect
+   are intact, but never show the old ••• or give it focus/pointer events. */
+#orders .gp-order-burger-wrap > button.gp-order-native-action {
+  position:absolute!important;
+  display:block!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  opacity:0!important;
+  inset:7px auto auto 4px!important;
+  width:40px!important;
+  height:30px!important;
+  min-width:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  transform:none!important;
+}
+@media(prefers-reduced-motion:reduce){
+  #orders .gp-order-burger-wrap .burger span{transition:none!important}
+}
