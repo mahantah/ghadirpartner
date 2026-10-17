@@ -164,6 +164,15 @@
           serialFlag==='1'||serialFlag==='true';
         if(requiresSerial)add(p?.name||p?.product||p?.model);
       });
+      // A model already registered in warehouse cartons/serials is also a
+      // valid POS model, even if that device is not in today's customer page.
+      var warehouse=(typeof WH!=='undefined'&&WH)?WH:null;
+      if(warehouse){
+        (Array.isArray(warehouse.inventory)?warehouse.inventory:[])
+          .forEach(function(item){add(item?.product||item?.model)});
+        (Array.isArray(warehouse.cartons)?warehouse.cartons:[])
+          .forEach(function(carton){add(carton?.product||carton?.model)});
+      }
       // Previously assigned serials can exist in order items before the
       // inventory view catches up with its state. Include their models too.
       var orders=(typeof ORD!=='undefined'&&Array.isArray(ORD))?ORD:[];
