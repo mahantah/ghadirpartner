@@ -277,7 +277,20 @@ jobs:
             $cart=[];foreach($s['cartons']??[] as $c)$cart[(string)($c['code']??'')]=$c;
             foreach($wanted as $code){if(!isset($cart[$code]))throw new RuntimeException('missing '.$code);$cid=(int)$cart[$code]['id'];$rows=array_values(array_filter($s['inventory']??[],fn($x)=>(int)($x['carton_id']??0)===$cid||(string)($x['carton_code']??'')===$code));$free=count(array_filter($rows,fn($x)=>(int)($x['order_id']??0)===0));if(count($rows)!==20||$free!==20)throw new RuntimeException('target mismatch '.$code);}
             echo json_encode(['ok'=>true,'revision'=>(int)$r['revision'],'backup'=>$name,'counts'=>['inventory'=>count($s['inventory']??[]),'cartons'=>count($s['cartons']??[]),'orders'=>count($s['orders']??[])]],JSON_UNESCAPED_UNICODE);
-          }catch(Throwable $e){http_response_code(500);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);}
+          }catch(Throwable $e){
+            http_response_code(500);
+            $msg=$e->getMessage();
+            $carton=null;
+            if(preg_match('/\b(I90-\d{3})\b/i',$msg,$m))$carton=strtoupper($m[1]);
+            $low=strtolower($msg);
+            $guard=(str_contains($low,'target mismatch')||str_contains($low,'missing i90-'))
+              ?'protected_carton_state_mismatch'
+              :(str_contains($low,'backup')?'state_backup_failed'
+              :((str_contains($low,'sqlstate')||str_contains($low,'pdo'))?'database_error'
+              :((str_contains($low,'state missing')||str_contains($low,'state invalid'))?'database_state_missing_or_invalid':'server_precheck_error')));
+            // Sanitized fields only: no state dump, serials, or credentials.
+            echo json_encode(['ok'=>false,'error'=>$msg,'guard'=>$guard,'carton'=>$carton],JSON_UNESCAPED_UNICODE);
+          }
           PHP
           python3 - <<PY
           p="/tmp/$FILE";s=open(p).read().replace('__TOKEN__',"$TOKEN");open(p,'w').write(s)
@@ -304,26 +317,7 @@ jobs:
           bye
           EOF
           HTTP_STATUS="$(curl -sS --max-time 40 --output /tmp/ghp-preswitch-result.json --write-out '%{http_code}' "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
-          php -r '
-          $status=$argv[1]??"000";
-          $x=json_decode((string)@file_get_contents("/tmp/ghp-preswitch-result.json"),true);
-          if(!is_array($x)){fwrite(STDERR,"Pre-switch safety check blocked: unreadable response, HTTP ".$status."\n");exit(2);}
-          if(empty($x["ok"])){
-              $error=strtolower((string)($x["error"]??""));
-              $reason=str_contains($error,"target mismatch")||str_contains($error,"missing i90-")
-                  ?"protected_carton_state_mismatch"
-                  :(str_contains($error,"backup")?"state_backup_failed"
-                  :(str_contains($error,"sqlstate")||str_contains($error,"pdo")?"database_error"
-                  :(str_contains($error,"state missing")||str_contains($error,"state invalid")?"database_state_missing_or_invalid":"server_precheck_error")));
-              fwrite(STDERR,"Pre-switch safety check blocked: ".$reason.", HTTP ".$status."\n");
-              exit(2);
-          }
-          if(($x["counts"]["inventory"]??0)<13289||($x["counts"]["cartons"]??0)<364){
-              fwrite(STDERR,"Pre-switch safety check blocked: inventory_or_carton_count_below_guard\n");
-              exit(2);
-          }
-          echo "Verified MySQL backup and protected warehouse count guard\n";
-          ' "$HTTP_STATUS"
+          python3 "$GITHUB_WORKSPACE/scripts/preswitch_safety.py" classify /tmp/ghp-preswitch-result.json "$HTTP_STATUS"
 
       - name: Deploy exact V5.3.4.38 core + add-on
         env:
