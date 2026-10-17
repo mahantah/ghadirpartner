@@ -1,0 +1,70 @@
+name: Customer serial count regression
+on:
+  pull_request:
+    paths:
+      - 'assets/warehouse-serial-filters-v4.js'
+      - 'scripts/patch-customer-serial-counts-v4.py'
+      - 'tests/customer-serial-counts-v4.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-customer-serial-counts-v4.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Syntax and canonical deployment patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-serial-filters-v4.js
+          python3 -m py_compile scripts/patch-customer-serial-counts-v4.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('assets/warehouse-serial-filters-v4.js').read_text()
+          assert 'GHADIR_CUSTOMER_SERIAL_COUNTS_V4_20261017' in s
+          assert "group.getAttribute('data-gp-native-count')" in s
+          assert "shown=!active || matches(" in s
+          assert 'updateInventoryModelChoices()' in s
+          print('Native customer count and model selector safety checks passed')
+          PY
+          mkdir -p /tmp/test-app
+          cp app.html /tmp/test-app/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/test-app
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/test-app
+          python3 scripts/patch-nav-morph-v1.py /tmp/test-app
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/test-app
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/test-app
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/test-app
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/test-app
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/test-app
+          python3 scripts/patch-warehouse-serial-filters-v2.py /tmp/test-app
+          python3 scripts/patch-warehouse-serial-filters-v3.py /tmp/test-app
+          python3 scripts/patch-customer-serial-counts-v4.py /tmp/test-app
+          cp /tmp/test-app/app.html /tmp/once.html
+          python3 scripts/patch-customer-serial-counts-v4.py /tmp/test-app
+          cmp /tmp/once.html /tmp/test-app/app.html
+          grep -Fq 'GHADIR_CUSTOMER_SERIAL_COUNTS_V4_20261017' /tmp/once.html
+          grep -Fq '/assets/warehouse-serial-filters-v4.js?v=20261017c4' /tmp/once.html
+          ! grep -Fq '/assets/warehouse-serial-filters-v3.js?v=20261017m3' /tmp/once.html
+          for mark in 'id="inventoryGroups"' 'data-tab="inventory"' 'data-tab="customers"' 'id="logoutbtn"'; do
+            grep -Fq "$mark" /tmp/once.html
+          done
+      - name: Test customer totals in Safari-sized mobile and desktop browsers
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '414,896' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=4000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/customer-serial-counts-v4.html" > /tmp/count-result.html 2>/tmp/chrome.log
+            if ! grep -Fq 'CUSTOMER_COUNTS_V4_PASS' /tmp/count-result.html; then
+              grep -o 'CUSTOMER_COUNTS_V4_FAIL[^<]*' /tmp/count-result.html || true
+              tail -c 1700 /tmp/count-result.html
+              exit 1
+            fi
+            echo "Native customer count, filtered count, reset and model options passed at $size"
+          done

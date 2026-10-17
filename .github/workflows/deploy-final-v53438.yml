@@ -89,6 +89,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-serial-filters-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-serial-filters-v2.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-serial-filters-v3.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-customer-serial-counts-v4.py" "$ROOT"
           mkdir -p "$ROOT/assets"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.css" "$ROOT/assets/nav-morph-v1.css"
           cp "$GITHUB_WORKSPACE/assets/nav-morph-v1.js" "$ROOT/assets/nav-morph-v1.js"
@@ -104,6 +105,9 @@ jobs:
           cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v2.css" "$ROOT/assets/warehouse-serial-filters-v2.css"
           cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v2.js" "$ROOT/assets/warehouse-serial-filters-v2.js"
           cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v3.js" "$ROOT/assets/warehouse-serial-filters-v3.js"
+          cp "$GITHUB_WORKSPACE/assets/warehouse-serial-filters-v4.js" "$ROOT/assets/warehouse-serial-filters-v4.js"
+          node --check "$ROOT/assets/warehouse-serial-filters-v4.js"
+          grep -q "GHADIR_CUSTOMER_SERIAL_COUNTS_V4_20261017" "$ROOT/app.html"
           node --check "$ROOT/assets/warehouse-serial-filters-v3.js"
           grep -q "GHADIR_CUSTOMER_SERIAL_MODEL_OPTIONS_V3_20261017" "$ROOT/app.html"
           node --check "$ROOT/assets/warehouse-serial-filters-v2.js"
@@ -315,6 +319,7 @@ jobs:
           put "$ROOT/assets/warehouse-serial-filters-v2.css" -o /assets/warehouse-serial-filters-v2.css
           put "$ROOT/assets/warehouse-serial-filters-v2.js" -o /assets/warehouse-serial-filters-v2.js
           put "$ROOT/assets/warehouse-serial-filters-v3.js" -o /assets/warehouse-serial-filters-v3.js
+          put "$ROOT/assets/warehouse-serial-filters-v4.js" -o /assets/warehouse-serial-filters-v4.js
           put "$ROOT/assets/ghadir-contact-qr.png" -o /assets/ghadir-contact-qr.png
           put "$ROOT/assets/warehouse-v53438.js" -o /assets/warehouse-v53438.js
           put "$ROOT/assets/warehouse-v53438.css" -o /assets/warehouse-v53438.css
@@ -373,6 +378,7 @@ jobs:
           get /assets/warehouse-serial-filters-v2.css -o /tmp/livecheck/assets/warehouse-serial-filters-v2.css
           get /assets/warehouse-serial-filters-v2.js -o /tmp/livecheck/assets/warehouse-serial-filters-v2.js
           get /assets/warehouse-serial-filters-v3.js -o /tmp/livecheck/assets/warehouse-serial-filters-v3.js
+          get /assets/warehouse-serial-filters-v4.js -o /tmp/livecheck/assets/warehouse-serial-filters-v4.js
           get /lib/warehouse-v53438.php -o /tmp/livecheck/lib/warehouse-v53438.php
           get /lib/labels-v5348.php -o /tmp/livecheck/lib/labels-v5348.php
           get /assets/ghadir-contact-qr.png -o /tmp/livecheck/assets/ghadir-contact-qr.png
@@ -395,6 +401,8 @@ jobs:
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v1.js
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v2.js
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v3.js
+          node --check /tmp/livecheck/assets/warehouse-serial-filters-v4.js
+          grep -q "GHADIR_CUSTOMER_SERIAL_COUNTS_V4_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_CUSTOMER_SERIAL_MODEL_OPTIONS_V3_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_CUSTOMER_SERIAL_RESTORE_NAV_GHOST_V2_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_WAREHOUSE_SERIAL_FILTERS_GHOST_V1_20261017" /tmp/livecheck/app.html

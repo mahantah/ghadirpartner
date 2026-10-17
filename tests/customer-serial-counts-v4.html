@@ -1,0 +1,77 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<style>body{font:14px Tahoma,Arial}.inv-serial-row{display:flex;gap:12px}.inv-group{display:block}</style>
+</head><body>
+<section id="warehouse"><div class="card"><h3>مخزن</h3></div></section>
+<section id="inventory"><div id="inventoryGroups"></div></section>
+<button data-tab="inventory">سریال‌های مشتریان</button>
+<script>
+let INV=[];let WH={cartons:[],inventory:[]};
+function jalaliDate(str){return '1405/07/17'}
+function serial(product,code){
+ return '<div class="inv-serial-row"><div class="inv-product">'+product+
+ '<span class="gp-inv-supplier"> تأمین‌کننده: Homa</span></div>'+
+ '<div class="inv-code"><b>SN:</b> '+code+'</div></div>';
+}
+function customer(name,total,items){
+ let g=document.createElement('details');g.className='inv-group';g.open=true;
+ g.innerHTML='<summary><b>'+name+'</b><span class="inv-count">'+total+' سریال</span></summary>'+
+ '<div class="inv-detail">'+items+'</div>';return g;
+}
+</script>
+<script src="../assets/warehouse-serial-filters-v4.js"></script>
+<div id="count-result">PENDING</div>
+<script>
+window.addEventListener('load',function(){
+ var result=document.getElementById('count-result');
+ var groups=document.getElementById('inventoryGroups');
+ function test(x,reason){if(!x)throw Error(reason)}
+ function change(el){el.dispatchEvent(new Event('change',{bubbles:true}))}
+ function text(g){return g.querySelector('.inv-count')?.textContent||''}
+ function run(){
+  try {
+    var box=document.getElementById('gp-inventory-filter-box');
+    test(box,'serial filter not installed');
+    // Lazy display scenario: the native backend/renderInventory knows that
+    // customer A has seven serials, but only two row nodes are hydrated.
+    var a=customer('مشتری الف','۷',serial('PAX A920','SER1')+serial('Newland N910','SER2'));
+    var b=customer('مشتری ب','۳',serial('PAX A920','SER3'));
+    var empty=customer('گروه در حال بارگذاری','۵','');
+    groups.append(a,b,empty);
+    setTimeout(function(){
+     try{
+      test(text(a)==='۷ سریال','native customer A count overwritten: '+text(a));
+      test(text(b)==='۳ سریال','native customer B count overwritten: '+text(b));
+      test(text(empty)==='۵ سریال','native lazy-loaded group count overwritten: '+text(empty));
+      var select=box.querySelector('[data-filter="model"]');
+      var names=Array.from(select.options).map(o=>o.value);
+      test(names.includes('PAX A920')&&names.includes('Newland N910'),'models not loaded');
+      // Filtered count is per visible serial row.
+      select.value='Newland N910';change(select);
+      test(text(a).includes('۱'),'filtered matching count incorrect: '+text(a));
+      test(b.style.display==='none','nonmatching customer not hidden while filter active');
+      // Reset must restore real source/native count, not the filtered 1.
+      box.querySelector('.gp-reset-filter').click();
+      test(text(a)==='۷ سریال','customer A count not restored: '+text(a));
+      test(text(b)==='۳ سریال','customer B count not restored: '+text(b));
+      test(text(empty)==='۵ سریال','lazy customer count not retained after reset');
+      test(a.style.display!=='none'&&b.style.display!=='none'&&empty.style.display!=='none',
+           'group hidden without filter');
+      // A newly rendered group must retain native label too.
+      var c=customer('مشتری ج','۱۲',serial('Sunmi P2','SER4'));
+      groups.appendChild(c);
+      setTimeout(function(){
+       try{
+        test(text(c)==='۱۲ سریال','new customer group total reset after render: '+text(c));
+        test(text(a)==='۷ سریال','original group count changed after new async data');
+        test(Array.from(select.options).some(o=>o.value==='Sunmi P2'),
+             'model selector lost async model after counters fix');
+        result.textContent='CUSTOMER_COUNTS_V4_PASS';
+       }catch(e){result.textContent='CUSTOMER_COUNTS_V4_FAIL '+e.message}
+      },120);
+     }catch(e){result.textContent='CUSTOMER_COUNTS_V4_FAIL '+e.message}
+    },120);
+  }catch(e){result.textContent='CUSTOMER_COUNTS_V4_FAIL '+e.message}
+ }
+ setTimeout(run,80);
+});
+</script></body></html>
