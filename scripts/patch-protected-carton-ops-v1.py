@@ -66,10 +66,9 @@ for target in candidates:
     if "/api/inventory/delete" in s and del_inv in s:
         s = s.replace(del_inv, del_inv_fix, 1)
 
-    if MARK not in s:
-        s = "<?php /* " + MARK + " */ ?>\n" + s if s.startswith("<?php") else s
-        if s.startswith("<?php"):
-            s = s.replace("<?php", "<?php /* " + MARK + " */", 1)
+    if MARK not in s and s.startswith("<?php"):
+        # Keep declare(strict_types=1) as the first statement; comment only.
+        s = s.replace("<?php", "<?php /* " + MARK + " */", 1)
 
     if s != original:
         target.write_text(s, encoding="utf-8")
