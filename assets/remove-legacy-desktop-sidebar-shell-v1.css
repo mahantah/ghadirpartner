@@ -1,0 +1,72 @@
+/* GHADIR_REMOVE_LEGACY_DESKTOP_SIDEBAR_SHELL_V1_20261017
+   Root-cause fix for the 282px permanent navy rectangle on desktop.
+
+   The production V5.3.4.38 ZIP contains an OLD desktop sidebar:
+     #app>header  { position:fixed; width:282px; height:100vh; background:navy; }
+     #app>.wrap   { margin:0 282px 0 0; }
+   Later hamburger patches only hid .topnav inside that parent, leaving the
+   old header itself and its 282px reserved content gutter visible.
+
+   The real navigation and account controls are still in the fixed .topnav.
+   Collapse the obsolete *parent shell*, not the live navigation drawer.
+   Mobile intentionally retains its separate current top-bar layout.
+*/
+@media (min-width:761px) {
+  #app > header {
+    display:block!important;
+    position:static!important;
+    top:auto!important;
+    right:auto!important;
+    bottom:auto!important;
+    left:auto!important;
+    width:0!important;
+    min-width:0!important;
+    max-width:0!important;
+    height:0!important;
+    min-height:0!important;
+    max-height:0!important;
+    margin:0!important;
+    padding:0!important;
+    gap:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    background-color:transparent!important;
+    background-image:none!important;
+    box-shadow:none!important;
+    overflow:visible!important;
+    transform:none!important;
+    transition:none!important;
+  }
+  /* The brand also exists in the drawer's own header. The old desktop
+     branding belongs to the obsolete fixed shell and must not be duplicated. */
+  #app > header > .brand {
+    display:none!important;
+  }
+  /* Recover the width previously reserved for the 282px fixed sidebar. */
+  #app > .wrap,
+  #app.sidebar-collapsed > .wrap,
+  #app:not(.sidebar-collapsed) > .wrap {
+    display:block!important;
+    box-sizing:border-box!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    margin:0!important;
+    padding:68px clamp(12px,2.4vw,28px) 34px!important;
+    transform:none!important;
+    transition:none!important;
+  }
+  /* Only actual floating hamburger/X and drawer stay interactive.
+     All controls are descendants of the transparent zero-sized shell, and
+     remain fixed in the viewport; do NOT hide the header with display:none. */
+  #app > header .nav-toggle.gp-nav-morph {
+    display:flex!important;
+    position:fixed!important;
+  }
+  #app > header .topnav.sidebar-open {
+    position:fixed!important;
+    visibility:visible!important;
+    pointer-events:auto!important;
+  }
+}
