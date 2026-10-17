@@ -58,7 +58,7 @@ jobs:
             p=Path('app.html')
             s=p.read_text()
             tags=[
-                '<script src="/assets/order-multiprint-v53438.js?v=53438mp2"></script>',
+                '<script src="/assets/order-multiprint-v53438.js?v=53438mp3"></script>',
                 '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui4"></script>'
             ]
             if '</body>' not in s:
