@@ -69,6 +69,38 @@ ghadir_protected_transfer_guard($ok, 'I90-097', 1, $whole);
 gp_assert(ghadir_protected_should_detach_retail('I90-097') === false, 'protected must stay attached');
 gp_assert(ghadir_protected_should_detach_retail('I90-200') === true, 'normal retail detach remains');
 
+$full = $ok;
+$full['orders'] = [['id'=>7,'number'=>'GHP-TEST','items'=>[['product'=>'دستگاه كارتخوان I90','serials'=>[]]], 'history'=>[]]];
+$sns = [];
+foreach ($full['inventory'] as &$iv) {
+    if (($iv['carton_code'] ?? '') !== 'I90-097') continue;
+    $iv['order_id'] = 7;
+    $iv['order_number'] = 'GHP-TEST';
+    $iv['warehouse_id'] = 1;
+    $iv['serial'] = 'MOCK-097-'.count($sns);
+    $sns[] = $iv['serial'];
+}
+unset($iv);
+$full['orders'][0]['items'][0]['serials'] = $sns;
+$before = ghadir_protected_carton_inspect($full, 'I90-097');
+gp_assert($before['kind'] === 'allocated' && (int)$before['reserved'] === 20, 'I90-097 fully allocated fixture');
+$fix = ghadir_protected_unassign_reserved($full, 'I90-097');
+gp_assert($fix['changed'] === true && (int)$fix['released'] === 20, 'released 20 in-warehouse serials');
+gp_assert($fix['skipped_shipped'] === 0, 'none shipped');
+$after = ghadir_protected_carton_inspect($full, 'I90-097');
+gp_assert($after['ok'] === true && (int)$after['free'] === 20, 'I90-097 free after unassign');
+gp_assert($full['orders'][0]['items'][0]['serials'] === [], 'order serials cleared');
+
+$shipped = $ok;
+foreach ($shipped['inventory'] as &$iv) {
+    if (($iv['carton_code'] ?? '') !== 'I90-097') continue;
+    $iv['order_id'] = 8;
+    $iv['warehouse_id'] = 0;
+}
+unset($iv);
+$no = ghadir_protected_unassign_reserved($shipped, 'I90-097');
+gp_assert($no['changed'] === false && (int)$no['skipped_shipped'] === 20, 'shipped serials stay allocated');
+
 if (($argv[1] ?? '') === 'diagnose') {
     $state = json_decode((string)file_get_contents($argv[2] ?? ''), true);
     echo json_encode(['ok'=>ghadir_protected_carton_first_mismatch($state)===null,'cartons'=>ghadir_protected_carton_report($state)], JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT), "\n";
