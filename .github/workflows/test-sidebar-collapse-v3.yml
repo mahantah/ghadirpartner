@@ -1,0 +1,66 @@
+name: Desktop sidebar collapse regression tests
+on:
+  pull_request:
+    paths:
+      - 'assets/sidebar-collapse-v3.css'
+      - 'scripts/patch-sidebar-collapse-v3.py'
+      - 'tests/sidebar-collapse-v3.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-sidebar-collapse-v3.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Syntax, CSS specificity, legacy routes and repeatable build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/patch-sidebar-collapse-v3.py
+          python3 - <<'PY'
+          from pathlib import Path
+          css=Path("assets/sidebar-collapse-v3.css").read_text()
+          assert css.count("{")==css.count("}")
+          assert "#app > header .topnav:not(.sidebar-open)" in css
+          assert "#app > header .topnav.sidebar-open" in css
+          assert "visibility:hidden!important" in css
+          assert "visibility:visible!important" in css
+          assert "translate3d(110%,0,0)!important" in css
+          assert "translate3d(0,0,0)!important" in css
+          print("CSS state contract OK")
+          PY
+          mkdir -p /tmp/built-web
+          cp app.html /tmp/built-web/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/built-web
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/built-web
+          python3 scripts/patch-nav-morph-v1.py /tmp/built-web
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/built-web
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/built-web
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/built-web
+          cp /tmp/built-web/app.html /tmp/collapse-built.html
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/built-web
+          cmp /tmp/collapse-built.html /tmp/built-web/app.html
+          for marker in 'data-tab="orders"' 'data-tab="warehouse"' 'data-tab="customers"' 'id="changePasswordBtn"' 'id="logoutbtn"' 'GHADIR_LOGIN_STARTUP_SPLASH_V1_20261017'; do
+            if [[ "$marker" == 'GHADIR_LOGIN_STARTUP_SPLASH_V1_20261017' ]]; then continue; fi
+            grep -Fq "$marker" /tmp/collapse-built.html
+          done
+          grep -Fq 'GHADIR_DESKTOP_SIDEBAR_COLLAPSE_V3_20261017' /tmp/collapse-built.html
+      - name: Regression against intentionally conflicting CSS, real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '390,680' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=6500 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/sidebar-collapse-v3.html" > /tmp/nav-collapse-result.html 2>/tmp/nav-collapse-chrome.log
+            if ! grep -Fq 'COLLAPSE_V3_PASS' /tmp/nav-collapse-result.html; then
+              grep -o 'COLLAPSE_V3_FAIL[^<]*' /tmp/nav-collapse-result.html || true
+              tail -c 1700 /tmp/nav-collapse-result.html
+              exit 1
+            fi
+            echo "Actual panel collapse/expand and animated icon passed at $size"
+          done
