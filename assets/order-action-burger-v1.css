@@ -100,3 +100,19 @@
 @media(prefers-reduced-motion:reduce){
   #orders .gp-order-burger-wrap .burger span{transition:none!important}
 }
+
+/* SVG action icons and restored single-order label button. */
+body > .order-menu.open:not(.customer-menu) button.gp-order-icon-action{
+  display:flex!important;align-items:center!important;gap:10px!important;
+  text-align:right!important;direction:rtl!important;width:100%;
+}
+body > .order-menu.open:not(.customer-menu) .gp-order-icon-action > svg{
+  display:block;flex:none;width:19px;height:19px;fill:none;
+  stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;
+}
+body > .order-menu.open:not(.customer-menu) .gp-order-label-action{
+  color:#102a43!important;
+}
+body > .order-menu.open:not(.customer-menu) .gp-order-label-action:hover{
+  background:#e8f1f8!important;
+}
