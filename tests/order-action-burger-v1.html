@@ -1,0 +1,104 @@
+<!doctype html><html lang="fa" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../assets/order-action-burger-v1.css">
+<style>
+body{font:14px Tahoma,Arial;background:#f7f9fc;color:#102a43;margin:18px}
+#orders{width:100%;overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dde4ed;padding:14px}
+button{cursor:pointer}.dots-btn{width:34px;height:32px;position:relative}
+.dots-btn::after{content:"•••";font-size:16px}
+.order-menu{display:none;position:fixed;z-index:100;min-width:230px;background:#fff;border:1px solid #ccd8e6;
+box-shadow:0 14px 26px #0002;border-radius:10px;padding:8px}.order-menu.open{display:block}
+</style></head>
+<body>
+<div id="orders"><table><thead><tr><th>شماره سفارش</th><th>عملیات</th></tr></thead>
+<tbody id="otbody"><tr><td>GHP-000250</td><td><button class="dots-btn" aria-label="عملیات سفارش" onclick="toggleOrderMenu(event,250)">•••</button></td></tr>
+<tr><td>GHP-000249</td><td><button class="dots-btn" aria-label="عملیات سفارش" onclick="toggleOrderMenu(event,249)">•••</button></td></tr>
+</tbody></table></div>
+<div id="customers"><button class="dots-btn" id="customer-dots">•••</button></div>
+<button id="outside">کلیک بیرون از منو</button>
+<div id="test-result">PENDING</div>
+<script>
+window.nativeOpenCount=0;window.nativeClicks=0;window.lastNativeRect=null;
+function closeOrderMenus(){document.querySelectorAll('.order-menu').forEach(x=>x.remove())}
+function toggleOrderMenu(ev,id){
+ ev.stopPropagation();
+ closeOrderMenus();
+ window.nativeOpenCount++;
+ window.lastNativeRect=ev.currentTarget.getBoundingClientRect();
+ let menu=document.createElement('div');
+ menu.className='order-menu open';
+ menu.innerHTML='<b>سفارش '+id+'</b><button id="edit-order" onclick="window.nativeClicks++;closeOrderMenus()">ویرایش سفارش</button>';
+ document.body.appendChild(menu);
+ menu.style.left=Math.max(8,window.lastNativeRect.right-238)+'px';
+ menu.style.top=(window.lastNativeRect.bottom+6)+'px';
+}
+document.addEventListener('click',closeOrderMenus);
+</script>
+<script src="../assets/order-action-burger-v1.js"></script>
+<script>
+window.addEventListener('load',function(){
+ var out=document.getElementById('test-result');
+ function check(x,m){if(!x)throw Error(m)}
+ function wait(n){return new Promise(r=>setTimeout(r,n))}
+ async function run(){
+  try{
+   await wait(90);
+   const list=Array.from(document.querySelectorAll('#orders .gp-order-burger-wrap'));
+   check(list.length===2,'not exactly two order buttons upgraded');
+   check(document.getElementById('customer-dots').closest('.gp-order-burger-wrap')===null,
+     'customer actions should not be changed');
+   check(document.querySelectorAll('#orders button.dots-btn.gp-order-native-action').length===2,
+      'native order action handlers removed');
+   const label=list[0].querySelector('label.burger');
+   const input=list[0].querySelector('input[type=checkbox]');
+   check(label&&label.querySelectorAll('span').length===3,'not user-provided three line burger');
+   check(!input.checked&&input.getAttribute('aria-expanded')==='false','incorrect initial state');
+   label.click();
+   await wait(50);
+   check(input.checked,'burger did not become X');
+   check(input.getAttribute('aria-expanded')==='true','accessibility state not expanded');
+   check(document.querySelectorAll('body > .order-menu.open').length===1,'native order popup not opened');
+   check(document.querySelector('.order-menu b').textContent.includes('250'),'wrong order actions opened');
+   check(window.nativeOpenCount===1,'native toggleOrderMenu handler was bypassed');
+   check(window.lastNativeRect.width>20 && window.lastNativeRect.height>10,
+      'native button rect lost; order popover would be misplaced');
+   let st=getComputedStyle(list[0].querySelector('span:nth-of-type(1)'));
+   check(st.transform!=='none','hamburger CSS transform not applied');
+   label.click();
+   await wait(50);
+   check(!input.checked,'second click did not restore hamburger');
+   check(!document.querySelector('body > .order-menu.open'),'second click did not close native menu');
+   const second=list[1].querySelector('label.burger');
+   second.click();
+   await wait(50);
+   check(list[1].querySelector('input').checked,'second order menu did not open');
+   check(document.querySelector('.order-menu b').textContent.includes('249'),'wrong second order selected');
+   document.getElementById('outside').click();
+   await wait(50);
+   check(!list[1].querySelector('input').checked,'outside click did not reset icon');
+   label.click();
+   await wait(50);
+   document.getElementById('edit-order').click();
+   await wait(50);
+   check(window.nativeClicks===1,'original order action did not execute');
+   check(!input.checked,'menu close by order action did not reset icon');
+   // Orders paging/search rerenders all table rows and must redecorate.
+   document.getElementById('otbody').innerHTML=
+       '<tr><td>GHP-000245</td><td><button class="dots-btn" aria-label="عملیات سفارش" onclick="toggleOrderMenu(event,245)">•••</button></td></tr>';
+   await wait(80);
+   const fresh=document.querySelector('#otbody .gp-order-burger-wrap');
+   check(fresh&&fresh.querySelectorAll('.burger span').length===3,'rerender lost order burger');
+   fresh.querySelector('label').click();
+   await wait(50);
+   check(document.querySelector('.order-menu b').textContent.includes('245'),
+     'newly paged order actions broken');
+   document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+   await wait(50);
+   check(!document.querySelector('body > .order-menu')&&!fresh.querySelector('input').checked,
+     'Escape did not close and reset menu');
+   out.textContent='ORDER_ACTION_BURGER_PASS';
+  }catch(e){out.textContent='ORDER_ACTION_BURGER_FAIL '+e.message}
+ }
+ run();
+});
+</script></body></html>
