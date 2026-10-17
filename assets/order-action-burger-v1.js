@@ -12,6 +12,57 @@
   function orderMenus(){
     return Array.from(document.querySelectorAll('body > .order-menu.open:not(.customer-menu)'));
   }
+
+  // Icons are local SVGs so they work without external icon fonts or CDNs.
+  var icons={
+    details:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 11v5M12 8h.01"/></svg>',
+    status:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h11M4 8h11M4 11h7M11 19l2.1-.4L20 11.7 17.3 9l-6.9 6.9L10 19z"/></svg>',
+    payment:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M15 15h4"/></svg>',
+    edit:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5z"/></svg>',
+    history:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8V3M3 8h5M3.4 8a9 9 0 1 1-.4 5"/><path d="M12 7v5l3 2"/></svg>',
+    label:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v4H7zM7 17h10v4H7zM6 10h12a3 3 0 0 1 3 3v4h-4M7 17H3v-4a3 3 0 0 1 3-3zM17 13h.01"/></svg>'
+  };
+  function iconKey(text){
+    if(/جزئیات سفارش/.test(text))return 'details';
+    if(/تغییر وضعیت/.test(text))return 'status';
+    if(/نحوه تسویه|تسویه/.test(text))return 'payment';
+    if(/ویرایش سفارش/.test(text))return 'edit';
+    if(/تاریخچه/.test(text))return 'history';
+    return '';
+  }
+  function orderIdFromButton(button){
+    var match=(button.getAttribute('onclick')||'').match(/toggleOrderMenu\\(event\\s*,\\s*(\\d+)\\)/);
+    return match?Number(match[1]):0;
+  }
+  function decorateOrderMenu(menu,orderId){
+    if(!menu)return;
+    menu.querySelectorAll('button').forEach(function(button){
+      if(button.classList.contains('gp-order-icon-action'))return;
+      var key=iconKey(button.textContent||'');
+      if(!key)return;
+      button.insertAdjacentHTML('afterbegin',icons[key]);
+      button.classList.add('gp-order-icon-action');
+    });
+    if(!orderId||menu.querySelector('[data-gp-action="print-label"]'))return;
+    var button=document.createElement('button');
+    button.type='button';
+    button.dataset.gpAction='print-label';
+    button.className='gp-order-icon-action gp-order-label-action';
+    button.innerHTML=icons.label+'<span>چاپ لیبل سفارش</span>';
+    button.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      // Same authenticated label preview used by the existing batch-print tool.
+      // Opening here (during the real click) keeps popup blockers from intervening.
+      var url='/print/order-label?id='+encodeURIComponent(orderId);
+      var preview=window.open(url,'_blank');
+      if(!preview)alert('مرورگر صفحه چاپ را مسدود کرده است. اجازه Pop-up را برای این سایت فعال کنید.');
+      if(typeof closeOrderMenus==='function')closeOrderMenus();
+      synchronize();
+    });
+    var separator=menu.querySelector('.order-menu-sep');
+    if(separator)menu.insertBefore(button,separator);
+    else menu.appendChild(button);
+  }
   function synchronize(){
     var menu=orderMenus()[0]||null;
     var activeId=menu?.dataset.gpOrderBurgerOwner||'';
@@ -56,6 +107,7 @@
               var opened=orderMenus();
               if(opened.length){
                 opened[0].dataset.gpOrderBurgerOwner=input.id;
+                decorateOrderMenu(opened[0],orderIdFromButton(button));
               }else input.checked=false;
             }else if(typeof closeOrderMenus==='function'){
               closeOrderMenus();

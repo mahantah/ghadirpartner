@@ -56,8 +56,8 @@ jobs:
           python3 scripts/patch-order-action-burger-v1.py /tmp/order-build
           cmp /tmp/order-build/app.html /tmp/once.html
           grep -Fq 'GHADIR_ORDER_ACTION_BURGER_V1_20261017' /tmp/once.html
-          grep -Fq '/assets/order-action-burger-v1.js?v=20261017b1' /tmp/once.html
-          grep -Fq '/assets/order-action-burger-v1.css?v=20261017b1' /tmp/once.html
+          grep -Fq '/assets/order-action-burger-v1.js?v=20261017c2' /tmp/once.html
+          grep -Fq '/assets/order-action-burger-v1.css?v=20261017c2' /tmp/once.html
           for marker in 'toggleOrderMenu' 'closeOrderMenus' 'data-tab="orders"' 'data-tab="inventory"' 'id="logoutbtn"'; do
             grep -Fq "$marker" /tmp/once.html
           done
