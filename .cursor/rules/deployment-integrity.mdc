@@ -1,0 +1,14 @@
+---
+description: Safety requirements when changing GitHub Actions, data persistence, PHP, warehouse or production deploys
+globs: .github/workflows/*.yml,.github/workflows/*.yaml,scripts/**/*.py,index.php,lib/**/*,partners/**/*.php
+alwaysApply: false
+---
+
+High-risk files. Analyze dependencies and expected production behavior before editing.
+
+- The production workflow `.github/workflows/deploy-final-v53438.yml` is manually dispatched except for its explicit sentinel path. Do not add a generic push-to-main production trigger.
+- Deployments snapshot core files and MySQL before switching; retain rollback. Never weaken or remove the integrity/hash/protected-carton-state guard or treat a 500 response as pass.
+- `protected_carton_state_mismatch` indicates a blocking mismatch. Read-only investigation first; no direct database repair, manual sync, fallback overwrite, DELETE/TRUNCATE, or snapshot fabrication.
+- No production credentials or MySQL access in Cursor Cloud Agents by default; recommend a sanitized, isolated dev environment and mocked fixtures.
+- Avoid any changes to `storage/ghadir_data.json`, server configs or authentication endpoints when the task is only UI.
+- Ensure build patches apply in the established order, are idempotent, and fail on structural drift. Exercise `.github/workflows/ci-web.yml`; communicate blocked deploys accurately.
