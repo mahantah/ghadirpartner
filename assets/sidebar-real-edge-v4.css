@@ -1,0 +1,67 @@
+/* GHADIR_SIDEBAR_REAL_EDGE_V4_20261017
+   Video IMG_4630: open orange X is detached from the real sidebar edge.
+   Determine drawer width from runtime geometry rather than guesses: earlier
+   layers hard-code min(310px,88vw) even if the deployed drawer differs.
+   Also remove the X's orange rounded rectangle and backing/shadow.
+*/
+#app > header .nav-toggle.gp-nav-morph,
+#app > header .nav-toggle.gp-nav-morph:hover,
+#app > header .nav-toggle.gp-nav-morph:focus-visible,
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"],
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="false"] {
+  --gp-edge-button-size:44px;
+  position:fixed!important;
+  top:calc(10px + env(safe-area-inset-top,0px))!important;
+  width:var(--gp-edge-button-size)!important;
+  height:var(--gp-edge-button-size)!important;
+  min-width:var(--gp-edge-button-size)!important;
+  min-height:var(--gp-edge-button-size)!important;
+  padding:0!important;
+  border:0!important;
+  outline-offset:2px;
+  border-radius:0!important;
+  background:none!important;
+  background-color:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  color:#f58220!important;
+  z-index:250!important;
+  margin:0!important;
+  transform:none!important;
+  transition:right .30s cubic-bezier(.22,.8,.22,1)!important;
+  -webkit-tap-highlight-color:transparent;
+}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="false"]{
+  right:8px!important;
+}
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] {
+  /* The button's CENTER sits exactly on the outer/left edge of the right
+     sidebar, regardless of desktop zoom, RTL, or CSS breakpoint width. */
+  right:calc(var(--gp-actual-sidebar-width,310px) - var(--gp-edge-button-size)/2)!important;
+}
+#app > header .nav-toggle.gp-nav-morph .gp-nav-line,
+#app > header .nav-toggle.gp-nav-morph[aria-expanded="true"] .gp-nav-line {
+  background:#f58220!important;
+  box-shadow:none!important;
+  filter:none!important;
+}
+#app > header .nav-toggle.gp-nav-morph:focus-visible {
+  outline:2px solid #f58220!important;
+}
+#app > header .topnav:not(.sidebar-open){
+  /* The collapsed drawer should have no leftover opaque backing. */
+  opacity:0!important;
+  visibility:hidden!important;
+  box-shadow:none!important;
+  pointer-events:none!important;
+}
+#app > header .topnav.sidebar-open{
+  opacity:1!important;
+  visibility:visible!important;
+}
+@media(prefers-reduced-motion:reduce){
+  #app > header .nav-toggle.gp-nav-morph{transition:none!important}
+}

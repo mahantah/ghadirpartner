@@ -1,0 +1,66 @@
+name: Real sidebar-edge icon and no-backplate regression
+on:
+  pull_request:
+    paths:
+      - 'assets/sidebar-real-edge-v4.css'
+      - 'assets/sidebar-real-edge-v4.js'
+      - 'scripts/patch-sidebar-real-edge-v4.py'
+      - 'tests/sidebar-real-edge-v4.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-sidebar-real-edge-v4.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Syntax + safe patch integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/sidebar-real-edge-v4.js
+          python3 -m py_compile scripts/patch-sidebar-real-edge-v4.py
+          python3 - <<'PY'
+          from pathlib import Path
+          x=Path("assets/sidebar-real-edge-v4.css").read_text()
+          assert x.count("{")==x.count("}")
+          assert "var(--gp-actual-sidebar-width" in x
+          assert "background-color:transparent!important" in x
+          y=Path("assets/sidebar-real-edge-v4.js").read_text()
+          assert "getBoundingClientRect().width" in y
+          assert "ResizeObserver" in y
+          print("New CSS/JS interface contract OK")
+          PY
+          mkdir -p /tmp/web-build
+          cp app.html /tmp/web-build/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/web-build
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/web-build
+          python3 scripts/patch-nav-morph-v1.py /tmp/web-build
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/web-build
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/web-build
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/web-build
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/web-build
+          cp /tmp/web-build/app.html /tmp/once.html
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/web-build
+          cmp /tmp/once.html /tmp/web-build/app.html
+          for m in 'data-tab="orders"' 'data-tab="warehouse"' 'data-tab="customers"' 'id="changePasswordBtn"' 'id="logoutbtn"' 'GHADIR_SIDEBAR_REAL_EDGE_V4_20261017'; do
+            grep -Fq "$m" /tmp/once.html
+          done
+      - name: Browser geometry at unpredictable drawer widths, mobile and desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '414,896' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=6000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/sidebar-real-edge-v4.html" > /tmp/real-edge.html 2>/tmp/chrome.log
+            if ! grep -Fq 'REAL_EDGE_PASS' /tmp/real-edge.html; then
+              grep -o 'REAL_EDGE_FAIL[^<]*' /tmp/real-edge.html || true
+              tail -c 1200 /tmp/real-edge.html
+              exit 1
+            fi
+            echo "Real edge docking, no backing plate, and clean close passed at $size"
+          done
