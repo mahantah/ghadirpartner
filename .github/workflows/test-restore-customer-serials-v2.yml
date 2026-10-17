@@ -1,0 +1,72 @@
+name: Restore customer serials and fully close navy sidebar
+on:
+  pull_request:
+    paths:
+      - 'assets/warehouse-serial-filters-v2.css'
+      - 'assets/warehouse-serial-filters-v2.js'
+      - 'scripts/patch-warehouse-serial-filters-v2.py'
+      - 'tests/restore-customer-serials-v2.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-restore-customer-serials-v2.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Static validation and compiled production entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-serial-filters-v2.js
+          python3 -m py_compile scripts/patch-warehouse-serial-filters-v2.py
+          python3 - <<'PY'
+          from pathlib import Path
+          css=Path('assets/warehouse-serial-filters-v2.css').read_text()
+          js=Path('assets/warehouse-serial-filters-v2.js').read_text()
+          assert css.count('{')==css.count('}')
+          assert '.gp-nav-fully-closed' in css
+          assert 'display:none!important' in css
+          assert "invObserver.observe(groups,{childList:true})" in js
+          assert "shown=!active || matches(" in js
+          assert "new MutationObserver(sync).observe(nav" in js
+          print('Customer serial visibility and browser compositor safety rules validated')
+          PY
+          mkdir -p /tmp/compiled-ui
+          cp app.html /tmp/compiled-ui/app.html
+          python3 scripts/patch-mobile-ui-v1.py /tmp/compiled-ui
+          python3 scripts/patch-mobile-menu-overlay-v2.py /tmp/compiled-ui
+          python3 scripts/patch-nav-morph-v1.py /tmp/compiled-ui
+          python3 scripts/patch-sidebar-profile-polish-v1.py /tmp/compiled-ui
+          python3 scripts/patch-sidebar-edge-profile-v2.py /tmp/compiled-ui
+          python3 scripts/patch-sidebar-collapse-v3.py /tmp/compiled-ui
+          python3 scripts/patch-sidebar-real-edge-v4.py /tmp/compiled-ui
+          python3 scripts/patch-warehouse-serial-filters-v1.py /tmp/compiled-ui
+          python3 scripts/patch-warehouse-serial-filters-v2.py /tmp/compiled-ui
+          cp /tmp/compiled-ui/app.html /tmp/compiled-once.html
+          python3 scripts/patch-warehouse-serial-filters-v2.py /tmp/compiled-ui
+          cmp /tmp/compiled-once.html /tmp/compiled-ui/app.html
+          for mark in 'id="inventoryGroups"' 'id="warehouseBody"' 'data-tab="customers"' 'id="changePasswordBtn"' 'id="logoutbtn"' 'GHADIR_CUSTOMER_SERIAL_RESTORE_NAV_GHOST_V2_20261017'; do
+            grep -Fq "$mark" /tmp/compiled-ui/app.html
+          done
+          grep -Fq '/assets/warehouse-serial-filters-v2.js?v=20261017f2' /tmp/compiled-ui/app.html
+          ! grep -Fq '/assets/warehouse-serial-filters-v1.js?v=20261017f1' /tmp/compiled-ui/app.html
+          grep -Fq '/print/warehouse-label?id=' /tmp/compiled-ui/app.html
+      - name: "Real browser - customer serial recovery and no dark menu residue"
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for size in '390,844' '414,896' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=6000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/restore-customer-serials-v2.html" > /tmp/inventory-nav-v2.html 2>/tmp/chrome.log
+            if ! grep -Fq 'SERIALS_NAV_V2_PASS' /tmp/inventory-nav-v2.html; then
+              grep -o 'SERIALS_NAV_V2_FAIL[^<]*' /tmp/inventory-nav-v2.html || true
+              tail -c 1400 /tmp/inventory-nav-v2.html
+              exit 1
+            fi
+            echo "Customer serials with supplier badges and actual closed sidebar passed at $size"
+          done
