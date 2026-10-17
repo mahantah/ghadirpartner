@@ -1,0 +1,90 @@
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;font:14px Tahoma,Arial;background:#f3f6fa}
+#app > header{position:relative;z-index:20}
+#app > header .nav-toggle{position:fixed;z-index:140;right:12px;top:12px;width:46px;height:46px;background:#f58220;color:white}
+#app > header .topnav{position:fixed;inset:0 0 0 auto;z-index:135;width:min(310px,88vw);height:100vh;box-sizing:border-box;display:flex;align-items:stretch;flex-direction:column;gap:8px;padding:16px 14px;overflow-y:auto;transform:translateX(105%);transition:transform .24s ease;background:linear-gradient(#0b2948,#0d3155)}
+#app > header .topnav.sidebar-open{transform:translateX(0)}
+#app > header .topnav button{min-height:48px;color:white;background:#25496f;border:1px solid #ffffff33;border-radius:12px}
+#app > header .topnav .sidebar-head{display:flex;align-items:center;gap:10px;border-bottom:1px solid #ffffff33}
+#app > header .topnav .sidebar-head img{width:52px;height:52px;padding:5px;border-radius:16px;background:#34577c;box-shadow:0 4px 14px #0006}
+#app > header .topnav .sidebar-head b{color:#fff}
+#app > header .userbox{position:absolute;top:50%;left:20px;transform:translateY(-50%);display:flex;gap:8px}
+#app > header .topnav .userbox{margin-top:auto}
+#app .nav-overlay{position:fixed;inset:0;background:#0005;z-index:19;pointer-events:none}
+#app .nav-overlay.visible{pointer-events:all}
+@media(max-width:760px){#app > header .topnav{width:min(330px,88vw);height:100dvh;padding:calc(12px + env(safe-area-inset-top)) 12px 14px}}
+</style>
+<link rel="stylesheet" href="../assets/nav-morph-v1.css">
+<link rel="stylesheet" href="../assets/sidebar-profile-polish-v1.css">
+<link rel="stylesheet" href="../assets/sidebar-edge-profile-v2.css">
+<style id="simulate-deployed-drawer-width">
+  /* Deliberately make the drawer wider than the guessed 310px in old CSS.
+     A real dynamic-edge solution MUST still center on the panel left edge. */
+  #app > header .topnav {width:min(370px,86vw)!important;max-width:none!important;}
+</style>
+<link rel="stylesheet" href="../assets/sidebar-collapse-v3.css">
+<link rel="stylesheet" href="../assets/sidebar-real-edge-v4.css"></head><body>
+<div id="app"><header><button class="nav-toggle" type="button">☰</button><div class="topnav">
+<div class="sidebar-head"><div class="logo-frame"><img src="../assets/ghadir-logo-transparent.svg"></div><b>قدیر پارتنر</b><button type="button" class="sidebar-close">×</button></div>
+<button type="button" class="duplicate-close">جمع کردن منو</button>
+<button type="button" data-tab="dashboard">پیشخوان</button>
+<button type="button" data-tab="orders">سفارش‌ها</button>
+<button type="button" data-tab="warehouse">مدیریت انبار</button>
+<button type="button" data-tab="products">لیست قیمت</button>
+<button type="button" data-tab="customers">مشتریان و فروش</button>
+<button type="button" data-tab="settings">تنظیمات سامانه</button>
+<button type="button" data-tab="reports">گزارش فروش</button>
+<div class="userbox"><span id="who">Taheri</span><button type="button" id="changePasswordBtn">تغییر رمز</button><button type="button" id="logoutbtn">خروج</button></div>
+</div></header><div class="nav-overlay"></div></div>
+<div id="real-edge-result">PENDING</div>
+<script>window.gpPasswordClicks=0;window.gpLogoutClicks=0;</script>
+<script src="../assets/nav-morph-v1.js"></script>
+<script src="../assets/sidebar-profile-polish-v1.js"></script>
+<script src="../assets/sidebar-edge-profile-v2.js"></script>
+<script src="../assets/sidebar-real-edge-v4.js"></script>
+<script>
+window.addEventListener('load',function(){
+ var result=document.getElementById('real-edge-result');
+ var nav=document.querySelector('#app > header .topnav');
+ var btn=document.querySelector('#app > header .nav-toggle');
+ function check(ok,msg){if(!ok)throw Error(msg)}
+ function reportError(e){result.textContent='REAL_EDGE_FAIL '+e.message}
+ window.setTimeout(function(){
+  try{
+   check(nav&&btn,'menu or toggle missing');
+   check(!nav.classList.contains('sidebar-open'),'menu unexpectedly open');
+   check(getComputedStyle(nav).visibility==='hidden','closed nav backing is visible');
+   btn.click();
+   window.setTimeout(function(){
+    try{
+      check(nav.classList.contains('sidebar-open'),'menu not open');
+      var menuR=nav.getBoundingClientRect(),btnR=btn.getBoundingClientRect();
+      var center=btnR.left+btnR.width/2;
+      check(Math.abs(center-menuR.left)<=2,'detached button '+center+' vs menu left '+menuR.left);
+      var st=getComputedStyle(btn);
+      check(st.backgroundColor==='rgba(0, 0, 0, 0)','orange backing remains '+st.backgroundColor);
+      check(st.borderTopWidth==='0px','button has border backing '+st.borderTopWidth);
+      check(st.boxShadow==='none','button has box shadow '+st.boxShadow);
+      check(btn.getAttribute('aria-expanded')==='true','X not active');
+      check(getComputedStyle(nav).visibility==='visible','menu not visible');
+      // The site must maintain the single button and profile sections.
+      check(document.querySelectorAll('#app .nav-toggle.gp-nav-morph').length===1,'multiple toggles');
+      check(document.querySelector('#gp-profile-trigger'),'profile removed');
+      btn.click();
+      window.setTimeout(function(){
+        try{
+          check(!nav.classList.contains('sidebar-open'),'menu still open');
+          check(btn.getAttribute('aria-expanded')==='false','hamburger not restored');
+          check(getComputedStyle(nav).visibility==='hidden','closed nav backing still visible');
+          check(getComputedStyle(nav).pointerEvents==='none','closed menu intercepts input');
+          result.textContent='REAL_EDGE_PASS';
+        }catch(e){reportError(e)}
+      },400);
+    }catch(e){reportError(e)}
+   },400);
+  }catch(e){reportError(e)}
+ },250);
+});
+</script>
+</body></html>
