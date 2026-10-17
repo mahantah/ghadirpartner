@@ -303,9 +303,27 @@ jobs:
           put "/tmp/$FILE" -o "/$FILE"
           bye
           EOF
-          RESP="$(curl -fsS --max-time 40 "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
-          echo "$RESP"
-          echo "$RESP" | php -r '$x=json_decode(stream_get_contents(STDIN),true);if(empty($x["ok"])||($x["counts"]["inventory"]??0)<13289||($x["counts"]["cartons"]??0)<364)exit(2);'
+          HTTP_STATUS="$(curl -sS --max-time 40 --output /tmp/ghp-preswitch-result.json --write-out '%{http_code}' "https://ghadirpartner.ir/$FILE?token=$TOKEN")"
+          php -r '
+          $status=$argv[1]??"000";
+          $x=json_decode((string)@file_get_contents("/tmp/ghp-preswitch-result.json"),true);
+          if(!is_array($x)){fwrite(STDERR,"Pre-switch safety check blocked: unreadable response, HTTP ".$status."\n");exit(2);}
+          if(empty($x["ok"])){
+              $error=strtolower((string)($x["error"]??""));
+              $reason=str_contains($error,"target mismatch")||str_contains($error,"missing i90-")
+                  ?"protected_carton_state_mismatch"
+                  :(str_contains($error,"backup")?"state_backup_failed"
+                  :(str_contains($error,"sqlstate")||str_contains($error,"pdo")?"database_error"
+                  :(str_contains($error,"state missing")||str_contains($error,"state invalid")?"database_state_missing_or_invalid":"server_precheck_error")));
+              fwrite(STDERR,"Pre-switch safety check blocked: ".$reason.", HTTP ".$status."\n");
+              exit(2);
+          }
+          if(($x["counts"]["inventory"]??0)<13289||($x["counts"]["cartons"]??0)<364){
+              fwrite(STDERR,"Pre-switch safety check blocked: inventory_or_carton_count_below_guard\n");
+              exit(2);
+          }
+          echo "Verified MySQL backup and protected warehouse count guard\n";
+          ' "$HTTP_STATUS"
 
       - name: Deploy exact V5.3.4.38 core + add-on
         env:
