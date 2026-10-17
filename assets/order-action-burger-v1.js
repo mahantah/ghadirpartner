@@ -39,7 +39,6 @@
           input.className='gp-order-burger-input';
           input.id='gp-order-burger-'+(++nextId);
           input.setAttribute('aria-label',button.getAttribute('aria-label')||'عملیات سفارش');
-          input.setAttribute('aria-controls','gp-native-order-actions');
           input.setAttribute('aria-expanded','false');
           label.setAttribute('for',input.id);
           label.appendChild(input);
