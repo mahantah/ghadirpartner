@@ -1,0 +1,53 @@
+name: Warehouse carton label print restoration regression
+on:
+  pull_request:
+    paths:
+      - 'assets/warehouse-carton-multilabel-v53438.js'
+      - 'tests/warehouse-carton-label-restore.html'
+      - '.github/workflows/deploy-final-v53438.yml'
+      - '.github/workflows/test-warehouse-carton-label-restore.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check restored production delivery and JavaScript
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-carton-multilabel-v53438.js
+          python3 - <<'PY'
+          from pathlib import Path
+          yml=Path('.github/workflows/deploy-final-v53438.yml').read_text()
+          script=Path('assets/warehouse-carton-multilabel-v53438.js').read_text()
+          assert 'python3 "$GITHUB_WORKSPACE/scripts/patch-remove-selective-carton-label-v1.py"' not in yml
+          for marker in (
+              '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint4"></script>',
+              'put "$ROOT/assets/warehouse-carton-multilabel-v53438.js" -o /assets/warehouse-carton-multilabel-v53438.js',
+              'get /assets/warehouse-carton-multilabel-v53438.js -o /tmp/livecheck/assets/warehouse-carton-multilabel-v53438.js',
+              'node --check /tmp/livecheck/assets/warehouse-carton-multilabel-v53438.js',
+              "grep -q 'warehouse-carton-multilabel-v53438.js?v=53438whprint4' /tmp/livecheck/app.html",
+          ):
+              assert marker in yml, marker
+          assert 'GHADIR_WAREHOUSE_LABEL_RESTORE_V2_20261017' in script
+          assert '/print/warehouse-label?id=' in script
+          print('Warehouse label restoration and deployment integration passed')
+          PY
+      - name: Test carton label buttons and selections in browser
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for viewport in '390,844' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --allow-file-access-from-files --no-first-run --window-size="$viewport" --virtual-time-budget=3000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/warehouse-carton-label-restore.html" \
+              > /tmp/warehouse-print-test.html 2>/tmp/warehouse-print-chrome.log
+            if ! grep -Fq 'WAREHOUSE_CARTON_LABEL_RESTORE_PASS' /tmp/warehouse-print-test.html; then
+              grep -o 'WAREHOUSE_CARTON_LABEL_RESTORE_FAIL[^<]*' /tmp/warehouse-print-test.html || true
+              tail -c 2000 /tmp/warehouse-print-test.html
+              exit 1
+            fi
+            echo "Warehouse carton print regression passed at $viewport"
+          done

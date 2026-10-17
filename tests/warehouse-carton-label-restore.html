@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Warehouse carton label restoration test</title>
+<style>body{font-family:Tahoma,Arial}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:10px}.toolbar{display:flex;gap:8px}</style>
+</head>
+<body>
+<div id="warehouse">
+  <div class="card"><div class="tablewrap"><table>
+    <thead><tr><th>شماره باکس</th><th>عملیات</th></tr></thead>
+    <tbody id="warehouseBody"></tbody>
+  </table></div></div>
+</div>
+<div id="test-result">PENDING</div>
+<script>
+const WH={cartons:[
+  {id:8,code:'BOX-008',product:'K9',serials:['12345'],capacity:1},
+  {id:9,code:'BOX-009',product:'I90',serials:['45678'],capacity:1}
+]};
+function renderWarehouse(){
+  document.getElementById('warehouseBody').innerHTML =
+    '<tr><td>BOX-008</td><td><div class="toolbar"><button class="btnlight" onclick="window.open(\'/print/warehouse-label?id=8\',\'_blank\')">چاپ لیبل</button></div></td></tr>'+
+    '<tr><td>BOX-009</td><td><div class="toolbar"><button>سریال‌ها</button></div></td></tr>';
+}
+renderWarehouse();
+let lastOpenedUrl='';
+window.open=function(url){lastOpenedUrl=url;return {document:{open(){},write(){},close(){}}}};
+</script>
+<script src="../assets/warehouse-carton-multilabel-v53438.js"></script>
+<script>
+window.addEventListener('load',async()=>{
+  const out=document.getElementById('test-result');
+  const wait=n=>new Promise(r=>setTimeout(r,n));
+  const check=(ok,msg)=>{if(!ok)throw new Error(msg)};
+  try{
+    await wait(120);
+    let rows=[...document.querySelectorAll('#warehouseBody tr')];
+    check(rows.length===2,'rows missing');
+    check(document.querySelectorAll('#gpWarehouseCartonPrintTools').length===1,'toolbar missing or duplicated');
+    check(document.querySelectorAll('.gp-wh-carton-label-check').length===2,'two warehouse selections missing');
+    check(document.querySelectorAll('#gpWhCartonSelectAll').length===1,'select-all missing or duplicated');
+    const printButtons=rows.map(r=>[...r.querySelectorAll('button')].find(b=>b.textContent.includes('چاپ لیبل')));
+    check(printButtons.every(Boolean),'single carton print button missing on a row');
+    printButtons[0].click();
+    check(lastOpenedUrl==='/print/warehouse-label?id=8','native single print route wrong');
+    printButtons[1].click();
+    check(lastOpenedUrl==='/print/warehouse-label?id=9','recovered single print route wrong');
+    rows[0].querySelector('.gp-wh-carton-label-check').click();
+    check(window.gpWarehouseCartonLabelSelection.size===1,'selected carton ID missing');
+    check(!document.getElementById('gpWarehousePrintSelectedCartons').disabled,'batch print is not enabled');
+    renderWarehouse();
+    await wait(120);
+    rows=[...document.querySelectorAll('#warehouseBody tr')];
+    check(rows[0].querySelector('.gp-wh-carton-label-check').checked,'selection not preserved after rerender');
+    check(rows[1].querySelector('[data-gp-carton-print="1"]'),'lost missing-button recovery on rerender');
+    check(document.querySelectorAll('#gpWarehouseCartonPrintTools').length===1,'toolbar duplicated after rerender');
+    document.getElementById('gpWhCartonSelectAll').click();
+    check(window.gpWarehouseCartonLabelSelection.size===2,'select all does not select every carton');
+    out.textContent='WAREHOUSE_CARTON_LABEL_RESTORE_PASS';
+  }catch(err){out.textContent='WAREHOUSE_CARTON_LABEL_RESTORE_FAIL '+err.message}
+});
+</script>
+</body></html>

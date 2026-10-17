@@ -1,4 +1,5 @@
 /* GhadirPartner V5.3.4.38 — selectable warehouse carton labels */
+/* GHADIR_WAREHOUSE_LABEL_RESTORE_V2_20261017 */
 (function(){
 'use strict';
 if(window.__GP_WAREHOUSE_CARTON_MULTILABEL_53438__) return;
@@ -6,15 +7,47 @@ window.__GP_WAREHOUSE_CARTON_MULTILABEL_53438__=true;
 
 const selected=new Set();
 const byId=id=>document.getElementById(id);
+function cartonIdForRow(tr){
+  const native=[...tr.querySelectorAll('button')].find(b=>(b.getAttribute('onclick')||'').includes('/print/warehouse-label?id='));
+  const match=(native?.getAttribute('onclick')||'').match(/\/print\/warehouse-label\?id=(\d+)/);
+  if(match)return Number(match[1]);
+  // Recovery path if a future release accidentally omits the row print button.
+  const code=[...tr.cells].find(td=>!td.classList.contains('gp-wh-carton-select-cell'))?.textContent?.trim();
+  if(!code||typeof WH==='undefined')return 0;
+  const carton=(WH.cartons||[]).find(c=>String(c.code||'').trim()===code);
+  return carton?Number(carton.id):0;
+}
+function ensureSinglePrint(tr,id){
+  let print=[...tr.querySelectorAll('button')].find(b=>(b.getAttribute('onclick')||'').includes('/print/warehouse-label?id=') || b.dataset.gpCartonPrint==='1');
+  if(!print){
+    const last=tr.cells[tr.cells.length-1];
+    if(!last)return;
+    const actions=last.querySelector('.toolbar')||last;
+    print=document.createElement('button');
+    print.className='btnlight';
+    print.type='button';
+    print.textContent='چاپ لیبل';
+    print.dataset.gpCartonPrint='1';
+    actions.insertBefore(print,actions.firstChild);
+  }
+  if(print.dataset.gpPrintBound==='1')return;
+  print.dataset.gpPrintBound='1';
+  print.title='نمایش و چاپ لیبل کارتن';
+  // Keep the original server-generated branded label, with a same-tab fallback.
+  print.addEventListener('click',e=>{
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const url='/print/warehouse-label?id='+encodeURIComponent(id);
+    const opened=window.open(url,'_blank');
+    if(!opened)window.location.assign(url);
+  },true);
+}
+
 
 function visibleCartonIds(){
   const body=byId('warehouseBody');
   if(!body)return[];
-  return [...body.querySelectorAll('tr')].map(tr=>{
-    const btn=[...tr.querySelectorAll('button')].find(b=>(b.getAttribute('onclick')||'').includes('/print/warehouse-label?id='));
-    const m=(btn?.getAttribute('onclick')||'').match(/\/print\/warehouse-label\?id=(\d+)/);
-    return m?Number(m[1]):0;
-  }).filter(Boolean);
+  return [...body.querySelectorAll('tr')].map(cartonIdForRow).filter(Boolean);
 }
 
 function sync(){
@@ -79,15 +112,13 @@ function decorate(){
 
   [...body.rows].forEach(tr=>{
     if(tr.querySelector('.gp-wh-carton-label-check'))return;
-    const btn=[...tr.querySelectorAll('button')].find(b=>(b.getAttribute('onclick')||'').includes('/print/warehouse-label?id='));
-    if(!btn){
+    const id=cartonIdForRow(tr);
+    if(!id){
       const empty=tr.querySelector('td[colspan]');
       if(empty)empty.colSpan=12;
       return;
     }
-    const m=(btn.getAttribute('onclick')||'').match(/\/print\/warehouse-label\?id=(\d+)/);
-    if(!m)return;
-    const id=Number(m[1]);
+    ensureSinglePrint(tr,id);
     const td=document.createElement('td');
     td.className='gp-wh-carton-select-cell';
     td.innerHTML='<input class="gp-wh-carton-label-check" type="checkbox" aria-label="انتخاب باکس برای چاپ لیبل">';
@@ -148,4 +179,13 @@ document.head.appendChild(css);
 
 decorate();
 setTimeout(decorate,300);
+const warehouseBody=byId('warehouseBody');
+if(warehouseBody){
+  let scheduled=false;
+  new MutationObserver(records=>{
+    if(scheduled || !records.some(r=>r.addedNodes.length || r.removedNodes.length))return;
+    scheduled=true;
+    Promise.resolve().then(()=>{scheduled=false;decorate()});
+  }).observe(warehouseBody,{childList:true,subtree:true});
+}
 })();
