@@ -37,6 +37,6 @@ jobs:
                           matched.append((selector[-260:], ' '.join(m.group(2).split())[:500]))
               if matched:
                   print('SHEET',index,'matching_rules',len(matched))
-                  for sel,body in matched[-22:]: print('CSSRULE',sel,'::',body)
+                  for sel,body in (matched[:28] if index==3 else matched[-6:]): print('CSSRULE2',sel,'::',body)
           print('SOURCE_MARKERS',[x for x in ('GHADIR_NAV_MORPH_V1_20261017','GHADIR_CUSTOMER_MODEL_CATALOG_V5_20261017','MOBILE_UI_OPTIMIZATION_V1_20261014') if x in s])
           PY
