@@ -12,7 +12,7 @@ function cartonIdForRow(tr){
   const match=(native?.getAttribute('onclick')||'').match(/\/print\/warehouse-label\?id=(\d+)/);
   if(match)return Number(match[1]);
   // Recovery path if a future release accidentally omits the row print button.
-  const code=tr.cells[0]?.textContent?.trim();
+  const code=[...tr.cells].find(td=>!td.classList.contains('gp-wh-carton-select-cell'))?.textContent?.trim();
   if(!code||typeof WH==='undefined')return 0;
   const carton=(WH.cartons||[]).find(c=>String(c.code||'').trim()===code);
   return carton?Number(carton.id):0;
