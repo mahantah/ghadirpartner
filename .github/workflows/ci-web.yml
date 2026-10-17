@@ -888,17 +888,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/preswitch_safety.py
+          python3 -m py_compile scripts/preswitch_safety.py scripts/patch-protected-carton-ops-v1.py scripts/patch-retail-transfer-detach-carton-v1.py
           python3 scripts/preswitch_safety.py self-test
           python3 scripts/preswitch_safety.py check-fixture tests/fixtures/preswitch_protected_ok.json
           if python3 scripts/preswitch_safety.py check-fixture tests/fixtures/preswitch_protected_mismatch.json; then
             echo 'expected mismatch fixture to fail' >&2
             exit 1
           fi
+          python3 scripts/preswitch_safety.py diagnose tests/fixtures/preswitch_protected_ok.json >/tmp/preswitch-diagnose.json
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-cli
+          php -l lib/protected-cartons.php
+          php tests/protected-carton-ops.php
           # Deploy workflow must keep the guard and use the shared classifier (no bypass).
           grep -Fq 'protected_carton_state_mismatch' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'scripts/preswitch_safety.py' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'preswitch_safety.py" classify' .github/workflows/deploy-final-v53438.yml
+          grep -Fq 'patch-protected-carton-ops-v1.py' .github/workflows/deploy-final-v53438.yml
+          grep -Fq 'ghadir_is_protected_carton_code' scripts/patch-retail-transfer-detach-carton-v1.py
+          grep -Fq 'ghadir_protected_should_detach_retail' scripts/patch-protected-carton-ops-v1.py
           ! grep -Fq 'treat a 500 response as pass' .github/workflows/deploy-final-v53438.yml
           echo 'Pre-switch safety classifier and fixtures verified'
 

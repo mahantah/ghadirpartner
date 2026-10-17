@@ -17,6 +17,7 @@ function default_products(){return [
 ['name'=>'دستگاه كش لس D600','pattern'=>'^TD600[0-9]{6}$','example'=>'TD600027074','serial_required'=>true],['name'=>'كيف دستگاه كارتخوان معمولي','pattern'=>'','example'=>'','serial_required'=>false],['name'=>'كيف دستگاه كارتخوان شطرنجي','pattern'=>'','example'=>'','serial_required'=>false]];}
 function init_state(){return ['users'=>[['id'=>1,'username'=>'admin','password_hash'=>password_hash('123456',PASSWORD_DEFAULT),'roles'=>['admin','sales','finance','prep'],'active'=>true]],'customers'=>[],'orders'=>[],'inventory'=>[],'cartons'=>[],'notifications'=>[],'products'=>default_products(),'next_customer'=>1,'next_order'=>1,'next_user'=>2,'next_serial'=>1,'next_carton'=>1,'next_notification'=>1,'settings'=>['sender_name'=>'قدیر پرداخت','sender_mobile'=>'','sender_address'=>'']];}
 require_once __DIR__.'/lib/storage.php';
+require_once __DIR__.'/lib/protected-cartons.php';
 function db($write,$fn){return ghadir_db((bool)$write,$fn);}
 function input(){return json_decode(file_get_contents('php://input'),true)?:[];} function now(){return date('Y-m-d H:i:s');}
 function out($v,$c=200){http_response_code($c);header('Content-Type:application/json; charset=utf-8');echo json_encode($v,JSON_UNESCAPED_UNICODE);exit;}
