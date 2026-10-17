@@ -823,3 +823,25 @@ jobs:
             fi
             echo "Warehouse model/date sorting, serial grouping and closed overlay passed at $size"
           done
+
+  production-build-shell-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate deploy build shell and heredocs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('.github/workflows/deploy-final-v53438.yml').read_text()
+          start=src.index('      - name: Build exact V5.3.4.38 + warehouse/returns patch')
+          block=src.index('        run: |',start)+len('        run: |')
+          end=src.index('\n      - name: Backup live core files',block)
+          raw=src[block:end].strip('\n').splitlines()
+          assert raw and all(line.startswith('          ') or not line.strip() for line in raw)
+          shell='\n'.join(line[10:] if line.strip() else '' for line in raw)+'\n'
+          Path('/tmp/production-build-shell.sh').write_text(shell)
+          PY
+          bash -n /tmp/production-build-shell.sh
+          echo 'Production build shell syntax and heredoc delimiters validated'
