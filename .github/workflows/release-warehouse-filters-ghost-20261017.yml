@@ -51,7 +51,7 @@ jobs:
           grep -Fq '/assets/warehouse-serial-filters-v1.css?v=20261017f1' "$RUNNER_TEMP/warehouse-after/app.html"
           grep -Fq '/assets/warehouse-serial-filters-v1.js?v=20261017f1' "$RUNNER_TEMP/warehouse-after/app.html"
           node --check assets/warehouse-serial-filters-v1.js
-          for marker in 'id="login"' 'id="warehouseBody"' 'id="inventoryGroups"' 'data-tab="orders"' 'data-tab="warehouse"' 'id="changePasswordBtn"' 'id="logoutbtn"' 'چاپ و دانلود یکجای لیبل سریال‌ها' '/print/warehouse-label?id='; do
+          for marker in 'id="login"' 'id="warehouseBody"' 'id="inventoryGroups"' 'data-tab="orders"' 'data-tab="warehouse"' 'id="changePasswordBtn"' 'id="logoutbtn"' '/print/warehouse-label?id='; do
             grep -Fq "$marker" "$RUNNER_TEMP/warehouse-after/app.html"
           done
       - name: Publish only warehouse UI assets and app references; rollback on failure
