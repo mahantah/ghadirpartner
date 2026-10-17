@@ -210,7 +210,8 @@ function ghadir_protected_unassign_reserved(array &$s, ?string $onlyCode = null)
         ? [strtoupper(trim($onlyCode))]
         : ghadir_protected_carton_codes();
     $released = 0;
-    $skippedShipped = 0;
+    $restoredWarehouse = 0;
+    $warehouseIds = [];
     $orders = [];
     $serialsByOrder = [];
     foreach ($codes as $code) {
@@ -228,13 +229,25 @@ function ghadir_protected_unassign_reserved(array &$s, ?string $onlyCode = null)
             if (!$linked || (int)($iv['order_id'] ?? 0) === 0) {
                 continue;
             }
-            if ((int)($iv['warehouse_id'] ?? 0) < 1) {
-                $skippedShipped++;
-                continue;
-            }
+            $wid = (int)($iv['warehouse_id'] ?? 0);
+            $warehouseIds[(string)$wid] = ($warehouseIds[(string)$wid] ?? 0) + 1;
             $oid = (int)$iv['order_id'];
             $on = (string)($iv['order_number'] ?? '');
             $sn = strtoupper(trim((string)($iv['serial'] ?? '')));
+            if ($wid < 1) {
+                $iv['warehouse_id'] = 1;
+                $iv['returned_from_order_id'] = $oid;
+                $iv['returned_from_order_number'] = $on;
+                $iv['returned_at'] = function_exists('now') ? now() : date('Y-m-d H:i:s');
+                unset(
+                    $iv['warehouse_exited_at'],
+                    $iv['warehouse_exit_order_id'],
+                    $iv['warehouse_exit_order_number'],
+                    $iv['warehouse_exit_by'],
+                    $iv['warehouse_exit_movement_id']
+                );
+                $restoredWarehouse++;
+            }
             $iv['order_id'] = 0;
             $iv['order_number'] = '';
             $released++;
@@ -280,7 +293,8 @@ function ghadir_protected_unassign_reserved(array &$s, ?string $onlyCode = null)
     return [
         'changed' => $released > 0,
         'released' => $released,
-        'skipped_shipped' => $skippedShipped,
+        'restored_warehouse' => $restoredWarehouse,
+        'warehouse_ids' => $warehouseIds,
         'orders' => array_values(array_unique(array_values($orders))),
     ];
 }
