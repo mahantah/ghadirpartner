@@ -28,6 +28,13 @@ fixed_main = (
     "&&empty($iv['order_id']))$n++;return $n;}"
 )
 
+guarded_main = (
+    "function warehouse_free_stock($s,$product){$n=0;"
+    "foreach($s['inventory']??[] as $iv)"
+    "if(same_product_name($iv['product']??'',$product)"
+    "&&empty($iv['order_id'])"
+    "&&(int)($iv['warehouse_id']??1)>0)$n++;return $n;}"
+)
 m = main.read_text(encoding="utf-8")
 p = portal.read_text(encoding="utf-8")
 bootstrap = "if($p==='/api/bootstrap'&&$m==='GET')"
@@ -43,17 +50,15 @@ to_stock = (
     "            if((int)($iv['warehouse_id']??0)<1||!empty($iv['order_id']))continue;\n"
 )
 if marker not in m:
-    if m.count(original_main) != 1:
-        print("Diagnostic only: function_start=", m.find("function warehouse_free_stock("),
-              "function_calls=", m.count("warehouse_free_stock("),
-              "catalog_route=", m.find("if($p==='/api/catalog'"),
-              "legacy_free_stock=", m.count("empty($iv['order_id'])"))
-        start=m.find("function warehouse_free_stock(")
-        if start >= 0:
-            print("Function shape:", repr(m[start:start+420]))
-        raise SystemExit("Main stock function structural drift; refusing to patch")
-    m = m.replace(original_main, fixed_main, 1)
-elif fixed_main not in m:
+    if m.count(original_main) == 1:
+        m = m.replace(original_main, fixed_main, 1)
+    elif m.count(guarded_main) == 1:
+        # The pinned production ZIP already applies location-aware counting.
+        # Preserve its canonical same_product_name matching; annotate only.
+        m = m.replace(guarded_main, "/* " + marker + " — already protected */\n" + guarded_main, 1)
+    else:
+        raise SystemExit("Unknown main stock function; refusing to patch")
+elif fixed_main not in m and guarded_main not in m:
     raise SystemExit("Main stock patch marker exists but expected code is missing")
 if marker not in p:
     if p.count(bootstrap) != 1:
