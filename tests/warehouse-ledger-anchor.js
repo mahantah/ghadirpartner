@@ -5,6 +5,9 @@ if(!src.includes('GP_LEDGER_CURRENT_ANCHOR_V2_20261017')) throw new Error('V2 le
 if(!src.includes('gpRewriteLedgerGridToCurrent')) throw new Error('grid rewrite missing');
 if(!src.includes('gpHydrateCartonSerialsFromInventory')) throw new Error('serial hydrate missing');
 if(!src.includes('GP_WAREHOUSE_SERIALS_FROM_INVENTORY_V3_20261018')) throw new Error('inventory-backed serial modal missing');
+if(!src.includes('GP_WHOLESALE_LEDGER_REPORTS_V4_20261018')) throw new Error('wholesale-only ledger reports missing');
+if(src.includes('جمع هر دو انبار')) throw new Error('combined warehouse totals must not be shown');
+if(!src.includes('future-cell')) throw new Error('future ledger days must stay blank');
 if(!src.includes('gpCartonInventorySerials')) throw new Error('carton inventory serial helper missing');
 
 function gpWarehouseCurrentQty(state,wid,product){
@@ -43,6 +46,8 @@ if(gpWarehouseStockOnJalaliDay(state,1,'I90','1405/07/28',today)!==20)
   throw new Error('today must equal physical current');
 if(gpWarehouseStockOnJalaliDay(state,1,'I90','1405/07/25',today)!==25)
   throw new Error('day before I90 sale should be current+later outflow');
+if(gpWarehouseStockOnJalaliDay(state,1,'I90','1405/07/29',today)!==20)
+  throw new Error('future day should still reconstruct from current anchor');
 
 function hydrate(cartons,inventory){
   const byId=new Map();

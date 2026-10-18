@@ -24,4 +24,6 @@ Retry 10 (2026-10-17): warehouse submenu is clipped by the sidebar overflow, so 
 
 Retry 11 (2026-10-17): daily ledger is still baseline+movements so ghost product names go negative and today is not physical current; carton.serials stays empty after the I90 restore. Anchor the day grid to current and hydrate carton serials from inventory. Do not bypass protected_carton_state_mismatch.
 
-Retry 12 (2026-10-18): I90 counts differ when only one warehouse is selected and مخزن serial modal still reads empty carton.serials. Show both-warehouse totals in the ledger and list carton serials from inventory rows. Do not bypass protected_carton_state_mismatch.
+Retry 12 (2026-10-18): I90 counts differ when only one warehouse is selected and مخزn serial modal still reads empty carton.serials. Show both-warehouse totals in the ledger and list carton serials from inventory rows. Do not bypass protected_carton_state_mismatch.
+
+Retry 13 (2026-10-18): remove combined warehouse totals; wholesale-only ledger/stocktake; list all serial models in reports; blank future ledger days. Do not bypass protected_carton_state_mismatch.
