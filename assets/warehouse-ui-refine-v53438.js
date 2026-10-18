@@ -24,6 +24,11 @@ window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
    After protected-carton repair, carton.serials can stay empty while inventory
    still holds the serial rows. List and hydrate from inventory, not serials[].
 */
+/* GP_WHOLESALE_LEDGER_REPORTS_V4_20261018
+   Daily ledger and stocktake reports are wholesale-only; retail is not shown.
+   Stocktake lists every serial-tracked model; ledger leaves future days blank.
+*/
+const GP_WHOLESALE_WAREHOUSE_ID=1;
 function gpWarehouseCurrentQty(state,wid,product){
   const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
   return Number(current?.[product]||0);
@@ -224,7 +229,7 @@ function renderDailyMovementSummary(){
   const table=body.closest('table');
   if(!table) return;
   const ym=(document.getElementById('warehouseLedgerMonth')?.value||'').trim();
-  const wid=Number(typeof WAREHOUSE_SELECTED!=='undefined'?WAREHOUSE_SELECTED:1);
+  const wid=GP_WHOLESALE_WAREHOUSE_ID;
 
   const days=new Map();
   (WAREHOUSE_STATE.movements||[]).forEach(m=>{
@@ -277,21 +282,13 @@ function renderSeparateWarehouseLiveSummary(){
   if(typeof WAREHOUSE_STATE==='undefined'||!WAREHOUSE_STATE) return;
   const host=document.getElementById('warehouseLedgerSummary');
   if(!host) return;
-  const rows=[
-    {id:1,name:'انبار عمده'},
-    {id:2,name:'انبار خرده تهرانپارس'}
-  ];
-  host.innerHTML=rows.map(w=>{
-    const t=warehouseTotalsFor(w.id);
-    const active=(typeof WAREHOUSE_SELECTED!=='undefined'&&Number(WAREHOUSE_SELECTED)===w.id)?' active':'';
-    return '<div class="card gp-wh-live-card'+active+'">'+
-      '<div class="gp-wh-live-head"><b>'+esc(w.name)+'</b><span class="badge">'+(active?'نمایش دفتر':'مجزا')+'</span></div>'+
-      '<div class="gp-wh-live-stats">'+
-        '<div><span>موجودی فیزیکی</span><strong>'+t.total.toLocaleString('fa-IR')+'</strong></div>'+
-        '<div><span>آزاد</span><strong>'+t.free.toLocaleString('fa-IR')+'</strong></div>'+
-        '<div><span>رزرو / تخصیص</span><strong>'+t.reserved.toLocaleString('fa-IR')+'</strong></div>'+
-      '</div></div>';
-  }).join('');
+  const wid=GP_WHOLESALE_WAREHOUSE_ID;
+  const t=warehouseTotalsFor(wid);
+  host.innerHTML=
+    '<div class="card"><div class="small">انبار</div><b>انبار عمده</b></div>'+
+    '<div class="card"><div class="small">موجودی فیزیکی</div><b>'+t.total.toLocaleString('fa-IR')+' دستگاه</b></div>'+
+    '<div class="card"><div class="small">آزاد</div><b>'+t.free.toLocaleString('fa-IR')+'</b></div>'+
+    '<div class="card"><div class="small">رزرو / تخصیص</div><b>'+t.reserved.toLocaleString('fa-IR')+'</b></div>';
 }
 
 
@@ -318,8 +315,7 @@ function stocktakeProductRows(state,wid){
     const fr=Number(free[product]||0);
     const rs=Number(reserved[product]||0);
     return {product,incoming,outgoing,physical,free:fr,reserved:rs,balance_ok:(incoming-outgoing)===physical};
-  }).filter(r=>r.incoming||r.outgoing||r.physical||r.free||r.reserved)
-    .sort((a,b)=>warehouseProductOrder(a.product)-warehouseProductOrder(b.product)||a.product.localeCompare(b.product,'fa'));
+  }).sort((a,b)=>warehouseProductOrder(a.product)-warehouseProductOrder(b.product)||a.product.localeCompare(b.product,'fa'));
 }
 
 function renderSeparateStocktake(){
@@ -327,38 +323,34 @@ function renderSeparateStocktake(){
   const body=document.getElementById('stocktakeBody');
   if(!totals||!body)return;
   req('/api/warehouses').then(state=>{
-    const all=[
-      {id:1,name:'انبار عمده'},
-      {id:2,name:'انبار خرده تهرانپارس'}
-    ].map(w=>({w,rows:stocktakeProductRows(state,w.id)}));
-
-    totals.innerHTML=all.map(({w,rows})=>{
-      const physical=rows.reduce((n,r)=>n+r.physical,0);
-      const free=rows.reduce((n,r)=>n+r.free,0);
-      const reserved=rows.reduce((n,r)=>n+r.reserved,0);
-      return '<div class="mutedbox gp-stocktake-wh"><b>'+esc(w.name)+'</b>'+
-        '<div class="gp-stocktake-wh-stats"><span>فیزیکی <strong>'+physical.toLocaleString('fa-IR')+'</strong></span>'+
-        '<span>آزاد <strong>'+free.toLocaleString('fa-IR')+'</strong></span>'+
-        '<span>رزرو <strong>'+reserved.toLocaleString('fa-IR')+'</strong></span></div></div>';
-    }).join('');
+    const wid=GP_WHOLESALE_WAREHOUSE_ID;
+    const rows=stocktakeProductRows(state,wid);
+    const physical=rows.reduce((n,r)=>n+r.physical,0);
+    const free=rows.reduce((n,r)=>n+r.free,0);
+    const reserved=rows.reduce((n,r)=>n+r.reserved,0);
+    const incoming=rows.reduce((n,r)=>n+r.incoming,0);
+    totals.innerHTML=
+      '<div class="mutedbox"><span class="small">کل ورودی (همه مدل‌ها)</span><h2>'+incoming.toLocaleString('fa-IR')+'</h2></div>'+
+      '<div class="mutedbox"><span class="small">موجودی فیزیکی — انبار عمده</span><h2>'+physical.toLocaleString('fa-IR')+'</h2></div>'+
+      '<div class="mutedbox"><span class="small">آزاد</span><h2>'+free.toLocaleString('fa-IR')+'</h2></div>'+
+      '<div class="mutedbox"><span class="small">رزرو / تخصیص</span><h2>'+reserved.toLocaleString('fa-IR')+'</h2></div>';
 
     const table=body.closest('table');
     const head=table?.querySelector('thead tr');
-    if(head)head.innerHTML='<th>انبار</th><th>کالا / مدل</th><th>ورودی</th><th>خروج / انتقال</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تراز</th>';
+    if(head)head.innerHTML='<th>کالا / مدل</th><th>ورودی ثبت‌شده</th><th>خروج / انتقال</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تراز</th>';
 
-    const html=all.map(({w,rows})=>rows.map(r=>
-      '<tr><td><b>'+esc(w.name)+'</b></td><td><b>'+esc(r.product)+'</b></td><td>'+r.incoming.toLocaleString('fa-IR')+'</td>'+
+    body.innerHTML=rows.map(r=>
+      '<tr><td><b>'+esc(r.product)+'</b></td><td>'+r.incoming.toLocaleString('fa-IR')+'</td>'+
       '<td>'+r.outgoing.toLocaleString('fa-IR')+'</td><td><b>'+r.physical.toLocaleString('fa-IR')+'</b></td>'+
       '<td>'+r.free.toLocaleString('fa-IR')+'</td><td>'+r.reserved.toLocaleString('fa-IR')+'</td>'+
       '<td><span class="badge '+(r.balance_ok?'st-ready':'st-cancel')+'">'+(r.balance_ok?'صحیح':'مغایرت')+'</span></td></tr>'
-    ).join('')).join('');
-    body.innerHTML=html||'<tr><td colspan="8">هنوز موجودی ثبت نشده است.</td></tr>';
+    ).join('')||'<tr><td colspan="7">هنوز مدلی تعریف نشده است.</td></tr>';
 
     const card=body.closest('.card');
     const hint=card?.querySelector('.section-title .small');
-    if(hint)hint.textContent='انبار عمده و انبار خرده تهرانپارس جداگانه محاسبه و نمایش داده می‌شوند؛ جمع مشترک نمایش داده نمی‌شود.';
+    if(hint)hint.textContent='گزارش فقط انبار عمده است؛ همه مدل‌های سریال‌دار (حتی با موجودی صفر) نمایش داده می‌شوند.';
   }).catch(e=>{
-    body.innerHTML='<tr><td colspan="8">'+esc(e.message)+'</td></tr>';
+    body.innerHTML='<tr><td colspan="7">'+esc(e.message)+'</td></tr>';
   });
 }
 
@@ -389,7 +381,9 @@ function gpRewriteLedgerGridToCurrent(){
   const jy=+m[1], jm=+m[2];
   if(monthEl) monthEl.value=jy+'/'+gpPad2(jm);
   const days=typeof whMonthDays==='function'?whMonthDays(jy,jm):31;
-  const wid=Number(window.WAREHOUSE_LEDGER_ID||1);
+  const wid=GP_WHOLESALE_WAREHOUSE_ID;
+  window.WAREHOUSE_LEDGER_ID=wid;
+  if(typeof WAREHOUSE_SELECTED!=='undefined') WAREHOUSE_SELECTED=wid;
   const products=typeof whProductList==='function'?whProductList(d):Object.keys((d.current&&d.current[wid])||{});
   const activation=String(d.activated_at||'');
   const now=new Date();
@@ -397,18 +391,16 @@ function gpRewriteLedgerGridToCurrent(){
   const today=tj?tj[0]+'/'+gpPad2(tj[1])+'/'+gpPad2(tj[2]):'';
   const head='<tr><th class="model-cell">مدل دستگاه</th>'+Array.from({length:days},(_,i)=>'<th>'+gpPad2(i+1)+'</th>').join('')+'</tr>';
   const body=products.map(prod=>{
-    const both=gpWarehouseCurrentBothWarehouses(d,prod);
-    const showBoth=both>gpWarehouseCurrentQty(d,wid,prod);
     const cells=[];
     for(let day=1;day<=days;day++){
       const iso=typeof whIsoDate==='function'?whIsoDate(jy,jm,day):'';
       const jdate=jy+'/'+gpPad2(jm)+'/'+gpPad2(day);
       const before=activation && iso && iso<activation.slice(0,10);
-      const val=before?null:gpWarehouseStockOnJalaliDay(d,wid,prod,jdate,today);
-      cells.push('<td class="'+(before?'before-activation ':'')+(jdate===today?'today-cell ':'')+(val===0?'zero':'')+'">'+(before?'—':Number(val).toLocaleString('fa-IR'))+'</td>');
+      const future=today && jdate>today;
+      const val=(before||future)?null:gpWarehouseStockOnJalaliDay(d,wid,prod,jdate,today);
+      cells.push('<td class="'+(before?'before-activation ':'')+(future?'future-cell ':'')+(jdate===today?'today-cell ':'')+(val===0?'zero':'')+'">'+(val===null?'—':Number(val).toLocaleString('fa-IR'))+'</td>');
     }
-    const label=(typeof esc==='function'?esc(prod):String(prod))+(showBoth?'<div class="small muted">جمع هر دو انبار: '+both.toLocaleString('fa-IR')+'</div>':'');
-    return '<tr><td class="model-cell">'+label+'</td>'+cells.join('')+'</tr>';
+    return '<tr><td class="model-cell">'+(typeof esc==='function'?esc(prod):String(prod))+'</td>'+cells.join('')+'</tr>';
   }).join('');
   wrap.innerHTML='<table class="warehouse-ledger-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
 }
@@ -453,8 +445,32 @@ function gpOpenWarehouseSerialsFromInventory(id){
   }).join('');
   modal('<h3>مدیریت سریال‌های باکس <span class="code">'+(typeof esc==='function'?esc(c.code):String(c.code||''))+'</span></h3><p class="small">فقط سریال‌های آزاد قابل حذف هستند.</p><div style="max-height:55vh;overflow:auto">'+(body||'<div class="small">برای این باکس سریالی در inventory ثبت نشده است.</div>')+'</div><button class="btnlight" onclick="closeModal()" style="margin-top:10px">بستن</button>');
 }
-function gpWarehouseCurrentBothWarehouses(state,product){
-  return gpWarehouseCurrentQty(state,1,product)+gpWarehouseCurrentQty(state,2,product);
+function installWholesaleOnlyLedgerUI(){
+  const btn2=document.getElementById('warehouseBtn2');
+  if(btn2) btn2.style.display='none';
+  const btn1=document.getElementById('warehouseBtn1');
+  if(btn1) btn1.classList.add('active');
+  window.WAREHOUSE_LEDGER_ID=GP_WHOLESALE_WAREHOUSE_ID;
+  if(typeof WAREHOUSE_SELECTED!=='undefined') window.WAREHOUSE_SELECTED=GP_WHOLESALE_WAREHOUSE_ID;
+  if(typeof selectWarehouseLedger==='function' && !selectWarehouseLedger.__gpWholesaleOnly){
+    const base=selectWarehouseLedger;
+    const wrapped=function(id){
+      if(Number(id)!==GP_WHOLESALE_WAREHOUSE_ID) return;
+      return base.apply(this,arguments);
+    };
+    wrapped.__gpWholesaleOnly=true;
+    selectWarehouseLedger=wrapped;
+  }
+  if(typeof loadWarehouseLedger==='function' && !loadWarehouseLedger.__gpWholesaleOnly){
+    const base=loadWarehouseLedger;
+    const wrapped=async function(){
+      window.WAREHOUSE_LEDGER_ID=GP_WHOLESALE_WAREHOUSE_ID;
+      if(typeof WAREHOUSE_SELECTED!=='undefined') window.WAREHOUSE_SELECTED=GP_WHOLESALE_WAREHOUSE_ID;
+      return base.apply(this,arguments);
+    };
+    wrapped.__gpWholesaleOnly=true;
+    loadWarehouseLedger=wrapped;
+  }
 }
 function wrapWarehouseRender(){
   if(typeof renderWarehouse==='function' && !renderWarehouse.__gpHydrateSerials){
@@ -505,31 +521,17 @@ async function loadStocktakeSeparated(){
   if(!body||!totals)return;
   try{
     const ws=await req('/api/warehouses');
-    const wid=Number(window.GP_STOCKTAKE_WAREHOUSE||1);
-    const products=(ws.products||[]).map(p=>p.name).filter(Boolean);
-    const current=ws.current?.[wid]||ws.current?.[String(wid)]||{};
-    const free=ws.free?.[wid]||ws.free?.[String(wid)]||{};
-    const reserved=ws.reserved?.[wid]||ws.reserved?.[String(wid)]||{};
-    const cartons=(ws.cartons||[]).filter(c=>Number(c.warehouse_id||0)===wid);
-    const cartonCount={};
-    cartons.forEach(c=>{const p=String(c.product||'نامشخص');cartonCount[p]=(cartonCount[p]||0)+1;});
-
-    const names=[...new Set([...products,...Object.keys(current),...Object.keys(free),...Object.keys(reserved)])]
-      .filter(p=>(Number(current[p])||Number(free[p])||Number(reserved[p])||cartonCount[p]))
-      .sort((a,b)=>warehouseProductOrder(a)-warehouseProductOrder(b)||a.localeCompare(b,'fa'));
-
-    const totalPhysical=names.reduce((n,p)=>n+(Number(current[p])||0),0);
-    const totalFree=names.reduce((n,p)=>n+(Number(free[p])||0),0);
-    const totalReserved=names.reduce((n,p)=>n+(Number(reserved[p])||0),0);
-    const whName=wid===1?'انبار عمده':'انبار خرده تهرانپارس';
+    window.GP_STOCKTAKE_WAREHOUSE=GP_WHOLESALE_WAREHOUSE_ID;
+    const rows=stocktakeProductRows(ws,GP_WHOLESALE_WAREHOUSE_ID);
+    const totalPhysical=rows.reduce((n,r)=>n+r.physical,0);
+    const totalFree=rows.reduce((n,r)=>n+r.free,0);
+    const totalReserved=rows.reduce((n,r)=>n+r.reserved,0);
+    const totalIncoming=rows.reduce((n,r)=>n+r.incoming,0);
 
     totals.innerHTML=
-      '<div class="gp-stocktake-switch">'+
-        '<button class="'+(wid===1?'active':'')+'" onclick="GP_STOCKTAKE_WAREHOUSE=1;loadStocktakeSeparated()">انبار عمده</button>'+
-        '<button class="'+(wid===2?'active':'')+'" onclick="GP_STOCKTAKE_WAREHOUSE=2;loadStocktakeSeparated()">انبار خرده تهرانپارس</button>'+
-      '</div>'+
       '<div class="gp-stocktake-summary">'+
-        '<div class="mutedbox"><span class="small">انبار انتخاب‌شده</span><h3>'+esc(whName)+'</h3></div>'+
+        '<div class="mutedbox"><span class="small">انبار</span><h3>انبار عمده</h3></div>'+
+        '<div class="mutedbox"><span class="small">کل ورودی (همه مدل‌ها)</span><h2>'+totalIncoming.toLocaleString('fa-IR')+'</h2></div>'+
         '<div class="mutedbox"><span class="small">موجودی فیزیکی</span><h2>'+totalPhysical.toLocaleString('fa-IR')+'</h2></div>'+
         '<div class="mutedbox"><span class="small">آزاد</span><h2>'+totalFree.toLocaleString('fa-IR')+'</h2></div>'+
         '<div class="mutedbox"><span class="small">رزرو / تخصیص</span><h2>'+totalReserved.toLocaleString('fa-IR')+'</h2></div>'+
@@ -538,21 +540,22 @@ async function loadStocktakeSeparated(){
     const table=body.closest('table');
     if(table){
       const head=table.querySelector('thead tr');
-      if(head)head.innerHTML='<th>کالا / مدل</th><th>انبار</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تعداد باکس</th>';
+      if(head)head.innerHTML='<th>کالا / مدل</th><th>ورودی ثبت‌شده</th><th>خروج / انتقال</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تراز</th>';
     }
-    body.innerHTML=names.map(p=>'<tr>'+
-      '<td><b>'+esc(p)+'</b></td>'+
-      '<td>'+esc(whName)+'</td>'+
-      '<td><b>'+(Number(current[p])||0).toLocaleString('fa-IR')+'</b></td>'+
-      '<td>'+(Number(free[p])||0).toLocaleString('fa-IR')+'</td>'+
-      '<td>'+(Number(reserved[p])||0).toLocaleString('fa-IR')+'</td>'+
-      '<td>'+(Number(cartonCount[p])||0).toLocaleString('fa-IR')+'</td>'+
-      '</tr>').join('')||'<tr><td colspan="6">برای این انبار موجودی ثبت نشده است.</td></tr>';
+    body.innerHTML=rows.map(r=>'<tr>'+
+      '<td><b>'+esc(r.product)+'</b></td>'+
+      '<td>'+r.incoming.toLocaleString('fa-IR')+'</td>'+
+      '<td>'+r.outgoing.toLocaleString('fa-IR')+'</td>'+
+      '<td><b>'+r.physical.toLocaleString('fa-IR')+'</b></td>'+
+      '<td>'+r.free.toLocaleString('fa-IR')+'</td>'+
+      '<td>'+r.reserved.toLocaleString('fa-IR')+'</td>'+
+      '<td><span class="badge '+(r.balance_ok?'st-ready':'st-cancel')+'">'+(r.balance_ok?'صحیح':'مغایرت')+'</span></td>'+
+      '</tr>').join('')||'<tr><td colspan="7">هنوز مدلی تعریف نشده است.</td></tr>';
 
     const card=body.closest('.card');
     if(card){
       const sub=card.querySelector('.section-title .small');
-      if(sub)sub.textContent='موجودی انبار عمده و خرده به‌صورت کاملاً جداگانه نمایش داده می‌شود.';
+      if(sub)sub.textContent='گزارش انبارگردانی فقط انبار عمده؛ همه مدل‌های سریال‌دار (حتی صفر) در جدول هستند.';
       const exportBtn=[...card.querySelectorAll('button')].find(b=>/خروجی Excel انبارگردانی/.test(b.textContent||''));
       if(exportBtn)exportBtn.style.display='none';
     }
@@ -575,6 +578,7 @@ function normalizeUI(){
   mergeCustomerSerialCards();
   installJDateFix();
   installWarehouseLedgerCurrentAnchor();
+  installWholesaleOnlyLedgerUI();
   wrapWarehouseRender();
   installSeparateStocktake();
   emphasizeForceOrders();
@@ -589,7 +593,7 @@ css.textContent=
   '#warehouseDaily .warehouse-ledger-bottom{display:none!important}'+
   '.gp-serial-merge-divider{height:1px;background:#e4eaf1;margin:14px 0}'+
   '#inventory>.card{overflow:visible}.gp-move-products{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:4px}.gp-move-products span{display:inline-block;background:#f4f7fb;border:1px solid #e1e8f0;border-radius:7px;padding:3px 6px;font-size:11px}.warehouse-movement-table{min-width:900px}.warehouse-movement-table td{vertical-align:top}'+
-  '/* gp-warehouse-summary-compact */#warehouseLedgerSummary{display:grid!important;grid-template-columns:repeat(2,minmax(280px,1fr))!important;gap:6px!important;margin:6px 0!important}#warehouseLedgerSummary>.card{margin:0!important;padding:8px 11px!important;min-height:0!important;border-radius:12px!important}#warehouseLedgerSummary>.card>.small,#warehouseLedgerSummary>.card .small{margin:0!important;line-height:1.3!important}#warehouseLedgerSummary>.card>b{margin:1px 0!important;line-height:1.25!important}.gp-wh-live-card{padding:8px 10px!important;border:1px solid #dce5ee!important}.gp-wh-live-card.active{border-color:#f58220!important;box-shadow:0 0 0 2px #f5822026!important}.gp-wh-live-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}.gp-wh-live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.gp-wh-live-stats>div{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:8px;padding:5px 6px;text-align:center}.gp-wh-live-stats span{display:block;font-size:10.5px;color:#64748b;margin-bottom:2px;line-height:1.25}.gp-wh-live-stats strong{font-size:16px;line-height:1.15;color:#102a43}'+
+  '/* gp-warehouse-summary-compact */#warehouseLedgerSummary{display:grid!important;grid-template-columns:repeat(4,minmax(140px,1fr))!important;gap:6px!important;margin:6px 0!important}#warehouseBtn2{display:none!important}.warehouse-ledger-table td.future-cell{color:#94a3b8;background:#f8fafc}#warehouseLedgerSummary>.card{margin:0!important;padding:8px 11px!important;min-height:0!important;border-radius:12px!important}#warehouseLedgerSummary>.card>.small,#warehouseLedgerSummary>.card .small{margin:0!important;line-height:1.3!important}#warehouseLedgerSummary>.card>b{margin:1px 0!important;line-height:1.25!important}.gp-wh-live-card{padding:8px 10px!important;border:1px solid #dce5ee!important}.gp-wh-live-card.active{border-color:#f58220!important;box-shadow:0 0 0 2px #f5822026!important}.gp-wh-live-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}.gp-wh-live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.gp-wh-live-stats>div{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:8px;padding:5px 6px;text-align:center}.gp-wh-live-stats span{display:block;font-size:10.5px;color:#64748b;margin-bottom:2px;line-height:1.25}.gp-wh-live-stats strong{font-size:16px;line-height:1.15;color:#102a43}'+
   '#otbody tr.gp-force-order td{border-top:2px solid #ef233c!important;border-bottom:2px solid #ef233c!important;animation:gpForceGlow 1.35s linear infinite;background-clip:padding-box}#otbody tr.gp-force-order td:first-child{border-right:2px solid #ef233c!important;border-radius:0 10px 10px 0}#otbody tr.gp-force-order td:last-child{border-left:2px solid #ef233c!important;border-radius:10px 0 0 10px}#otbody tr.gp-force-order .order-no:after{content:"فورس";display:inline-block;margin-right:6px;padding:2px 6px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:900;vertical-align:middle}@keyframes gpForceGlow{0%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}25%{box-shadow:inset 0 2px 0 #ff758f,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}50%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ffb3c1,0 0 13px rgba(239,35,60,.38)}75%{box-shadow:inset 0 2px 0 #ffb3c1,inset 0 -2px 0 #ef233c,0 0 8px rgba(239,35,60,.28)}100%{box-shadow:inset 0 2px 0 #ef233c,inset 0 -2px 0 #ff758f,0 0 0 rgba(239,35,60,0)}}'+
   '.gp-stocktake-wh{padding:12px!important}.gp-stocktake-wh-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}.gp-stocktake-wh-stats span{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:8px;padding:6px 9px}.gp-stocktake-wh-stats strong{margin-right:4px;color:#102a43}'+
   '.gp-stocktake-switch{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.gp-stocktake-switch button{border:1px solid #cfd9e5;background:#f7f9fc;color:#102a43;border-radius:9px;padding:9px 14px;font-family:Tahoma;font-weight:800;cursor:pointer}.gp-stocktake-switch button.active{background:#f58220;color:#fff;border-color:#f58220}.gp-stocktake-summary{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:8px;width:100%}'+
