@@ -175,6 +175,19 @@ function gp_i90_handle(string $mode): array {
     if(!$r)gp_i90_fail('current_state_missing');
     $state=json_decode($r['state_json'],true,512,JSON_THROW_ON_ERROR);
     if(!is_array($state))gp_i90_fail('invalid_current_state');
+    if($mode==='verify') {
+      $reversed=0;$hasAudit=false;
+      foreach(($state['inventory']??[]) as $iv)
+        if(($iv['preswitch_restore_reversed_reason']??'')==='verified_deploy_39067294958_360'
+           && (int)($iv['warehouse_id']??-1)===0)$reversed++;
+      foreach(($state['inventory_reconciliations']??[]) as $x)
+        if(($x['event']??'')==='preswitch_i90_360_reversal_v1')$hasAudit=true;
+      $whole=gp_i90_inventory_count($state,1);
+      $retail=gp_i90_inventory_count($state,2);
+      return ['ok'=>$whole===1455&&$retail===16&&$reversed===360&&$hasAudit,
+       'mode'=>'verify','wholesale'=>$whole,'retail'=>$retail,'reversed'=>$reversed,
+       'audit_exists'=>$hasAudit,'revision'=>(int)$r['revision']];
+    }
     $plan=gp_i90_plan($state,$previous);
     if($plan['wholesale_after']!==GP_I90_EXPECTED_PHYSICAL)
       gp_i90_fail('post_count_unexpected');
@@ -186,7 +199,7 @@ function gp_i90_handle(string $mode): array {
     $backupPath=__DIR__.'/storage/Backups/'.$backupName;
     if(file_put_contents($backupPath,$r['state_json'],LOCK_EX)!==strlen($r['state_json']))
       gp_i90_fail('safe_backup_write_failed');
-    chmod($backupPath,0600);
+    if(!chmod($backupPath,0600))gp_i90_fail('safe_backup_permissions_failed');
     $now=date('Y-m-d H:i:s');
     foreach($plan['indexes'] as $i) {
       $state['inventory'][$i]['warehouse_id']=0;
@@ -245,16 +258,15 @@ if(!defined('GHADIR_I90_TEST_MODE')) {
   header('Content-Type:application/json; charset=utf-8');
   header('Cache-Control:no-store');
   header('X-Content-Type-Options:nosniff');
-  $remote=$_SERVER['REMOTE_ADDR']??'';
   $token=$_SERVER['HTTP_X_GP_I90_TOKEN']??'';
-  if(($_SERVER['REQUEST_METHOD']??'')!=='POST' || GP_I90_TOKEN==='__I90_EXECUTION_TOKEN__' ||
+  if(($_SERVER['REQUEST_METHOD']??'')!=='POST' || strlen(GP_I90_TOKEN)!==64 ||
      !hash_equals(GP_I90_TOKEN,(string)$token) ||
      (empty($_SERVER['HTTPS'])||$_SERVER['HTTPS']==='off')) {
     http_response_code(403);
     echo '{"ok":false,"error":"forbidden"}';exit;
   }
   $mode=$_POST['mode']??'';
-  if(!in_array($mode,['dry_run','apply'],true)) {
+  if(!in_array($mode,['dry_run','apply','verify'],true)) {
     http_response_code(400);echo '{"ok":false,"error":"invalid_mode"}';exit;
   }
   try {
@@ -263,6 +275,16 @@ if(!defined('GHADIR_I90_TEST_MODE')) {
   } catch(Throwable $e) {
     http_response_code(409);
     // All errors are sanitized. Never send DB rows, serials, secrets or exception detail.
-    echo json_encode(['ok'=>false,'error'=>'guard_blocked','reason'=>$e->getMessage()],JSON_UNESCAPED_UNICODE);
+    $safe=['inventory_missing','already_repaired','live_stock_changed_reaudit_required',
+      'protected_carton_state_mismatch','carton_identity_invalid',
+      'candidate_not_protected','candidate_order_changed','candidate_serial_missing_or_duplicate',
+      'candidate_prior_duplicate','prior_carton_conflict','prior_state_mismatch',
+      'candidate_duplicate','wrong_restore_count','candidate_reused_in_current_orders',
+      'candidate_has_later_warehouse_movement','post_count_unexpected',
+      'database_configuration_invalid','reference_backup_unavailable',
+      'invalid_reference_backup','current_state_missing','invalid_current_state',
+      'safe_backup_write_failed','safe_backup_permissions_failed','post_validation_failed','concurrent_revision_changed'];
+    $reason=in_array($e->getMessage(),$safe,true)?$e->getMessage():'internal_error';
+    echo json_encode(['ok'=>false,'error'=>'guard_blocked','reason'=>$reason],JSON_UNESCAPED_UNICODE);
   }
 }
