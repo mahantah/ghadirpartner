@@ -4,6 +4,8 @@ const src=fs.readFileSync(require('path').join(__dirname,'..','assets','warehous
 if(!src.includes('GP_LEDGER_CURRENT_ANCHOR_V2_20261017')) throw new Error('V2 ledger anchor missing');
 if(!src.includes('gpRewriteLedgerGridToCurrent')) throw new Error('grid rewrite missing');
 if(!src.includes('gpHydrateCartonSerialsFromInventory')) throw new Error('serial hydrate missing');
+if(!src.includes('GP_WAREHOUSE_SERIALS_FROM_INVENTORY_V3_20261018')) throw new Error('inventory-backed serial modal missing');
+if(!src.includes('gpCartonInventorySerials')) throw new Error('carton inventory serial helper missing');
 
 function gpWarehouseCurrentQty(state,wid,product){
   const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
