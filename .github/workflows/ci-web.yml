@@ -914,6 +914,7 @@ jobs:
           set -euo pipefail
           python3 -m py_compile scripts/preswitch_safety.py scripts/patch-protected-carton-ops-v1.py scripts/patch-retail-transfer-detach-carton-v1.py
           python3 scripts/preswitch_safety.py self-test
+          python3 tests/preswitch_workflow_readonly.py
           python3 scripts/preswitch_safety.py check-fixture tests/fixtures/preswitch_protected_ok.json
           if python3 scripts/preswitch_safety.py check-fixture tests/fixtures/preswitch_protected_mismatch.json; then
             echo 'expected mismatch fixture to fail' >&2
