@@ -89,6 +89,16 @@ jobs:
               --data-urlencode "mode=$mode" \
               --output "$out" --write-out '%{http_code}' "$URL"
           }
+          snapshot_status="$(send snapshot /tmp/gp-i90-verify.json)"
+          python3 - "$snapshot_status" /tmp/gp-i90-verify.json <<'PY'
+          import json,sys
+          status=int(sys.argv[1])
+          try: d=json.load(open(sys.argv[2]))
+          except (ValueError,OSError): d={}
+          fields=['ok','mode','revision','wholesale','retail',
+                  'restored_marked_in_wholesale','restored_cartons','corrected_wholesale_if_verified','error','reason']
+          print('SANITIZED_LIVE_SNAPSHOT:',{k:d.get(k) for k in fields},'http',status)
+          PY
           status="$(send dry_run /tmp/gp-i90-dry.json)"
           python3 - "$status" /tmp/gp-i90-dry.json <<'PY'
           import json,sys
