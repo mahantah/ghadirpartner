@@ -73,7 +73,7 @@ jobs:
           s=p.read_text()
           tags=[
               '<script src="/assets/order-multiprint-v53438.js?v=53438mp3"></script>',
-              '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui7"></script>',
+              '<script src="/assets/warehouse-ui-refine-v53438.js?v=53438ui8"></script>',
               '<script src="/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint4"></script>'
           ]
           if '</body>' not in s:
@@ -228,9 +228,10 @@ jobs:
           node --check "$ROOT/assets/warehouse-carton-multilabel-v53438.js"
           node --check "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'warehouse-ui-refine-v53438.js' "$ROOT/app.html"
-          grep -q 'warehouse-ui-refine-v53438.js?v=53438ui7' "$ROOT/app.html"
+          grep -q 'warehouse-ui-refine-v53438.js?v=53438ui8' "$ROOT/app.html"
           grep -q 'GP_WAREHOUSE_SERIALS_FROM_INVENTORY_V3_20261018' "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'GP_WHOLESALE_LEDGER_REPORTS_V4_20261018' "$ROOT/assets/warehouse-ui-refine-v53438.js"
+          grep -q 'GP_I90_LEDGER_FAMILY_V5_20261018' "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'سریال‌های مشتریان' "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'ثبت تجمیع‌شده' "$ROOT/assets/warehouse-ui-refine-v53438.js"
           grep -q 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' "$ROOT/assets/warehouse-ui-refine-v53438.js"
@@ -531,9 +532,10 @@ jobs:
           grep -q 'warehouseDaily' /tmp/livecheck/assets/warehouse-v53438.js
           grep -q 'GP_UI_HOTFIX_20261010' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           grep -q 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
-          grep -q 'warehouse-ui-refine-v53438.js?v=53438ui7' /tmp/livecheck/app.html
+          grep -q 'warehouse-ui-refine-v53438.js?v=53438ui8' /tmp/livecheck/app.html
           grep -q 'GP_WAREHOUSE_SERIALS_FROM_INVENTORY_V3_20261018' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           grep -q 'GP_WHOLESALE_LEDGER_REPORTS_V4_20261018' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
+          grep -q 'GP_I90_LEDGER_FAMILY_V5_20261018' /tmp/livecheck/assets/warehouse-ui-refine-v53438.js
           grep -q 'PARTIAL_SHIPMENT_BATCH_EXPORT_20261010' /tmp/livecheck/index.php
           grep -q 'PARTIAL_SHIPMENT_BATCH_REPORT_20261010' /tmp/livecheck/app.html
           grep -q 'WAREHOUSE_SUPPLIER_SEARCH_20261012' /tmp/livecheck/index.php

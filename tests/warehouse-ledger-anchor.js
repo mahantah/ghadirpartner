@@ -9,6 +9,7 @@ if(!src.includes('GP_WHOLESALE_LEDGER_REPORTS_V4_20261018')) throw new Error('wh
 if(src.includes('جمع هر دو انبار')) throw new Error('combined warehouse totals must not be shown');
 if(!src.includes('future-cell')) throw new Error('future ledger days must stay blank');
 if(!src.includes('gpCartonInventorySerials')) throw new Error('carton inventory serial helper missing');
+if(!src.includes('GP_I90_LEDGER_FAMILY_V5_20261018')) throw new Error('I90 ledger family merge missing');
 
 function gpWarehouseCurrentQty(state,wid,product){
   const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
@@ -48,6 +49,34 @@ if(gpWarehouseStockOnJalaliDay(state,1,'I90','1405/07/25',today)!==25)
   throw new Error('day before I90 sale should be current+later outflow');
 if(gpWarehouseStockOnJalaliDay(state,1,'I90','1405/07/29',today)!==20)
   throw new Error('future day should still reconstruct from current anchor');
+
+function gpWarehouseLedgerFamilyKey(name){
+  const n=String(name||'').trim();
+  if(/\bI90\b/i.test(n)) return 'FAMILY:I90';
+  return 'SKU:'+n;
+}
+function gpWarehouseCurrentQtyKeys(state,wid,keys){
+  return keys.reduce((n,k)=>n+(Number((state.current?.[wid]||{})[k])||0),0);
+}
+const split={current:{1:{'دستگاه کارتخوان I90':1378,I90:227}},products:[{name:'دستگاه کارتخوان I90'},{name:'Z-990'}],movements:[],baseline:[]};
+const famRows=(()=>{
+  const catalog=split.products.map(p=>p.name);
+  const fam=new Map();
+  catalog.forEach(name=>{
+    const fk=gpWarehouseLedgerFamilyKey(name);
+    if(!fam.has(fk)) fam.set(fk,{label:name,keys:new Set(),catalog:true});
+    fam.get(fk).keys.add(name);
+  });
+  Object.keys(split.current[1]).forEach(k=>{
+    const fk=gpWarehouseLedgerFamilyKey(k);
+    if(!fam.has(fk)) fam.set(fk,{label:k,keys:new Set(),catalog:false});
+    fam.get(fk).keys.add(k);
+  });
+  return [...fam.values()].filter(r=>[...r.keys].some(k=>(split.current[1][k]||0)>0));
+})();
+const i90=famRows.find(r=>r.label.includes('I90'));
+if(!i90||gpWarehouseCurrentQtyKeys(split,1,[...i90.keys])!==1605) throw new Error('split I90 product names must sum in one ledger row');
+if(famRows.some(r=>r.label==='Z-990')) throw new Error('zero-stock catalog models must not appear in ledger rows');
 
 function hydrate(cartons,inventory){
   const byId=new Map();

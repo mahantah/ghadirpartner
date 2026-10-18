@@ -29,3 +29,5 @@ Retry 12 (2026-10-18): I90 counts differ when only one warehouse is selected and
 Retry 13 (2026-10-18): remove combined warehouse totals; wholesale-only ledger/stocktake; list all serial models in reports; blank future ledger days. Do not bypass protected_carton_state_mismatch.
 
 Retry 14 (2026-10-18): resubmit — PR #43 merged before wholesale-only commit landed; deploy wholesale ledger/report UI (ui7) with the same carton guard. Do not bypass protected_carton_state_mismatch.
+
+Retry 15 (2026-10-18): merge split I90 product keys in the wholesale ledger, keep all catalog models (including zero stock), and read today from physical inventory keys. Do not bypass protected_carton_state_mismatch.

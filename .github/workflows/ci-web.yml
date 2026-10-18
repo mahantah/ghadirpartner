@@ -742,9 +742,10 @@ jobs:
           grep -Fq 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' assets/warehouse-ui-refine-v53438.js
           grep -Fq 'gpRewriteLedgerGridToCurrent' assets/warehouse-ui-refine-v53438.js
           grep -Fq 'gpHydrateCartonSerialsFromInventory' assets/warehouse-ui-refine-v53438.js
-          grep -Fq 'warehouse-ui-refine-v53438.js?v=53438ui7' .github/workflows/deploy-final-v53438.yml
+          grep -Fq 'warehouse-ui-refine-v53438.js?v=53438ui8' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'GP_WAREHOUSE_SERIALS_FROM_INVENTORY_V3_20261018' assets/warehouse-ui-refine-v53438.js
           grep -Fq 'GP_WHOLESALE_LEDGER_REPORTS_V4_20261018' assets/warehouse-ui-refine-v53438.js
+          grep -Fq 'GP_I90_LEDGER_FAMILY_V5_20261018' assets/warehouse-ui-refine-v53438.js
           grep -Fq 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' .github/workflows/deploy-final-v53438.yml
   # Previously: .github/workflows/test-warehouse-carton-label-restore.yml
   warehouse-carton-label-restore:
