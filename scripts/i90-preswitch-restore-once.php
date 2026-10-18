@@ -175,6 +175,27 @@ function gp_i90_handle(string $mode): array {
     if(!$r)gp_i90_fail('current_state_missing');
     $state=json_decode($r['state_json'],true,512,JSON_THROW_ON_ERROR);
     if(!is_array($state))gp_i90_fail('invalid_current_state');
+    if($mode==='snapshot') {
+      $whole=gp_i90_inventory_count($state,1);
+      $retail=gp_i90_inventory_count($state,2);
+      $returned=0;$protected=[];
+      [$ids,$codes]=gp_i90_cartons($state);
+      foreach(($state['inventory']??[]) as $iv) {
+        if(!gp_i90_is_model($iv['product']??'') ||
+           (int)($iv['warehouse_id']??-1)!==1 ||
+           (int)($iv['returned_from_order_id']??0)<1 ||
+           (string)($iv['returned_at']??'')!==GP_I90_RETURN_AT)continue;
+        $returned++;
+        $cc=gp_i90_upper($iv['carton_code']??'');
+        $byId=$ids[(int)($iv['carton_id']??0)]??'';
+        $code=$cc!==''?$cc:$byId;
+        if(in_array($code,GP_I90_CARTONS,true))$protected[$code]=true;
+      }
+      return ['ok'=>true,'mode'=>'snapshot','revision'=>(int)$r['revision'],
+        'wholesale'=>$whole,'retail'=>$retail,
+        'restored_marked_in_wholesale'=>$returned,'restored_cartons'=>count($protected),
+        'corrected_wholesale_if_verified'=>$whole-$returned];
+    }
     if($mode==='verify') {
       $reversed=0;$hasAudit=false;
       foreach(($state['inventory']??[]) as $iv)
@@ -266,7 +287,7 @@ if(!defined('GHADIR_I90_TEST_MODE')) {
     echo '{"ok":false,"error":"forbidden"}';exit;
   }
   $mode=$_POST['mode']??'';
-  if(!in_array($mode,['dry_run','apply','verify'],true)) {
+  if(!in_array($mode,['snapshot','dry_run','apply','verify'],true)) {
     http_response_code(400);echo '{"ok":false,"error":"invalid_mode"}';exit;
   }
   try {
