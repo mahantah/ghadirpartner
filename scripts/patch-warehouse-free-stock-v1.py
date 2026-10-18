@@ -44,6 +44,10 @@ to_stock = (
 )
 if marker not in m:
     if m.count(original_main) != 1:
+        print("Diagnostic only: function_start=", m.find("function warehouse_free_stock("),
+              "function_calls=", m.count("warehouse_free_stock("),
+              "catalog_route=", m.find("if($p==='/api/catalog'"),
+              "legacy_free_stock=", m.count("empty($iv['order_id'])"))
         raise SystemExit("Main stock function structural drift; refusing to patch")
     m = m.replace(original_main, fixed_main, 1)
 elif fixed_main not in m:
