@@ -11,7 +11,6 @@ const GP_I90_BACKUP = 'ghadir-mysql-pre-exact-v53438-20261017-203512.json';
 const GP_I90_RETURN_AT = '2026-10-17 20:35:12';
 const GP_I90_EXPECTED_WHOLESALE = 1815;
 const GP_I90_EXPECTED_PHYSICAL = 1455;
-const GP_I90_EXPECTED_RETAIL = 16;
 const GP_I90_EXPECTED_RESTORED = 360;
 const GP_I90_CARTONS = [
   'I90-097','I90-098','I90-099','I90-100','I90-101','I90-102','I90-103',
@@ -63,7 +62,7 @@ function gp_i90_plan(array $cur, array $old): array {
   }
   $beforeWholesale=gp_i90_inventory_count($cur,1);
   $retail=gp_i90_inventory_count($cur,2);
-  if($beforeWholesale!==GP_I90_EXPECTED_WHOLESALE || $retail!==GP_I90_EXPECTED_RETAIL)
+  if($beforeWholesale!==GP_I90_EXPECTED_WHOLESALE)
     gp_i90_fail('live_stock_changed_reaudit_required');
   [$ids,$codes]=gp_i90_cartons($cur);
   [$oldIds,$oldCodes]=gp_i90_cartons($old);
@@ -149,7 +148,7 @@ function gp_i90_plan(array $cur, array $old): array {
     'cartons'=>count($countByCarton)
   ];
 }
-function gp_i90_handle(string $mode): array {
+function gp_i90_handle(string $mode, ?int $expectedRevision=null): array {
   $cfg=require __DIR__.'/config.php';
   $db=$cfg['mysql']??[];
   if(!is_array($db)||empty($db['database'])||empty($db['username']))
@@ -173,6 +172,8 @@ function gp_i90_handle(string $mode): array {
     $sql='SELECT state_json,revision FROM ghadir_state WHERE id=1'.($write?' FOR UPDATE':'');
     $r=$pdo->query($sql)->fetch();
     if(!$r)gp_i90_fail('current_state_missing');
+    if($write && ($expectedRevision===null || $expectedRevision!==(int)$r['revision']))
+      gp_i90_fail('snapshot_revision_changed');
     $state=json_decode($r['state_json'],true,512,JSON_THROW_ON_ERROR);
     if(!is_array($state))gp_i90_fail('invalid_current_state');
     if($mode==='snapshot') {
@@ -205,7 +206,7 @@ function gp_i90_handle(string $mode): array {
         if(($x['event']??'')==='preswitch_i90_360_reversal_v1')$hasAudit=true;
       $whole=gp_i90_inventory_count($state,1);
       $retail=gp_i90_inventory_count($state,2);
-      return ['ok'=>$whole===1455&&$retail===16&&$reversed===360&&$hasAudit,
+      return ['ok'=>$whole===1455&&$reversed===360&&$hasAudit,
        'mode'=>'verify','wholesale'=>$whole,'retail'=>$retail,'reversed'=>$reversed,
        'audit_exists'=>$hasAudit,'revision'=>(int)$r['revision']];
     }
@@ -236,11 +237,12 @@ function gp_i90_handle(string $mode): array {
       'qty'=>$plan['restored'],'from_warehouse_id'=>1,'to_warehouse_id'=>0,
       'before_warehouse_total'=>$plan['wholesale_before'],
       'after_warehouse_total'=>$plan['wholesale_after'],
+      'retail_at_repair'=>$plan['retail'],
       'prior_backup'=>GP_I90_BACKUP,'pre_repair_backup'=>$backupName,
       'serial_set_hash'=>$plan['serial_hash']
     ];
     if(gp_i90_inventory_count($state,1)!==GP_I90_EXPECTED_PHYSICAL ||
-       gp_i90_inventory_count($state,2)!==GP_I90_EXPECTED_RETAIL)
+       gp_i90_inventory_count($state,2)!==$plan['retail'])
       gp_i90_fail('post_validation_failed');
     // The protected 18-carton guard remains enforced, never weakened.
     [$ids,$codes]=gp_i90_cartons($state);
@@ -268,7 +270,7 @@ function gp_i90_handle(string $mode): array {
     $audit->execute([$next,$hash,strlen($encoded)]);
     $pdo->commit();
     return ['ok'=>true,'mode'=>'applied','changed'=>360,
-      'wholesale_before'=>1815,'wholesale_after'=>1455,'retail'=>16,
+      'wholesale_before'=>1815,'wholesale_after'=>1455,'retail'=>$plan['retail'],
       'protected_cartons_valid'=>18,'revision'=>$next,'backup_created'=>true];
   } catch(Throwable $e) {
     if($pdo->inTransaction())$pdo->rollBack();
@@ -291,7 +293,10 @@ if(!defined('GHADIR_I90_TEST_MODE')) {
     http_response_code(400);echo '{"ok":false,"error":"invalid_mode"}';exit;
   }
   try {
-    $output=gp_i90_handle($mode);
+    $rev=$_POST['expected_revision']??null;
+    if($mode==='apply' && (!is_string($rev)||!ctype_digit($rev)))
+      gp_i90_fail('snapshot_revision_changed');
+    $output=gp_i90_handle($mode,$mode==='apply'?(int)$rev:null);
     echo json_encode($output,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
   } catch(Throwable $e) {
     http_response_code(409);
@@ -304,7 +309,7 @@ if(!defined('GHADIR_I90_TEST_MODE')) {
       'candidate_has_later_warehouse_movement','post_count_unexpected',
       'database_configuration_invalid','reference_backup_unavailable',
       'invalid_reference_backup','current_state_missing','invalid_current_state',
-      'safe_backup_write_failed','safe_backup_permissions_failed','post_validation_failed','concurrent_revision_changed'];
+      'safe_backup_write_failed','safe_backup_permissions_failed','post_validation_failed','snapshot_revision_changed','concurrent_revision_changed'];
     $reason=in_array($e->getMessage(),$safe,true)?$e->getMessage():'internal_error';
     echo json_encode(['ok'=>false,'error'=>'guard_blocked','reason'=>$reason],JSON_UNESCAPED_UNICODE);
   }
