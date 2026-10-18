@@ -612,7 +612,7 @@ async function loadStocktakeSeparated(){
     const card=body.closest('.card');
     if(card){
       const sub=card.querySelector('.section-title .small');
-      if(sub)sub.textContent='گزارش انبارگردانی فقط انبار عمده؛ همه مدل‌های سریال‌دار (حتی صفر) در جدول هستند.';
+      if(sub)sub.textContent='گزارش انبارگردانی فقط انبار عمده؛ فقط مدل‌های با موجودی فیزیکی در جدول هستند.';
       const exportBtn=[...card.querySelectorAll('button')].find(b=>/خروجی Excel انبارگردانی/.test(b.textContent||''));
       if(exportBtn)exportBtn.style.display='none';
     }
