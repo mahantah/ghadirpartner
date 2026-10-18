@@ -916,6 +916,7 @@ jobs:
           python3 scripts/preswitch_safety.py self-test
           python3 tests/preswitch_workflow_readonly.py
           python3 tests/i90_wholesale_audit.py
+          python3 tests/i90_preswitch_restore.py
           python3 tests/physical-stock-count.py
           python3 scripts/preswitch_safety.py check-fixture tests/fixtures/preswitch_protected_ok.json
           if python3 scripts/preswitch_safety.py check-fixture tests/fixtures/preswitch_protected_mismatch.json; then
