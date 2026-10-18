@@ -107,3 +107,20 @@ if(byCodeCartons[0].serials.join(',')!=='SN3,SN4') throw new Error('carton seria
 if(!src.includes('renderWarehouse.__gpHydrateSerials') && !src.includes('!renderWarehouse.__gpHydrateSerials'))
   throw new Error('renderWarehouse hydrate wrap missing');
 console.log('warehouse ledger anchor and serial hydrate OK');
+
+/* Real inventory records, not stale carton.serials, are the single source for carton display. */
+{
+  const vm=require('vm');
+  const start=src.indexOf('function gpCartonInventorySerials(c){');
+  const end=src.indexOf('function gpHydrateCartonSerialsFromInventory(){',start);
+  if(start<0||end<0) throw new Error('carton serial helper absent');
+  const sandbox={WH:{inventory:[
+    {carton_id:7,carton_code:'I90-097',serial:'I90-REAL-A'},
+    {carton_id:7,carton_code:'I90-097',serial:'i90-real-a'},
+    {carton_id:8,carton_code:'I90-098',serial:'I90-OTHER'}
+  ]}};
+  vm.runInNewContext(src.slice(start,end)+'\nthis.getCarton=gpCartonInventorySerials;',sandbox);
+  const rows=sandbox.getCarton({id:7,code:'I90-097',serials:['I90-STALE']});
+  if(rows.length!==1||rows[0]!=='I90-REAL-A') throw new Error('stale carton.serials inflated serial list');
+}
+if(!src.includes('balance_ok:physical===fr+rs')) throw new Error('stock balance must verify physical vs free+reserved');
