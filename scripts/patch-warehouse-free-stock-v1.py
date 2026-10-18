@@ -48,6 +48,9 @@ if marker not in m:
               "function_calls=", m.count("warehouse_free_stock("),
               "catalog_route=", m.find("if($p==='/api/catalog'"),
               "legacy_free_stock=", m.count("empty($iv['order_id'])"))
+        start=m.find("function warehouse_free_stock(")
+        if start >= 0:
+            print("Function shape:", repr(m[start:start+420]))
         raise SystemExit("Main stock function structural drift; refusing to patch")
     m = m.replace(original_main, fixed_main, 1)
 elif fixed_main not in m:
