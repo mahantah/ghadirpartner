@@ -1,0 +1,103 @@
+name: Read-only I90 repair preflight diagnosis
+
+# Two-step release: merge tested code, then merge one explicit run-once sentinel.
+# Never run on arbitrary pushes to main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-i90-preflight.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  read_only_preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check immutable repair contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l scripts/i90-preswitch-restore-once.php
+          php tests/i90-preswitch-restore-guard.php
+          test -f scripts/i90-preswitch-restore-once.php
+          grep -Fq 'GP_I90_EXPECTED_WHOLESALE = 1815' scripts/i90-preswitch-restore-once.php
+          grep -Fq 'GP_I90_EXPECTED_PHYSICAL = 1455' scripts/i90-preswitch-restore-once.php
+          grep -Fq 'GP_I90_EXPECTED_RESTORED = 360' scripts/i90-preswitch-restore-once.php
+
+      - name: Upload ephemeral read-only diagnosis and report guard reason
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          command -v lftp >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y lftp; }
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          FILE="__gp_i90_reconcile_${GITHUB_RUN_ID}_$(openssl rand -hex 8).php"
+          STAGE="$(mktemp)"
+          python3 - "$TOKEN" "$STAGE" <<'PY'
+          import pathlib,sys
+          token,dest=sys.argv[1:]
+          p=pathlib.Path('scripts/i90-preswitch-restore-once.php').read_text()
+          anchor="const GP_I90_TOKEN = '__I90_EXECUTION_TOKEN__';"
+          if p.count(anchor)!=1: raise SystemExit('Token source mismatch')
+          p=p.replace(anchor,"const GP_I90_TOKEN = '"+token+"';")
+          pathlib.Path(dest).write_text(p)
+          PY
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+            rm -f "$STAGE" /tmp/gp-i90-dry.json /tmp/gp-i90-applied.json /tmp/gp-i90-verify.json
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$STAGE" -o "/$FILE"
+          bye
+          EOF
+          URL="https://ghadirpartner.ir/$FILE"
+          send(){
+            local mode="$1" out="$2"
+            curl -sS --max-time 120 -X POST \
+              -H "X-GP-I90-Token: $TOKEN" \
+              -H 'Cache-Control: no-store' \
+              --data-urlencode "mode=$mode" \
+              --output "$out" --write-out '%{http_code}' "$URL"
+          }
+          status="$(send dry_run /tmp/gp-i90-dry.json)"
+          python3 - "$status" /tmp/gp-i90-dry.json <<'PY'
+          import json,sys
+          status=int(sys.argv[1])
+          try: d=json.load(open(sys.argv[2]))
+          except (ValueError,OSError): d={"ok":False,"error":"non_json_response","reason":"invalid_remote_response"}
+          keys=['ok','mode','error','reason','eligible','revision','wholesale_before',
+                'wholesale_after','retail','restored','cartons']
+          print('SANITIZED_READ_ONLY_PREFLIGHT:',{k:d.get(k) for k in keys})
+          # A blocked preflight is a valid forensic result; no apply attempted.
+          PY
+          echo "Read-only remote diagnosis completed; NO production data write attempted."
