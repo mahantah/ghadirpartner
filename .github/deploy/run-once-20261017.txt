@@ -27,3 +27,5 @@ Retry 11 (2026-10-17): daily ledger is still baseline+movements so ghost product
 Retry 12 (2026-10-18): I90 counts differ when only one warehouse is selected and مخزn serial modal still reads empty carton.serials. Show both-warehouse totals in the ledger and list carton serials from inventory rows. Do not bypass protected_carton_state_mismatch.
 
 Retry 13 (2026-10-18): remove combined warehouse totals; wholesale-only ledger/stocktake; list all serial models in reports; blank future ledger days. Do not bypass protected_carton_state_mismatch.
+
+Retry 14 (2026-10-18): resubmit — PR #43 merged before wholesale-only commit landed; deploy wholesale ledger/report UI (ui7) with the same carton guard. Do not bypass protected_carton_state_mismatch.
