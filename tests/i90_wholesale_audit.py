@@ -66,3 +66,59 @@ with tempfile.TemporaryDirectory() as temp:
     assert obj["system_minus_physical"] == -1452
     assert "TEST-" not in run.stdout
 print("I90 wholesale count-only reconciliation tests passed")
+
+# User-provided reconciliation: 1605 previously, 150 exited, 1455 remains in wholesale.
+assert 1605 - 150 == 1455
+recorded = {
+    "inventory": [
+        row("I90", 1, 0, "ON-"+str(i)) for i in range(1455)
+    ] + [
+        row("دستگاه کارتخوان I90", 0, 20, "SENT-"+str(i)) for i in range(150)
+    ],
+    "warehouse_movements": [{
+        "id": 10,
+        "type": "sale_out",
+        "product": "I90",
+        "created_at": "2026-10-17 19:48:00",
+        "from_warehouse_id": 1,
+        "to_warehouse_id": 0,
+        "qty": 150,
+        "serials": ["SENT-"+str(i) for i in range(150)],
+    }],
+}
+m = mod.outbound_report(recorded, "2026-10-17", 150)
+assert m["sale_out_quantity_matches"]
+assert m["recorded_sale_out_qty"] == 150
+assert m["movement_serials_still_in_wholesale"] == 0
+assert not m["needs_review"]
+assert mod.audit(recorded, 1455)["quantity_matches"]
+
+# If movement recorded but stock location was not updated, do NOT deduct 150 again.
+wrong = {
+    "inventory": [row("I90", 1, 0, "ON-"+str(i)) for i in range(1455)] +
+                 [row("I90", 1, 20, "SENT-"+str(i)) for i in range(150)],
+    "warehouse_movements": recorded["warehouse_movements"],
+}
+m2 = mod.outbound_report(wrong, "2026-10-17", 150)
+assert m2["recorded_sale_out_qty"] == 150
+assert m2["movement_serials_still_in_wholesale"] == 150
+assert m2["needs_review"]
+assert mod.audit(wrong, 1455)["system_minus_physical"] == 150
+
+# A UI-only exit entry is not a physical warehouse movement.
+unrecorded = {"inventory": wrong["inventory"], "warehouse_movements": []}
+assert mod.outbound_report(unrecorded, "2026-10-17", 150)["recorded_sale_out_qty"] == 0
+assert mod.outbound_report(unrecorded, "2026-10-17", 150)["needs_review"]
+
+with tempfile.TemporaryDirectory() as temp:
+    file = Path(temp) / "mock_shipments.json"
+    file.write_text(json.dumps(recorded, ensure_ascii=False), encoding="utf-8")
+    cli = subprocess.run([sys.executable, str(SCRIPT),
+                          "--input", str(file), "--expected", "1455",
+                          "--previous-count", "1605", "--exit-quantity", "150",
+                          "--exit-date", "2026-10-17"],
+                         capture_output=True, text=True)
+    assert cli.returncode == 0, cli.stdout + cli.stderr
+    evidence = json.loads(cli.stdout)["outbound_evidence"]
+    assert evidence["recorded_sale_out_qty"] == 150
+    assert "SENT-" not in cli.stdout
