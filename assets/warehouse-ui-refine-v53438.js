@@ -29,10 +29,68 @@ window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
    Stocktake lists every serial-tracked model; ledger leaves future days blank.
 */
 const GP_WHOLESALE_WAREHOUSE_ID=1;
+/* GP_I90_LEDGER_FAMILY_V5_20261018 — one ledger row for split I90 product names. */
+function gpWarehouseLedgerFamilyKey(name){
+  const n=String(name||'').trim();
+  if(/\bI90\b/i.test(n)) return 'FAMILY:I90';
+  if(/\bI80\b/i.test(n)) return 'FAMILY:I80';
+  return 'SKU:'+n;
+}
+function gpWarehouseLedgerFamilyLabel(familyKey,sampleName){
+  if(familyKey==='FAMILY:I90') return 'دستگاه کارتخوان I90';
+  if(familyKey==='FAMILY:I80') return 'دستگاه کارتخوان I80';
+  return String(sampleName||'').trim();
+}
+function gpWarehouseLedgerRows(state,wid){
+  if(!state) return [];
+  const catalog=(state.products||[]).map(p=>String(p.name||'').trim()).filter(Boolean);
+  const fam=new Map();
+  const touch=(name)=>{
+    const n=String(name||'').trim();
+    if(!n) return;
+    const fk=gpWarehouseLedgerFamilyKey(n);
+    if(!fam.has(fk)) fam.set(fk,{familyKey:fk,label:gpWarehouseLedgerFamilyLabel(fk,n),keys:new Set(),catalog:false});
+    const row=fam.get(fk);
+    row.keys.add(n);
+    if(catalog.includes(n)) row.catalog=true;
+  };
+  catalog.forEach(touch);
+  Object.keys((state.current&&state.current[wid])||{}).forEach(touch);
+  (state.baseline||[]).filter(x=>Number(x.warehouse_id)===wid).forEach(x=>touch(x.product));
+  (state.movements||[]).forEach(m=>{
+    if(Number(m.from_warehouse_id)!==wid && Number(m.to_warehouse_id)!==wid) return;
+    touch(m.product);
+  });
+  return [...fam.values()]
+    .filter(r=>[...r.keys].some(k=>gpWarehouseCurrentQty(state,wid,k)>0))
+    .map(r=>({product:r.label,keys:[...r.keys]}))
+    .sort((a,b)=>warehouseProductOrder(a.product)-warehouseProductOrder(b.product)||a.product.localeCompare(b.product,'fa'));
+}
 function gpWarehouseCurrentQty(state,wid,product){
   const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
   return Number(current?.[product]||0);
 }
+function gpWarehouseCurrentQtyKeys(state,wid,keys){
+  return (keys||[]).reduce((n,k)=>n+gpWarehouseCurrentQty(state,wid,k),0);
+}
+function gpWarehouseMovementMatchesProduct(m,product){
+  return String(m?.product||'')===String(product||'');
+}
+function gpWarehouseStockOnJalaliDayKeys(state,wid,keys,jday,today){
+  if(!state) return 0;
+  let q=gpWarehouseCurrentQtyKeys(state,wid,keys);
+  const day=String(jday||'');
+  const now=String(today||'');
+  for(const m of (state.movements||[])){
+    if(!(keys||[]).some(k=>gpWarehouseMovementMatchesProduct(m,k))) continue;
+    const md=gpWarehouseMovementJalali(m);
+    if(md && now && md>day && md<=now) q-=gpWarehouseMovementDelta(m,wid);
+  }
+  return q;
+}
+window.gpWarehouseLedgerRows=gpWarehouseLedgerRows;
+window.gpWarehouseCurrentQtyKeys=gpWarehouseCurrentQtyKeys;
+window.gpWarehouseStockOnJalaliDayKeys=gpWarehouseStockOnJalaliDayKeys;
 function gpWarehouseMovementDelta(m,wid){
   let d=0;
   if(Number(m?.to_warehouse_id)===Number(wid)) d+=Number(m?.qty)||0;
@@ -293,29 +351,25 @@ function renderSeparateWarehouseLiveSummary(){
 
 
 function stocktakeProductRows(state,wid){
-  const products=(state.products||[]).map(p=>p.name).filter(Boolean);
-  const names=new Set(products);
   const current=state.current?.[wid]||state.current?.[String(wid)]||{};
   const free=state.free?.[wid]||state.free?.[String(wid)]||{};
   const reserved=state.reserved?.[wid]||state.reserved?.[String(wid)]||{};
-  Object.keys(current).forEach(x=>names.add(x));
-  (state.baseline||[]).filter(x=>Number(x.warehouse_id)===wid).forEach(x=>names.add(x.product));
-  (state.movements||[]).filter(m=>Number(m.from_warehouse_id)===wid||Number(m.to_warehouse_id)===wid).forEach(m=>names.add(m.product));
-
-  return [...names].map(product=>{
-    let incoming=gpWarehouseEffectiveBaselineQty(state,wid,product);
-    let outgoing=0;
-    (state.movements||[]).forEach(m=>{
-      if(m.product!==product)return;
-      const q=Number(m.qty)||0;
-      if(Number(m.to_warehouse_id)===wid) incoming+=q;
-      if(Number(m.from_warehouse_id)===wid) outgoing+=q;
+  return gpWarehouseLedgerRows(state,wid).map(({product,keys})=>{
+    let incoming=0,outgoing=0,physical=0,fr=0,rs=0;
+    keys.forEach(k=>{
+      incoming+=gpWarehouseEffectiveBaselineQty(state,wid,k);
+      physical+=Number(current[k]||0);
+      fr+=Number(free[k]||0);
+      rs+=Number(reserved[k]||0);
+      (state.movements||[]).forEach(m=>{
+        if(!gpWarehouseMovementMatchesProduct(m,k)) return;
+        const q=Number(m.qty)||0;
+        if(Number(m.to_warehouse_id)===wid) incoming+=q;
+        if(Number(m.from_warehouse_id)===wid) outgoing+=q;
+      });
     });
-    const physical=Number(current[product]||0);
-    const fr=Number(free[product]||0);
-    const rs=Number(reserved[product]||0);
     return {product,incoming,outgoing,physical,free:fr,reserved:rs,balance_ok:(incoming-outgoing)===physical};
-  }).sort((a,b)=>warehouseProductOrder(a.product)-warehouseProductOrder(b.product)||a.product.localeCompare(b.product,'fa'));
+  });
 }
 
 function renderSeparateStocktake(){
@@ -348,7 +402,7 @@ function renderSeparateStocktake(){
 
     const card=body.closest('.card');
     const hint=card?.querySelector('.section-title .small');
-    if(hint)hint.textContent='گزارش فقط انبار عمده است؛ همه مدل‌های سریال‌دار (حتی با موجودی صفر) نمایش داده می‌شوند.';
+    if(hint)hint.textContent='گزارش فقط انبار عمده است؛ فقط مدل‌هایی که موجودی فیزیکی دارند نمایش داده می‌شوند.';
   }).catch(e=>{
     body.innerHTML='<tr><td colspan="7">'+esc(e.message)+'</td></tr>';
   });
@@ -384,23 +438,26 @@ function gpRewriteLedgerGridToCurrent(){
   const wid=GP_WHOLESALE_WAREHOUSE_ID;
   window.WAREHOUSE_LEDGER_ID=wid;
   if(typeof WAREHOUSE_SELECTED!=='undefined') WAREHOUSE_SELECTED=wid;
-  const products=typeof whProductList==='function'?whProductList(d):Object.keys((d.current&&d.current[wid])||{});
+  const rows=gpWarehouseLedgerRows(d,wid);
   const activation=String(d.activated_at||'');
   const now=new Date();
   const tj=typeof g2j==='function'?g2j(now.getFullYear(),now.getMonth()+1,now.getDate()):null;
   const today=tj?tj[0]+'/'+gpPad2(tj[1])+'/'+gpPad2(tj[2]):'';
   const head='<tr><th class="model-cell">مدل دستگاه</th>'+Array.from({length:days},(_,i)=>'<th>'+gpPad2(i+1)+'</th>').join('')+'</tr>';
-  const body=products.map(prod=>{
+  const body=rows.map(({product,keys})=>{
     const cells=[];
     for(let day=1;day<=days;day++){
       const iso=typeof whIsoDate==='function'?whIsoDate(jy,jm,day):'';
       const jdate=jy+'/'+gpPad2(jm)+'/'+gpPad2(day);
       const before=activation && iso && iso<activation.slice(0,10);
       const future=today && jdate>today;
-      const val=(before||future)?null:gpWarehouseStockOnJalaliDay(d,wid,prod,jdate,today);
+      let val=null;
+      if(!before && !future){
+        val=(jdate===today)?gpWarehouseCurrentQtyKeys(d,wid,keys):gpWarehouseStockOnJalaliDayKeys(d,wid,keys,jdate,today);
+      }
       cells.push('<td class="'+(before?'before-activation ':'')+(future?'future-cell ':'')+(jdate===today?'today-cell ':'')+(val===0?'zero':'')+'">'+(val===null?'—':Number(val).toLocaleString('fa-IR'))+'</td>');
     }
-    return '<tr><td class="model-cell">'+(typeof esc==='function'?esc(prod):String(prod))+'</td>'+cells.join('')+'</tr>';
+    return '<tr><td class="model-cell">'+(typeof esc==='function'?esc(product):String(product))+'</td>'+cells.join('')+'</tr>';
   }).join('');
   wrap.innerHTML='<table class="warehouse-ledger-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
 }
