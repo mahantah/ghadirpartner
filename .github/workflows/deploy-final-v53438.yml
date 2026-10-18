@@ -154,6 +154,7 @@ jobs:
           grep -q "GHADIR_NAV_MORPH_V1_20261017" "$ROOT/app.html"
           python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-performance-v1.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-free-stock-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-staff-login-otp-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-login-startup-loader-v1.py" "$ROOT"
           base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > "$ROOT/assets/ghadir-contact-qr.png"
@@ -216,6 +217,8 @@ jobs:
           new Function(fs.readFileSync(root+'/assets/warehouse-v53438.js','utf8'));
           console.log('JS OK',n);
           NODE
+          grep -q 'GP_PHYSICAL_AVAILABLE_STOCK_V1_20261018' "$ROOT/index.php"
+          grep -q 'GP_PHYSICAL_AVAILABLE_STOCK_V1_20261018' "$ROOT/partners/index.php"
           grep -q 'sessionLifetime=86400' "$ROOT/index.php"
           grep -q 'میلیارد تومان' "$ROOT/app.html"
           grep -q '/api/order/return' "$ROOT/lib/warehouse-v53438.php"
