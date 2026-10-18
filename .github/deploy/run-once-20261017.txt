@@ -31,3 +31,5 @@ Retry 13 (2026-10-18): remove combined warehouse totals; wholesale-only ledger/s
 Retry 14 (2026-10-18): resubmit — PR #43 merged before wholesale-only commit landed; deploy wholesale ledger/report UI (ui7) with the same carton guard. Do not bypass protected_carton_state_mismatch.
 
 Retry 15 (2026-10-18): merge split I90 product keys in the wholesale ledger, keep all catalog models (including zero stock), and read today from physical inventory keys. Do not bypass protected_carton_state_mismatch.
+
+Release (2026-10-18): explicitly approved rollout of merged PRs #46/#47/#48/#49. Rebuild count-aware main and partner backends and stock ledger safely BEFORE the separately authorized 360-device corrective workflow. Preserve pre-switch MySQL backup and the exact 18 protected I90 carton blocking guard; zero automatic preswitch DB changes. No database repair is triggered by this release.
