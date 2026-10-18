@@ -71,7 +71,7 @@ function gp_i90_plan(array $cur, array $old): array {
   foreach($old['inventory'] as $iv) {
     $sn=gp_i90_upper($iv['serial']??'');
     if($sn==='')continue;
-    if(isset($oldBySerial[$sn])) $oldBySerial[$sn]=null;
+    if(array_key_exists($sn,$oldBySerial)) $oldBySerial[$sn]=null;
     else $oldBySerial[$sn]=$iv;
   }
   $currentSerialCounts=[];

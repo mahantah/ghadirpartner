@@ -1,0 +1,4 @@
+ONE-TIME production repair, explicitly approved 2026-10-18.
+
+Only after Deploy Exact V5.3.4.38 (physical stock counting fixes) succeeded.
+Guarded workflow must dry-run live MySQL, verify each of exactly 360 protected I90 serials matches before-incident backup, confirm no later movements, preserve all 18 protected carton checks, snapshot backup, change warehouse_id 1 to 0 under single transaction, audit and verify 1455 wholesale / 16 retail. Fail closed and NEVER bypass protected_carton_state_mismatch.
