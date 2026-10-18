@@ -20,6 +20,10 @@ window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
    calls warehouseStockAtDay. Rewrite that grid from physical current so
    movement-only product names cannot go negative.
 */
+/* GP_WAREHOUSE_SERIALS_FROM_INVENTORY_V3_20261018
+   After protected-carton repair, carton.serials can stay empty while inventory
+   still holds the serial rows. List and hydrate from inventory, not serials[].
+*/
 function gpWarehouseCurrentQty(state,wid,product){
   const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
   return Number(current?.[product]||0);
@@ -393,6 +397,8 @@ function gpRewriteLedgerGridToCurrent(){
   const today=tj?tj[0]+'/'+gpPad2(tj[1])+'/'+gpPad2(tj[2]):'';
   const head='<tr><th class="model-cell">مدل دستگاه</th>'+Array.from({length:days},(_,i)=>'<th>'+gpPad2(i+1)+'</th>').join('')+'</tr>';
   const body=products.map(prod=>{
+    const both=gpWarehouseCurrentBothWarehouses(d,prod);
+    const showBoth=both>gpWarehouseCurrentQty(d,wid,prod);
     const cells=[];
     for(let day=1;day<=days;day++){
       const iso=typeof whIsoDate==='function'?whIsoDate(jy,jm,day):'';
@@ -401,41 +407,54 @@ function gpRewriteLedgerGridToCurrent(){
       const val=before?null:gpWarehouseStockOnJalaliDay(d,wid,prod,jdate,today);
       cells.push('<td class="'+(before?'before-activation ':'')+(jdate===today?'today-cell ':'')+(val===0?'zero':'')+'">'+(before?'—':Number(val).toLocaleString('fa-IR'))+'</td>');
     }
-    return '<tr><td class="model-cell">'+(typeof esc==='function'?esc(prod):String(prod))+'</td>'+cells.join('')+'</tr>';
+    const label=(typeof esc==='function'?esc(prod):String(prod))+(showBoth?'<div class="small muted">جمع هر دو انبار: '+both.toLocaleString('fa-IR')+'</div>':'');
+    return '<tr><td class="model-cell">'+label+'</td>'+cells.join('')+'</tr>';
   }).join('');
   wrap.innerHTML='<table class="warehouse-ledger-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
 }
-function gpHydrateCartonSerialsFromInventory(){
-  if(typeof WH==='undefined'||!WH||!Array.isArray(WH.cartons)||!Array.isArray(WH.inventory)) return;
-  const byId=new Map();
-  const byCode=new Map();
-  WH.inventory.forEach(iv=>{
-    const cid=Number(iv.carton_id||0);
-    const code=String(iv.carton_code||'').trim().toUpperCase();
+function gpCartonInventorySerials(c){
+  if(!c) return [];
+  const inv=(typeof WH!=='undefined'&&WH&&Array.isArray(WH.inventory))?WH.inventory:[];
+  const cid=Number(c.id||0);
+  const code=String(c.code||'').trim().toUpperCase();
+  const fromInv=inv.filter(iv=>{
     const sn=String(iv.serial||'').trim();
-    if(!sn) return;
-    if(cid>0){
-      if(!byId.has(cid)) byId.set(cid,[]);
-      byId.get(cid).push(sn);
-    }
-    if(code){
-      if(!byCode.has(code)) byCode.set(code,[]);
-      byCode.get(code).push(sn);
-    }
+    if(!sn) return false;
+    if(cid>0 && Number(iv.carton_id||0)===cid) return true;
+    return code && String(iv.carton_code||'').trim().toUpperCase()===code;
+  }).map(iv=>String(iv.serial||'').trim()).filter(Boolean);
+  const fromCarton=Array.isArray(c.serials)?c.serials.map(s=>String(s||'').trim()).filter(Boolean):[];
+  const seen=new Set(), out=[];
+  fromCarton.concat(fromInv).forEach(sn=>{
+    const key=sn.toUpperCase();
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push(sn);
   });
-  WH.cartons.forEach(c=>{
-    const have=Array.isArray(c.serials)?c.serials.map(s=>String(s||'').trim()).filter(Boolean):[];
-    const fromId=byId.get(Number(c.id))||[];
-    const fromCode=byCode.get(String(c.code||'').trim().toUpperCase())||[];
-    const fromInv=fromId.length?fromId:fromCode;
-    if(fromInv.length>have.length){
-      const seen=new Set(have.map(s=>s.toUpperCase()));
-      fromInv.forEach(sn=>{if(!seen.has(sn.toUpperCase())){have.push(sn);seen.add(sn.toUpperCase());}});
-      c.serials=have;
-    }else if(!Array.isArray(c.serials)){
-      c.serials=have;
-    }
-  });
+  return out;
+}
+function gpHydrateCartonSerialsFromInventory(){
+  if(typeof WH==='undefined'||!WH||!Array.isArray(WH.cartons)) return;
+  WH.cartons.forEach(c=>{ c.serials=gpCartonInventorySerials(c); });
+}
+function gpOpenWarehouseSerialsFromInventory(id){
+  if(typeof WH==='undefined'||!WH) return;
+  const c=(WH.cartons||[]).find(x=>Number(x.id)===Number(id));
+  if(!c) return;
+  const inv=WH.inventory||[];
+  const serials=gpCartonInventorySerials(c);
+  c.serials=serials;
+  if(typeof modal!=='function') return;
+  const body=serials.map(s=>{
+    const iv=inv.find(x=>(Number(x.carton_id||0)===Number(c.id)||String(x.carton_code||'').toUpperCase()===String(c.code||'').toUpperCase())&&String(x.serial||'').toUpperCase()===String(s).toUpperCase());
+    const free=iv&&!iv.order_id;
+    const escFn=typeof esc==='function'?esc:(v=>String(v||''));
+    return '<div class="inv-serial-row" style="grid-template-columns:1fr auto"><b class="code">'+escFn(s)+'</b>'+(free?'<button class="danger" onclick="deleteWarehouseSerial('+c.id+',\''+escFn(s)+'\')">حذف</button>':'<span class="badge st-sent">تخصیص‌یافته</span>')+'</div>';
+  }).join('');
+  modal('<h3>مدیریت سریال‌های باکس <span class="code">'+(typeof esc==='function'?esc(c.code):String(c.code||''))+'</span></h3><p class="small">فقط سریال‌های آزاد قابل حذف هستند.</p><div style="max-height:55vh;overflow:auto">'+(body||'<div class="small">برای این باکس سریالی در inventory ثبت نشده است.</div>')+'</div><button class="btnlight" onclick="closeModal()" style="margin-top:10px">بستن</button>');
+}
+function gpWarehouseCurrentBothWarehouses(state,product){
+  return gpWarehouseCurrentQty(state,1,product)+gpWarehouseCurrentQty(state,2,product);
 }
 function wrapWarehouseRender(){
   if(typeof renderWarehouse==='function' && !renderWarehouse.__gpHydrateSerials){
@@ -473,14 +492,9 @@ function wrapWarehouseRender(){
     wrapped.__gpHydrateSerials=true;
     loadWarehouse=wrapped;
   }
-  if(typeof openWarehouseSerials==='function' && !openWarehouseSerials.__gpInvSerials){
-    const base=openWarehouseSerials;
-    const wrapped=function(id){
-      try{gpHydrateCartonSerialsFromInventory()}catch(e){}
-      return base.apply(this,arguments);
-    };
-    wrapped.__gpInvSerials=true;
-    openWarehouseSerials=wrapped;
+  if(!openWarehouseSerials || !openWarehouseSerials.__gpInvSerials){
+    openWarehouseSerials=gpOpenWarehouseSerialsFromInventory;
+    openWarehouseSerials.__gpInvSerials=true;
   }
 }
 
