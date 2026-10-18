@@ -43,6 +43,15 @@ for($n=0;$n<150;$n++) {
 $current['warehouse_movements'][]=['type'=>'sale_out','created_at'=>'2026-10-17 19:00:00',
  'from_warehouse_id'=>1,'to_warehouse_id'=>0,'qty'=>150,
  'serials'=>array_map(fn($n)=>'SHIP-'.$n, range(0,149))];
+// Unrelated retail movement between stocktake and correction must remain intact.
+$retailChanged=$current;
+foreach($retailChanged['inventory'] as &$iv) {
+  if($iv['serial']==='RETAIL-0'){$iv['warehouse_id']=0;break;}
+}
+unset($iv);
+$flex=gp_i90_plan($retailChanged,$before);
+if($flex['retail']!==15||$flex['wholesale_after']!==1455)
+  throw new RuntimeException('Retail variation must not block safe wholesale count repair');
 $plan=gp_i90_plan($current,$before);
 if($plan['restored']!==360||$plan['cartons']!==18||
    $plan['wholesale_before']!==1815||$plan['wholesale_after']!==1455||
