@@ -368,7 +368,8 @@ function stocktakeProductRows(state,wid){
         if(Number(m.from_warehouse_id)===wid) outgoing+=q;
       });
     });
-    return {product,incoming,outgoing,physical,free:fr,reserved:rs,balance_ok:(incoming-outgoing)===physical};
+    // The movement-derived baseline is a reconstruction, not an independent physical count.
+    return {product,incoming,outgoing,physical,free:fr,reserved:rs,balance_ok:physical===fr+rs};
   });
 }
 
@@ -391,7 +392,7 @@ function renderSeparateStocktake(){
 
     const table=body.closest('table');
     const head=table?.querySelector('thead tr');
-    if(head)head.innerHTML='<th>کالا / مدل</th><th>ورودی ثبت‌شده</th><th>خروج / انتقال</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تراز</th>';
+    if(head)head.innerHTML='<th>کالا / مدل</th><th>ورودی ثبت‌شده</th><th>خروج / انتقال</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تطابق آزاد و رزرو</th>';
 
     body.innerHTML=rows.map(r=>
       '<tr><td><b>'+esc(r.product)+'</b></td><td>'+r.incoming.toLocaleString('fa-IR')+'</td>'+
@@ -472,9 +473,9 @@ function gpCartonInventorySerials(c){
     if(cid>0 && Number(iv.carton_id||0)===cid) return true;
     return code && String(iv.carton_code||'').trim().toUpperCase()===code;
   }).map(iv=>String(iv.serial||'').trim()).filter(Boolean);
-  const fromCarton=Array.isArray(c.serials)?c.serials.map(s=>String(s||'').trim()).filter(Boolean):[];
+  /* GP_CARTON_INVENTORY_SERIALS_ONLY_V1_20261018 — stale carton.serials must not inflate stock. */
   const seen=new Set(), out=[];
-  fromCarton.concat(fromInv).forEach(sn=>{
+  fromInv.forEach(sn=>{
     const key=sn.toUpperCase();
     if(seen.has(key)) return;
     seen.add(key);
@@ -597,7 +598,7 @@ async function loadStocktakeSeparated(){
     const table=body.closest('table');
     if(table){
       const head=table.querySelector('thead tr');
-      if(head)head.innerHTML='<th>کالا / مدل</th><th>ورودی ثبت‌شده</th><th>خروج / انتقال</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تراز</th>';
+      if(head)head.innerHTML='<th>کالا / مدل</th><th>ورودی ثبت‌شده</th><th>خروج / انتقال</th><th>موجودی فیزیکی</th><th>آزاد</th><th>رزرو / تخصیص</th><th>تطابق آزاد و رزرو</th>';
     }
     body.innerHTML=rows.map(r=>'<tr>'+
       '<td><b>'+esc(r.product)+'</b></td>'+
