@@ -87,6 +87,7 @@ jobs:
               -H "X-GP-I90-Token: $TOKEN" \
               -H 'Cache-Control: no-store' \
               --data-urlencode "mode=$mode" \
+              --data-urlencode "expected_revision=${APPROVED_REV:-}" \
               --output "$out" --write-out '%{http_code}' "$URL"
           }
           status="$(send dry_run /tmp/gp-i90-dry.json)"
@@ -97,28 +98,31 @@ jobs:
           print('Preflight:',{k:d.get(k) for k in fields})
           if status!=200 or d.get('ok') is not True or d.get('mode')!='dry_run' or d.get('eligible') is not True:
             raise SystemExit('Unsafe or failed dry run (no write attempted)')
-          if (d.get('wholesale_before'),d.get('wholesale_after'),d.get('restored'),d.get('retail'),d.get('cartons'))!=(1815,1455,360,16,18):
+          if (d.get('wholesale_before'),d.get('wholesale_after'),d.get('restored'),d.get('cartons'))!=(1815,1455,360,18):
             raise SystemExit('Unexpected live I90 quantity: stop without write')
           PY
+          APPROVED_REV="$(python3 -c "import json;print(json.load(open('/tmp/gp-i90-dry.json'))['revision'])")"
+          PREFLIGHT_RETAIL="$(python3 -c "import json;print(json.load(open('/tmp/gp-i90-dry.json'))['retail'])")"
+          export PREFLIGHT_RETAIL
           status="$(send apply /tmp/gp-i90-applied.json)"
           python3 - "$status" /tmp/gp-i90-applied.json <<'PY'
-          import json,sys
+          import json,sys,os
           status=int(sys.argv[1]);d=json.load(open(sys.argv[2]))
           fields=['ok','mode','changed','wholesale_before','wholesale_after','retail','protected_cartons_valid','revision','backup_created']
           print('Applied:',{k:d.get(k) for k in fields})
           if status!=200 or d.get('ok') is not True or d.get('mode')!='applied':
             raise SystemExit('Guard blocked application; inspect before retry')
-          if (d.get('changed'),d.get('wholesale_after'),d.get('retail'),d.get('protected_cartons_valid'),d.get('backup_created'))!=(360,1455,16,18,True):
+          if (d.get('changed'),d.get('wholesale_after'),d.get('retail'),d.get('protected_cartons_valid'),d.get('backup_created'))!=(360,1455,int(os.environ['PREFLIGHT_RETAIL']),18,True):
             raise SystemExit('Post-apply response failed invariants; stop and investigate')
           PY
           status="$(send verify /tmp/gp-i90-verify.json)"
           python3 - "$status" /tmp/gp-i90-verify.json <<'PY'
-          import json,sys
+          import json,sys,os
           status=int(sys.argv[1]);d=json.load(open(sys.argv[2]))
           fields=['ok','mode','wholesale','retail','reversed','audit_exists','revision']
           print('Verified:',{k:d.get(k) for k in fields})
           if status!=200 or d.get('ok') is not True or d.get('mode')!='verify':
             raise SystemExit('Independent post-commit verification failed')
-          if (d.get('wholesale'),d.get('retail'),d.get('reversed'),d.get('audit_exists'))!=(1455,16,360,True):
+          if (d.get('wholesale'),d.get('retail'),d.get('reversed'),d.get('audit_exists'))!=(1455,int(os.environ['PREFLIGHT_RETAIL']),360,True):
             raise SystemExit('Post-commit inventory mismatch')
           PY
