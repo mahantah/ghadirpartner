@@ -729,6 +729,21 @@ jobs:
           php -l tests/staff-login-otp.php
           php tests/staff-login-otp.php
           node --check assets/staff-login-otp.js
+  warehouse-ledger-anchor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Daily ledger current-anchor and carton serial hydrate
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-ui-refine-v53438.js
+          node tests/warehouse-ledger-anchor.js
+          grep -Fq 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' assets/warehouse-ui-refine-v53438.js
+          grep -Fq 'gpRewriteLedgerGridToCurrent' assets/warehouse-ui-refine-v53438.js
+          grep -Fq 'gpHydrateCartonSerialsFromInventory' assets/warehouse-ui-refine-v53438.js
+          grep -Fq 'warehouse-ui-refine-v53438.js?v=53438ui5' .github/workflows/deploy-final-v53438.yml
+          grep -Fq 'GP_LEDGER_CURRENT_ANCHOR_V2_20261017' .github/workflows/deploy-final-v53438.yml
   # Previously: .github/workflows/test-warehouse-carton-label-restore.yml
   warehouse-carton-label-restore:
     runs-on: ubuntu-latest

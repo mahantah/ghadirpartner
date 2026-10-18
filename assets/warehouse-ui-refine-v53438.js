@@ -15,6 +15,11 @@ window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
    contaminated baseline. This prevents the first receipt after warehouse activation
    from being counted once inside the baseline and once again as a movement.
 */
+/* GP_LEDGER_CURRENT_ANCHOR_V2_20261017
+   warehouse-v53438.js renders the day grid from baseline+movements and never
+   calls warehouseStockAtDay. Rewrite that grid from physical current so
+   movement-only product names cannot go negative.
+*/
 function gpWarehouseCurrentQty(state,wid,product){
   const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
   return Number(current?.[product]||0);
@@ -34,6 +39,26 @@ function gpWarehouseEffectiveBaselineQty(state,wid,product){
   }
   return q;
 }
+function gpWarehouseMovementJalali(m){
+  if(!m) return '';
+  if(m.jdate) return String(m.jdate);
+  try{ if(typeof jalaliDate==='function') return String(jalaliDate(m.created_at||'')||''); }catch(e){}
+  return '';
+}
+function gpWarehouseStockOnJalaliDay(state,wid,product,jday,today){
+  if(!state) return 0;
+  let q=gpWarehouseCurrentQty(state,wid,product);
+  const day=String(jday||'');
+  const now=String(today||'');
+  for(const m of (state.movements||[])){
+    if(String(m?.product||'')!==String(product||'')) continue;
+    const md=gpWarehouseMovementJalali(m);
+    if(md && now && md>day && md<=now) q-=gpWarehouseMovementDelta(m,wid);
+  }
+  return q;
+}
+window.gpWarehouseStockOnJalaliDay=gpWarehouseStockOnJalaliDay;
+window.gpWarehouseCurrentQty=gpWarehouseCurrentQty;
 function installWarehouseLedgerCurrentAnchor(){
   if(typeof warehouseBaselineQty==='function' && !warehouseBaselineQty.__gpCurrentAnchor){
     const fn=function(wid,product){return gpWarehouseEffectiveBaselineQty(WAREHOUSE_STATE,wid,product)};
@@ -347,18 +372,115 @@ function emphasizeForceOrders(){
   });
 }
 
+function gpPad2(n){return String(n).padStart(2,'0')}
+function gpRewriteLedgerGridToCurrent(){
+  const d=window.WAREHOUSE_LEDGER_DATA;
+  window.WAREHOUSE_STATE=d||window.WAREHOUSE_STATE;
+  const wrap=document.getElementById('warehouseLedgerWrap');
+  if(!d||!wrap) return;
+  const monthEl=document.getElementById('warehouseLedgerMonth');
+  const raw=String(monthEl?.value||(typeof whCurrentJMonth==='function'?whCurrentJMonth():''));
+  const m=raw.match(/^(\d{4})\/(\d{1,2})$/);
+  if(!m) return;
+  const jy=+m[1], jm=+m[2];
+  if(monthEl) monthEl.value=jy+'/'+gpPad2(jm);
+  const days=typeof whMonthDays==='function'?whMonthDays(jy,jm):31;
+  const wid=Number(window.WAREHOUSE_LEDGER_ID||1);
+  const products=typeof whProductList==='function'?whProductList(d):Object.keys((d.current&&d.current[wid])||{});
+  const activation=String(d.activated_at||'');
+  const now=new Date();
+  const tj=typeof g2j==='function'?g2j(now.getFullYear(),now.getMonth()+1,now.getDate()):null;
+  const today=tj?tj[0]+'/'+gpPad2(tj[1])+'/'+gpPad2(tj[2]):'';
+  const head='<tr><th class="model-cell">مدل دستگاه</th>'+Array.from({length:days},(_,i)=>'<th>'+gpPad2(i+1)+'</th>').join('')+'</tr>';
+  const body=products.map(prod=>{
+    const cells=[];
+    for(let day=1;day<=days;day++){
+      const iso=typeof whIsoDate==='function'?whIsoDate(jy,jm,day):'';
+      const jdate=jy+'/'+gpPad2(jm)+'/'+gpPad2(day);
+      const before=activation && iso && iso<activation.slice(0,10);
+      const val=before?null:gpWarehouseStockOnJalaliDay(d,wid,prod,jdate,today);
+      cells.push('<td class="'+(before?'before-activation ':'')+(jdate===today?'today-cell ':'')+(val===0?'zero':'')+'">'+(before?'—':Number(val).toLocaleString('fa-IR'))+'</td>');
+    }
+    return '<tr><td class="model-cell">'+(typeof esc==='function'?esc(prod):String(prod))+'</td>'+cells.join('')+'</tr>';
+  }).join('');
+  wrap.innerHTML='<table class="warehouse-ledger-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+}
+function gpHydrateCartonSerialsFromInventory(){
+  if(typeof WH==='undefined'||!WH||!Array.isArray(WH.cartons)||!Array.isArray(WH.inventory)) return;
+  const byId=new Map();
+  const byCode=new Map();
+  WH.inventory.forEach(iv=>{
+    const cid=Number(iv.carton_id||0);
+    const code=String(iv.carton_code||'').trim().toUpperCase();
+    const sn=String(iv.serial||'').trim();
+    if(!sn) return;
+    if(cid>0){
+      if(!byId.has(cid)) byId.set(cid,[]);
+      byId.get(cid).push(sn);
+    }
+    if(code){
+      if(!byCode.has(code)) byCode.set(code,[]);
+      byCode.get(code).push(sn);
+    }
+  });
+  WH.cartons.forEach(c=>{
+    const have=Array.isArray(c.serials)?c.serials.map(s=>String(s||'').trim()).filter(Boolean):[];
+    const fromId=byId.get(Number(c.id))||[];
+    const fromCode=byCode.get(String(c.code||'').trim().toUpperCase())||[];
+    const fromInv=fromId.length?fromId:fromCode;
+    if(fromInv.length>have.length){
+      const seen=new Set(have.map(s=>s.toUpperCase()));
+      fromInv.forEach(sn=>{if(!seen.has(sn.toUpperCase())){have.push(sn);seen.add(sn.toUpperCase());}});
+      c.serials=have;
+    }else if(!Array.isArray(c.serials)){
+      c.serials=have;
+    }
+  });
+}
 function wrapWarehouseRender(){
-  if(typeof renderWarehouseLedger==='function' && !renderWarehouseLedger.__gpDailyGrouped){
+  if(typeof renderWarehouse==='function' && !renderWarehouse.__gpHydrateSerials){
+    const base=renderWarehouse;
+    const wrapped=function(){
+      try{gpHydrateCartonSerialsFromInventory()}catch(e){}
+      return base.apply(this,arguments);
+    };
+    wrapped.__gpHydrateSerials=true;
+    renderWarehouse=wrapped;
+  }
+  if(typeof renderWarehouseLedger==='function' && !renderWarehouseLedger.__gpCurrentGrid){
     const base=renderWarehouseLedger;
     const wrapped=function(){
+      window.WAREHOUSE_STATE=window.WAREHOUSE_LEDGER_DATA||window.WAREHOUSE_STATE;
       const body=document.getElementById('warehouseMovementBody'); if(body) delete body.dataset.gpGroupedSig;
       const r=base.apply(this,arguments);
+      try{gpRewriteLedgerGridToCurrent()}catch(e){}
       try{renderSeparateWarehouseLiveSummary()}catch(e){}
       try{renderDailyMovementSummary()}catch(e){}
       return r;
     };
+    wrapped.__gpCurrentGrid=true;
     wrapped.__gpDailyGrouped=true;
     renderWarehouseLedger=wrapped;
+  }
+  if(typeof loadWarehouse==='function' && !loadWarehouse.__gpHydrateSerials){
+    const base=loadWarehouse;
+    const wrapped=async function(){
+      const r=await base.apply(this,arguments);
+      try{gpHydrateCartonSerialsFromInventory()}catch(e){}
+      try{if(typeof renderWarehouse==='function') renderWarehouse()}catch(e){}
+      return r;
+    };
+    wrapped.__gpHydrateSerials=true;
+    loadWarehouse=wrapped;
+  }
+  if(typeof openWarehouseSerials==='function' && !openWarehouseSerials.__gpInvSerials){
+    const base=openWarehouseSerials;
+    const wrapped=function(id){
+      try{gpHydrateCartonSerialsFromInventory()}catch(e){}
+      return base.apply(this,arguments);
+    };
+    wrapped.__gpInvSerials=true;
+    openWarehouseSerials=wrapped;
   }
 }
 
