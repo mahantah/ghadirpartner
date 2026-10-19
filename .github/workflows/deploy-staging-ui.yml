@@ -8,6 +8,7 @@ on:
       - 'assets/staging-login-fullscreen-v2.css'
       - 'assets/staging-login-fullscreen-v2.js'
       - 'assets/staging-fullscreen-office-v2.webp'
+      - 'assets/staging-lobby-login-v3.webp'
       - '.github/workflows/deploy-staging-ui.yml'
   workflow_dispatch:
 
@@ -32,6 +33,7 @@ jobs:
           test -s assets/staging-login-fullscreen-v2.css
           test -s assets/staging-login-fullscreen-v2.js
           test -s assets/staging-fullscreen-office-v2.webp
+          test -s assets/staging-lobby-login-v3.webp
           grep -Fq 'stg-fullscreen-login' app.html
           grep -Fq 'staging-login-fullscreen-v2.css' app.html
           ! grep -Fq 'ghadirpartner_app' app.html
@@ -86,7 +88,7 @@ jobs:
             set net:max-retries 2;
             put assets/staging-login-fullscreen-v2.css -o assets/staging-login-fullscreen-v2.css;
             put assets/staging-login-fullscreen-v2.js -o assets/staging-login-fullscreen-v2.js;
-            put assets/staging-fullscreen-office-v2.webp -o assets/staging-fullscreen-office-v2.webp;
+            put assets/staging-lobby-login-v3.webp -o assets/staging-lobby-login-v3.webp;
             put app.html -o app.html;
             bye'
           echo 'Staging UI deployment completed. Production untouched.'
