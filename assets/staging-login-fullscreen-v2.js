@@ -1,2 +1,2 @@
-/* Appearance-only password visibility: never changes app auth flow. */
+/* Appearance-only password visibility: never changes app auth flow. Staging FTPS connection smoke test 2026-10-19. */
 (function(){function init(){const b=document.getElementById('stg-password-toggle'),p=document.getElementById('lp');if(!b||!p)return;b.addEventListener('click',()=>{const show=p.type==='password';p.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',show?'مخفی‌کردن رمز عبور':'نمایش رمز عبور');b.title=b.getAttribute('aria-label');b.textContent=show?'◌':'◉';});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();})();
