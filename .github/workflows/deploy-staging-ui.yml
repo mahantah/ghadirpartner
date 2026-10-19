@@ -1,0 +1,82 @@
+name: Deploy UI only to Ghadir staging
+
+on:
+  push:
+    branches: [staging/ui-only-safe-20261019]
+    paths:
+      - 'app.html'
+      - 'assets/staging-login-fullscreen-v2.css'
+      - 'assets/staging-login-fullscreen-v2.js'
+      - 'assets/staging-fullscreen-office-v2.webp'
+      - '.github/workflows/deploy-staging-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadir-staging-ui-only
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging-ui:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check allowlisted files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app.html
+          test -s assets/staging-login-fullscreen-v2.css
+          test -s assets/staging-login-fullscreen-v2.js
+          test -s assets/staging-fullscreen-office-v2.webp
+          grep -Fq 'stg-fullscreen-login' app.html
+          grep -Fq 'staging-login-fullscreen-v2.css' app.html
+          ! grep -Fq 'ghadirpartner_app' app.html
+          echo 'UI-only package validated. No production, PHP, config, or data files selected.'
+      - name: Check isolated staging FTP setup
+        id: ftp
+        shell: bash
+        env:
+          STAGING_HOST: ${{ secrets.GHADIR_STAGING_FTP_HOST }}
+          STAGING_USER: ${{ secrets.GHADIR_STAGING_FTP_USER }}
+          STAGING_PASSWORD: ${{ secrets.GHADIR_STAGING_FTP_PASSWORD }}
+        run: |
+          if [[ -n "$STAGING_HOST" && -n "$STAGING_USER" && -n "$STAGING_PASSWORD" ]]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Staging FTP is not configured yet; NO deployment will occur.'
+          fi
+      - name: Deploy only 4 UI files to staging FTP root
+        if: steps.ftp.outputs.ready == 'true'
+        shell: bash
+        env:
+          STAGING_HOST: ${{ secrets.GHADIR_STAGING_FTP_HOST }}
+          STAGING_USER: ${{ secrets.GHADIR_STAGING_FTP_USER }}
+          STAGING_PASSWORD: ${{ secrets.GHADIR_STAGING_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+          # Fail closed unless the FTP user's isolated ROOT is verified as staging.
+          marker="$(lftp -u "$STAGING_USER","$STAGING_PASSWORD" "ftp://$STAGING_HOST" -e 'set cmd:fail-exit true; set ftp:ssl-force true; set ftp:ssl-protect-data true; set net:max-retries 2; cls -1 GHADIR_STAGING_UI_ONLY.marker; bye')"
+          if [[ "$marker" != 'GHADIR_STAGING_UI_ONLY.marker' ]]; then
+            echo 'STOP: expected staging marker absent. No deployment performed.' >&2
+            exit 1
+          fi
+          # Upload assets first and HTML last. Overwrite only these allowlisted paths.
+          # Never upload/delete config.php, .htaccess, index.php, index.html, or other app files.
+          lftp -u "$STAGING_USER","$STAGING_PASSWORD" "ftp://$STAGING_HOST" -e '
+            set cmd:fail-exit true;
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set net:max-retries 2;
+            put assets/staging-login-fullscreen-v2.css -o assets/staging-login-fullscreen-v2.css;
+            put assets/staging-login-fullscreen-v2.js -o assets/staging-login-fullscreen-v2.js;
+            put assets/staging-fullscreen-office-v2.webp -o assets/staging-fullscreen-office-v2.webp;
+            put app.html -o app.html;
+            bye'
+          echo 'Staging UI deployment completed. Production untouched.'
