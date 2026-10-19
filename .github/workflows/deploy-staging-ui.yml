@@ -50,6 +50,16 @@ jobs:
             echo 'ready=false' >> "$GITHUB_OUTPUT"
             echo 'Staging FTP is not configured yet; NO deployment will occur.'
           fi
+      - name: Identify FTPS server certificate without logging in
+        if: steps.ftp.outputs.ready == 'true'
+        shell: bash
+        env:
+          STAGING_HOST: ${{ secrets.GHADIR_STAGING_FTP_HOST }}
+        run: |
+          set -euo pipefail
+          echo 'TLS certificate identity from the configured FTP host (read-only preflight):'
+          timeout 15 openssl s_client -starttls ftp -connect "${STAGING_HOST}:21" -servername "$STAGING_HOST" </dev/null 2>/dev/null |
+            openssl x509 -noout -subject -ext subjectAltName
       - name: Deploy only 4 UI files to staging FTP root
         if: steps.ftp.outputs.ready == 'true'
         shell: bash
