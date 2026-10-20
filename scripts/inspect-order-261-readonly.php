@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
+header('Referrer-Policy: no-referrer');
 header('X-Content-Type-Options: nosniff');
 const GP_ORDER_TARGET = 'GHP-000261';
 const GP_ORDER_ID = 261;
@@ -15,8 +16,8 @@ function respond(int $status, array $result): void {
     echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 }
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' ||
-    !hash_equals(GP_ORDER_INSPECT_TOKEN, (string)($_SERVER['HTTP_X_GP_INSPECT_TOKEN'] ?? ''))) {
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET' ||
+    !hash_equals(GP_ORDER_INSPECT_TOKEN, (string)($_GET['token'] ?? ''))) {
     respond(403,['ok'=>false,'error'=>'unauthorized']);
 }
 function linked(array $obj): bool {
