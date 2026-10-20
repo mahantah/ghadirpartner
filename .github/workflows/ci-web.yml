@@ -927,6 +927,7 @@ jobs:
           python3 -m py_compile scripts/preswitch_safety.py scripts/patch-protected-carton-ops-v1.py scripts/patch-retail-transfer-detach-carton-v1.py
           python3 scripts/preswitch_safety.py self-test
           python3 tests/preswitch_workflow_readonly.py
+          python3 tests/preswitch_probe_errors.py
           python3 tests/i90_wholesale_audit.py
           python3 tests/i90_preswitch_restore.py
           php -l scripts/i90-preswitch-restore-once.php

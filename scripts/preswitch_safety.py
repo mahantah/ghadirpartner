@@ -87,6 +87,16 @@ def classify_failure(payload: dict | None, http_status: str) -> str:
         or "missing i90-" in error
     ):
         return format_mismatch_reason(payload)
+    # Fixed probe codes only: never print PHP/PDO messages or configuration values.
+    guard = payload.get("guard")
+    if guard in {
+        "configuration_error", "state_backup_failed", "database_error",
+        "database_state_missing_or_invalid", "server_precheck_error",
+        "php_fatal_error", "php_memory_limit", "probe_terminated",
+    }:
+        phase = payload.get("phase")
+        phases = {"configuration", "database_connection", "database_read", "state_decode", "backup", "protected_counts"}
+        return str(guard) + (f" during {phase}" if phase in phases else "")
     if "backup" in error:
         return "state_backup_failed"
     if "sqlstate" in error or "pdo" in error:
