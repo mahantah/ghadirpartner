@@ -1,0 +1,88 @@
+name: One-time read-only inspection of GHP-000261
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-order-261-once-20261020.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify exact target and read-only probe contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l scripts/inspect-order-261-readonly.php
+          grep -Fq "const GP_ORDER_TARGET = 'GHP-000261';" scripts/inspect-order-261-readonly.php
+          grep -Fq 'SELECT state_json, revision FROM ghadir_state WHERE id=1' scripts/inspect-order-261-readonly.php
+          ! grep -Eq '(UPDATE ghadir_state|DELETE FROM|TRUNCATE |DROP TABLE|INSERT INTO)' scripts/inspect-order-261-readonly.php
+          echo "Target is GHP-000261; audit script cannot mutate the database."
+      - name: Read live order dependencies without changing data or showing PII
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          command -v lftp >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y -qq lftp; }
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          NAME="__gp_order261_audit_${GITHUB_RUN_ID}_$(openssl rand -hex 8).php"
+          STAGE="$(mktemp)"
+          python3 - "$TOKEN" "$STAGE" <<'PY'
+          import pathlib,sys
+          token,dest=sys.argv[1:]
+          source=pathlib.Path('scripts/inspect-order-261-readonly.php').read_text()
+          needle="'__ORDER_INSPECT_TOKEN__'"
+          if source.count(needle)!=1:
+              raise SystemExit('Unexpected token placeholder: refuse production upload')
+          pathlib.Path(dest).write_text(source.replace(needle,"'"+token+"'"))
+          PY
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$NAME"
+          bye
+          EOF
+            rm -f "$STAGE" /tmp/gp-order261-inspection.json
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$STAGE" -o "/$NAME"
+          bye
+          EOF
+          STATUS="$(curl -sS --max-time 60 -X POST \
+             -H "X-GP-Inspect-Token: $TOKEN" -H 'Cache-Control: no-store' \
+             --output /tmp/gp-order261-inspection.json --write-out '%{http_code}' \
+             "https://ghadirpartner.ir/$NAME")"
+          python3 - "$STATUS" <<'PY'
+          import json,sys
+          try: d=json.load(open('/tmp/gp-order261-inspection.json'))
+          except (OSError,ValueError): raise SystemExit('Production read-only probe did not return safe JSON')
+          keys=['ok','order','revision','matches','identity_verified','status','payment_status',
+             'check_status','item_serials','returns','financial_fields','references','eligible_for_safe_deletion','error']
+          print('ORDER_261_READ_ONLY_RESULT:',{k:d.get(k) for k in keys if k in d},'HTTP',sys.argv[1])
+          if sys.argv[1]!='200' or d.get('ok') is not True:
+              raise SystemExit('Inspection failed. No order modified.')
+          PY
+          echo 'Read-only inspection complete. No order, inventory, DB or other production state was changed.'
