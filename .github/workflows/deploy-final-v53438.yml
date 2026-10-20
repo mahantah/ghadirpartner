@@ -154,6 +154,7 @@ jobs:
           grep -q "GHADIR_NAV_MORPH_V1_20261017" "$ROOT/app.html"
           python3 "$GITHUB_WORKSPACE/scripts/patch-carton-label-layout-v2.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-performance-v1.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-native-address-book-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-free-stock-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-staff-login-otp-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-login-startup-loader-v1.py" "$ROOT"

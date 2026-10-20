@@ -24,6 +24,18 @@ concurrency:
   group: web-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  native-address-book-v1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Address route authorization, lifecycle and validation
+        run: |
+          php -l lib/native-address-book-v1.php
+          php -l tests/native-address-book-v1.php
+          php tests/native-address-book-v1.php
+          python3 -m py_compile scripts/patch-native-address-book-v1.py
+          python3 tests/native-address-book-patch-v1.py
   # Previously: .github/workflows/test-customer-model-catalog-v5.yml
   customer-model-catalog-v5:
     runs-on: ubuntu-latest
