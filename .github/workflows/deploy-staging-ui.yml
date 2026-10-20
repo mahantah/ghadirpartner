@@ -9,6 +9,7 @@ on:
       - 'assets/staging-login-fullscreen-v2.js'
       - 'assets/staging-fullscreen-office-v2.webp'
       - 'assets/staging-lobby-login-v3.webp'
+      - 'assets/staging-lobby-login-v5.webp'
       - 'assets/staging-site-design-v1.css'
       - 'assets/staging-partner-design-v1.css'
       - 'assets/staging-mobile-scanner-design-v1.css'
@@ -41,6 +42,7 @@ jobs:
           test -s assets/staging-login-fullscreen-v2.js
           test -s assets/staging-fullscreen-office-v2.webp
           test -s assets/staging-lobby-login-v3.webp
+          test -s assets/staging-lobby-login-v5.webp
           test -s assets/staging-site-design-v1.css
           test -s assets/staging-partner-design-v1.css
           test -s assets/staging-mobile-scanner-design-v1.css
@@ -110,6 +112,7 @@ jobs:
             put assets/staging-login-fullscreen-v2.css -o assets/staging-login-fullscreen-v2.css;
             put assets/staging-login-fullscreen-v2.js -o assets/staging-login-fullscreen-v2.js;
             put assets/staging-lobby-login-v3.webp -o assets/staging-lobby-login-v3.webp;
+            put assets/staging-lobby-login-v5.webp -o assets/staging-lobby-login-v5.webp;
             put assets/staging-site-design-v1.css -o assets/staging-site-design-v1.css;
             put assets/staging-partner-design-v1.css -o assets/staging-partner-design-v1.css;
             put assets/staging-mobile-scanner-design-v1.css -o assets/staging-mobile-scanner-design-v1.css;

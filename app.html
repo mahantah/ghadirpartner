@@ -591,7 +591,7 @@ button{color:#fff!important}
 </style>
 <link rel="stylesheet" href="/assets/business-v53437.css?v=53437"><link rel="stylesheet" href="/assets/ops-v53434.css?v=53434">
 <link rel="stylesheet" href="/assets/warehouse-v53438.css?v=53438wh1">
-<link rel="stylesheet" href="/assets/staging-login-fullscreen-v2.css?v=5">
+<link rel="stylesheet" href="/assets/staging-login-fullscreen-v2.css?v=6">
 </head><body>
 <div id="login" class="automation-login stg-fullscreen-login">
   <div class="stg-stage-photo" aria-hidden="true"></div>
@@ -608,40 +608,53 @@ button{color:#fff!important}
       </div>
       <div class="stg-card-section-line"></div>
       <span class="auth-pill">ورود به محیط مدیریت</span>
-      <div id="staffLoginForm" class="stg-staff-login">
-        <h2>خوش آمدید <span class="stg-head-accent">.</span></h2>
-        <p class="auth-copy">برای ورود به حساب کاربری خود، مشخصاتتان را وارد کنید.</p>
-        <div class="stg-field">
-          <label for="lu">نام کاربری</label>
-          <div class="stg-input-wrap stg-user">
-            <span class="stg-field-icon" aria-hidden="true">♙</span>
-            <input id="lu" name="username" autocomplete="username" placeholder="نام کاربری" aria-label="نام کاربری">
-          </div>
-        </div>
-        <div class="stg-field">
-          <label for="lp">رمز عبور</label>
-          <div class="stg-input-wrap stg-password">
-            <span class="stg-field-icon" aria-hidden="true">♧</span>
-            <input id="lp" name="password" type="password" autocomplete="current-password" placeholder="رمز عبور" aria-label="رمز عبور">
-            <button type="button" id="stg-password-toggle" class="stg-password-toggle" aria-label="نمایش رمز عبور" aria-pressed="false" title="نمایش رمز عبور">◉</button>
-          </div>
-        </div>
-        <div class="stg-forgot-line"><button type="button" class="stg-inline-reset" onclick="toggleStaffReset(true)">رمزتان را فراموش کرده‌اید؟</button></div>
-        <button id="loginbtn" class="stg-animated-login" type="button"><span>ورود به سامانه</span><span class="stg-btn-arrow" aria-hidden="true">←</span></button>
-        <div class="stg-alt-divider"><span>بازیابی دسترسی</span></div>
-        <button type="button" class="stg-login-otp-link" onclick="toggleStaffReset(true)"><span aria-hidden="true">✉</span> بازیابی رمز با پیامک</button>
-        <div id="lmsg" class="msg" role="alert" aria-live="polite"></div>
+      <!-- Uiverse-inspired floating-field slider. Signup intentionally replaced with supported password recovery. -->
+<div class="gp-auth-container container" dir="rtl">
+  <div class="gp-tab-rail" role="group" aria-label="انتخاب روش دسترسی">
+    <button type="button" class="gp-tab gp-tab-login" onclick="toggleStaffReset(false)">ورود به حساب</button>
+    <button type="button" class="gp-tab gp-tab-reset" onclick="toggleStaffReset(true)">بازیابی رمز</button>
+  </div>
+  <div class="gp-slider slider">
+    <form id="staffLoginForm" class="gp-form form stg-staff-login" onsubmit="event.preventDefault();document.getElementById('loginbtn').click()" novalidate>
+      <span class="gp-title title">خوش آمدید<span class="stg-head-accent">.</span></span>
+      <p class="gp-intro auth-copy">برای ورود به پنل مدیریت، مشخصات حساب خود را وارد کنید.</p>
+      <div class="gp-control form_control">
+        <input id="lu" name="username" class="gp-input input" type="text" placeholder=" " autocomplete="username" dir="rtl" required aria-label="نام کاربری">
+        <label class="gp-label label" for="lu">نام کاربری</label>
+        <span class="gp-field-icon" aria-hidden="true">♙</span>
       </div>
-      <div id="staffResetForm" class="staff-reset-panel hidden">
-        <div class="reset-title">بازیابی رمز حساب</div>
-        <div class="reset-note">نام کاربری یا شماره موبایل ثبت‌شده را وارد کنید. کد تأیید فقط در صورتی ارسال می‌شود که سرویس پیامک محیط فعال باشد.</div>
-        <input id="sri" placeholder="نام کاربری یا شماره موبایل" autocomplete="username">
-        <button id="staffOtpBtn" type="button" onclick="requestStaffOtp()">درخواست کد یکبارمصرف</button>
-        <div id="staffOtpFields" class="hidden"><input id="sro" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="کد ۶ رقمی"><input id="srp" type="password" autocomplete="new-password" placeholder="رمز جدید حداقل ۸ کاراکتر"><button type="button" class="btn2" onclick="confirmStaffReset()">ثبت رمز جدید</button></div>
-        <div class="staff-reset-actions"><button type="button" class="staff-forgot-btn" onclick="toggleStaffReset(false)">بازگشت به ورود</button><button type="button" class="staff-forgot-btn" onclick="requestStaffOtp()">ارسال دوباره کد</button></div>
-        <div id="srmsg" class="msg"></div>
+      <div class="gp-control form_control">
+        <input id="lp" name="password" class="gp-input input" type="password" placeholder=" " autocomplete="current-password" required aria-label="رمز عبور">
+        <label class="gp-label label" for="lp">رمز عبور</label>
+        <span class="gp-field-icon" aria-hidden="true">♧</span>
+        <button type="button" id="stg-password-toggle" class="gp-pass-toggle stg-password-toggle" aria-label="نمایش رمز عبور" aria-pressed="false" title="نمایش رمز عبور">◉</button>
       </div>
-      <div class="stg-panel-footer"><span class="stg-lock-icon">⌁</span> ورود ایمن به پنل قدیر پارتنر</div>
+      <div class="gp-forgot-row"><button type="button" class="gp-forgot stg-inline-reset" onclick="toggleStaffReset(true)">رمزتان را فراموش کرده‌اید؟</button></div>
+      <button id="loginbtn" class="gp-submit stg-animated-login" type="button"><span>ورود به سامانه</span><span class="gp-arrow" aria-hidden="true">←</span></button>
+      <div id="lmsg" class="gp-message msg" role="alert" aria-live="polite"></div>
+      <div class="gp-bottom bottom_text">برای بازیابی دسترسی، <button type="button" class="gp-switch swtich" onclick="toggleStaffReset(true)">از پیامک استفاده کنید</button>.</div>
+    </form>
+    <form id="staffResetForm" class="gp-form form gp-reset-form staff-reset-panel hidden" onsubmit="event.preventDefault();requestStaffOtp()" novalidate>
+      <span class="gp-title title">بازیابی رمز<span class="stg-head-accent">.</span></span>
+      <p class="gp-intro reset-note">نام کاربری یا موبایل ثبت‌شده را وارد کنید تا کد تأیید برایتان ارسال شود.</p>
+      <div class="gp-control form_control">
+        <input id="sri" class="gp-input input" type="text" placeholder=" " autocomplete="username" aria-label="نام کاربری یا شماره موبایل">
+        <label class="gp-label label" for="sri">نام کاربری یا شماره موبایل</label>
+        <span class="gp-field-icon" aria-hidden="true">♙</span>
+      </div>
+      <button id="staffOtpBtn" class="gp-submit gp-reset-send" type="button" onclick="requestStaffOtp()">دریافت کد یکبارمصرف <span class="gp-arrow" aria-hidden="true">←</span></button>
+      <div id="staffOtpFields" class="gp-otp-fields hidden">
+        <div class="gp-control form_control"><input id="sro" class="gp-input input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder=" " aria-label="کد شش رقمی"><label class="gp-label label" for="sro">کد ۶ رقمی</label></div>
+        <div class="gp-control form_control"><input id="srp" class="gp-input input" type="password" autocomplete="new-password" placeholder=" " aria-label="رمز جدید"><label class="gp-label label" for="srp">رمز جدید حداقل ۸ کاراکتر</label></div>
+        <button type="button" class="gp-submit" onclick="confirmStaffReset()">ثبت رمز جدید</button>
+      </div>
+      <div id="srmsg" class="gp-message msg" role="alert" aria-live="polite"></div>
+      <div class="gp-bottom bottom_text">رمزتان را به یاد آوردید؟ <button type="button" class="gp-switch swtich" onclick="toggleStaffReset(false)">بازگشت به ورود</button></div>
+      <div class="staff-reset-actions"><button type="button" class="staff-forgot-btn" onclick="toggleStaffReset(false)">بازگشت</button><button type="button" class="staff-forgot-btn" onclick="requestStaffOtp()">ارسال دوباره کد</button></div>
+    </form>
+  </div>
+</div>
+<div class="stg-panel-footer"><span class="stg-lock-icon">⌁</span> ورود ایمن به پنل قدیر پارتنر</div>
     </div>
   </div>
 </div>
