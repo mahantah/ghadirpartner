@@ -10,7 +10,7 @@ header('X-Content-Type-Options: nosniff');
 const GP_ORDER_TARGET = 'GHP-000261';
 const GP_ORDER_ID = 261;
 const GP_ORDER_INSPECT_TOKEN = '__ORDER_INSPECT_TOKEN__';
-function respond(int $status, array $result): never {
+function respond(int $status, array $result): void {
     http_response_code($status);
     echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
