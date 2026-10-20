@@ -76,9 +76,10 @@ jobs:
              --output /tmp/gp-order261-inspection.json --write-out '%{http_code}' \
              "https://ghadirpartner.ir/$NAME")"
           python3 - "$STATUS" <<'PY'
-          import json,sys
+          import json,sys,os
+          print('Order261 diagnostic HTTP status:',sys.argv[1], 'response bytes:',os.path.getsize('/tmp/gp-order261-inspection.json'))
           try: d=json.load(open('/tmp/gp-order261-inspection.json'))
-          except (OSError,ValueError): raise SystemExit('Production read-only probe did not return safe JSON')
+          except (OSError,ValueError): raise SystemExit('Production read-only probe did not return safe JSON (no data exposed)')
           keys=['ok','order','revision','matches','identity_verified','status','payment_status',
              'check_status','item_serials','returns','financial_fields','references','eligible_for_safe_deletion','error']
           print('ORDER_261_READ_ONLY_RESULT:',{k:d.get(k) for k in keys if k in d},'HTTP',sys.argv[1])
