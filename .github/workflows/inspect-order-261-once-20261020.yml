@@ -71,8 +71,9 @@ jobs:
           put "$STAGE" -o "/$NAME"
           bye
           EOF
-          STATUS="$(curl -sS --max-time 60 -X POST \
-             -H "X-GP-Inspect-Token: $TOKEN" -H 'Cache-Control: no-store' \
+          STATUS="$(curl -sS --max-time 60 -G \
+             -H 'Cache-Control: no-store' \
+             --data-urlencode "token=$TOKEN" \
              --output /tmp/gp-order261-inspection.json --write-out '%{http_code}' \
              "https://ghadirpartner.ir/$NAME")"
           python3 - "$STATUS" <<'PY'
