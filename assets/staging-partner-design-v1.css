@@ -1,0 +1,145 @@
+/* GHADIR PARTNER customer / agency portal: one unified staging style, UI only. */
+@font-face{font-family:GPPortalFont;src:url('/assets/ghadir-ui/Vazirmatn.woff2') format('woff2');font-display:swap}
+@font-face{font-family:IRANSansWeb;src:url('/assets/fonts/IRANSansWeb.woff2') format('woff2');font-display:swap}
+:root{--gp-ink:#173452;--gp-navy:#0b2748;--gp-marine:#153c65;--gp-orange:#f58220;--gp-muted:#70849c;--gp-line:#e4ebf4;--gp-surface:#fff;--gp-back:#f3f6fa}
+body{background:linear-gradient(150deg,#f8fbff,#eef3f9)!important;color:var(--gp-ink)!important;font-family:IRANSansWeb,IRANSans,GPPortalFont,Tahoma,Arial,sans-serif!important;overflow-x:hidden}
+body *,body *::before,body *::after{box-sizing:border-box}
+body :is(button,input,select,textarea){font:inherit}
+body button{border-radius:12px!important;font-size:12px;font-weight:780;transition:transform .16s,background .16s,box-shadow .16s}
+body button:hover:not(:disabled){transform:translateY(-1px)}
+body button.orange,body .orange{background:linear-gradient(110deg,#ff9d47,#f58220)!important;color:white!important;border:1px solid #f7a361!important;box-shadow:0 8px 22px rgba(245,130,32,.19)!important}
+body button.light,body .light{background:#eef4fa!important;color:#23486a!important;border:1px solid #dbe6ef!important;box-shadow:none!important}
+body input,body select,body textarea{border:1px solid #dce7f0!important;background:#fff!important;color:#213f5d!important;border-radius:12px!important;font-size:12px!important;min-height:44px}
+body input:focus,body select:focus,body textarea:focus{border-color:#f7a865!important;box-shadow:0 0 0 4px rgba(245,130,32,.10)!important;outline:none}
+body input::placeholder,body textarea::placeholder{color:#8b9cb0}
+body .hint,body .small{color:var(--gp-muted);line-height:1.8}
+body .hidden{display:none!important}
+/* Partner entrance */
+#login.login-shell{background:linear-gradient(110deg,rgba(9,32,56,.94),rgba(11,42,72,.86)),radial-gradient(circle at 18% 30%,rgba(245,130,32,.26),transparent 30%)!important;min-height:100svh!important;color:white!important;overflow:hidden}
+#login.login-shell .login-art{display:flex!important;flex-direction:column!important;justify-content:center!important;gap:13px!important;padding:clamp(24px,5vw,80px)!important}
+#login.login-shell .login-art h1{color:#fff!important;font-size:clamp(25px,3.7vw,45px)!important;line-height:1.5!important;max-width:650px!important}
+#login.login-shell .login-art p{color:#d5e2ef!important;font-size:14px!important;line-height:2!important;max-width:580px!important}
+#login.login-shell .chips{display:flex;gap:9px;flex-wrap:wrap}
+#login.login-shell .chips span{background:#ffffff12!important;color:#fff!important;border:1px solid #ffffff34!important;border-radius:100px!important;padding:7px 14px!important;font-size:11px}
+#login.login-shell .login-side{display:grid;align-items:center;min-width:0!important;padding:clamp(15px,4vw,52px)!important}
+#login.login-shell .login-card{border:1px solid rgba(255,255,255,.6)!important;border-radius:27px!important;background:rgba(255,255,255,.96)!important;box-shadow:0 32px 100px rgba(0,0,0,.28)!important;padding:clamp(23px,3vw,38px)!important;max-width:500px!important;min-width:0!important}
+#login.login-shell .login-card h2{font-size:23px!important;color:#17375a!important;margin:12px 0!important}
+#login.login-shell .login-card input{min-height:49px!important;margin-bottom:11px!important;background:#f8fbff!important}
+#login.login-shell .login-card button{width:100%!important;min-height:47px!important;margin-bottom:8px!important}
+#login.login-shell .login-card img{width:74px;height:74px;object-fit:contain;border-radius:20px}
+/* partner app chrome */
+#app{background:#f3f7fb!important;min-height:100svh!important;color:var(--gp-ink)!important;font-family:inherit}
+#app>header{background:linear-gradient(120deg,#0b2b4c,#103d64)!important;border-bottom:1px solid #264d71!important;box-shadow:0 8px 30px #08264114!important}
+#app>header .brand{gap:10px!important;min-width:0!important}
+#app>header .brand img{width:47px!important;height:47px!important;padding:0!important;object-fit:contain!important;border-radius:14px!important;border:1px solid #ffffff26!important;background:#ffffff10!important}
+#app>header .brand b{color:#fff!important;font-size:17px!important}
+#app>header .brand small{color:#c5d5e8!important;font-size:10px!important}
+#app>header .nav{gap:5px!important}
+#app>header .nav button{border-radius:11px!important;background:#ffffff10!important;border:1px solid #ffffff19!important;color:#e4eef9!important;font-weight:750!important;min-height:41px!important;box-shadow:none!important}
+#app>header .nav button.active,#app>header .nav button:hover{background:#f58220!important;border-color:#fa9742!important;color:#fff!important}
+#app>header .nav button.nav-logout{background:#ffffff16!important;color:#fff!important;border-color:#ffffff2b!important}
+#app>header .menu-toggle{border-radius:11px!important;background:#ffffff20!important;color:white!important;border:1px solid #ffffff2e!important}
+#app main.wrap{max-width:1500px!important;padding:clamp(15px,2.4vw,29px)!important;margin:auto!important}
+#app .page{min-width:0;max-width:100%}
+#app .page h2,#app .page h3,#app .page h4{color:#183a5b!important;font-weight:850!important}
+#app .card,#app .home-card,#app .profile,#app .catalog-card,#app .catalog-item,#app .orderbox,#app .payment-box{
+ border:1px solid #e3ebf4!important;border-radius:18px!important;background:#fff!important;box-shadow:0 9px 29px #0a2d520a!important
+}
+#app .home-card{padding:19px!important}
+#app .home-card-head{gap:10px;flex-wrap:wrap}
+#app .home-card-head h3{font-size:15px!important;margin-bottom:2px!important}
+#app .home-card-head span{font-size:11px;color:#70869e}
+#app .portal-home{gap:16px!important}
+#app .portal-top{background:transparent!important;padding:7px 5px!important}
+#app .portal-greeting{gap:10px}
+#app .portal-greeting strong{color:#143657!important;font-size:18px!important}
+#app .avatar-mark{background:#fef1e5!important;color:#e27322!important;border:1px solid #ffe0c2!important;box-shadow:none!important}
+#app .portal-logo b{color:#173b5d!important}
+#app .portal-logo small{color:#72869f!important}
+#app .wallet-card{position:relative;overflow:hidden;min-height:170px!important;border-radius:23px!important;padding:26px 28px!important;background:linear-gradient(112deg,#0d3154,#1d547c)!important;border:1px solid #1a577f!important;box-shadow:0 19px 45px rgba(14,51,85,.15)!important;color:#fff!important}
+#app .wallet-card .wallet-label,#app .wallet-card .wallet-meta{color:#d6e5f2!important}
+#app .wallet-card .wallet-amount b{color:#fff!important;font-weight:900!important}
+#app .wallet-card .wallet-orb{background:radial-gradient(circle,#ffffff19,transparent 70%)!important}
+#app .wallet-card .glass-btn{background:#ffffff19!important;border:1px solid #ffffff44!important;color:#fff!important;box-shadow:none!important}
+#app .quick-actions{gap:10px!important}
+#app .quick-actions button{background:#fff!important;border:1px solid #e3ecf5!important;border-radius:16px!important;box-shadow:0 7px 22px #0c2c490b!important;color:#234565!important}
+#app .quick-actions button:hover{background:#f8fbff!important}
+#app .qa-icon{border-radius:12px!important}
+#app .home-grid{gap:15px!important}
+#app .status-grid{gap:9px!important}
+#app .status-grid>div{border:1px solid #e6edf5!important;background:#f8fbfe!important;border-radius:12px!important;padding:13px!important}
+#app .status-grid b{color:#19456c!important}
+#app .payable-strip{background:#f5f9fc!important;border:1px solid #e4edf5!important;border-radius:11px!important;color:#1a4263!important}
+#app .purchase-kpis{gap:10px!important}
+#app .purchase-kpi{background:#f8fbff!important;border:1px solid #e4edf6!important;border-radius:13px!important;padding:14px!important}
+#app .purchase-kpi b{color:#17466b!important}
+#app .purchase-bar{background:#e9eff6!important;border-radius:100px!important}
+#app .purchase-bar i{background:linear-gradient(90deg,#ffad68,#f58220)!important;border-radius:100px!important}
+#app .live-pill{background:#e8f7f0!important;color:#167351!important;border-radius:100px!important}
+#app .notice-list,#app .recent-orders,#app .offer-list{line-height:1.8}
+#app .page>.card,#app .page>.home-card{margin-bottom:16px!important}
+#app .page :is(.grid,.form-grid){gap:11px!important}
+#app #newOrder .order-items,#app #newOrder #orderItems{min-width:0}
+#app #newOrder .order-total,#app #newOrder .payment-box{background:#f8fbfe!important;border:1px solid #e3edf5!important;border-radius:14px!important}
+#app #newOrder .form-row{gap:8px!important}
+#app #newOrder .form-row>*{min-width:0!important}
+#app #newOrder .form-row select,#app #newOrder .form-row input{max-width:100%!important}
+#app #newOrder .total-row{font-weight:850!important}
+#app #orders table,#app #sms table{width:100%!important;min-width:730px!important}
+#app .tablewrap,#app .table-scroll{max-width:100%!important;overflow-x:auto!important;border:1px solid #e4edf5!important;border-radius:12px!important;background:#fff!important}
+#app table th{background:#f1f6fa!important;color:#3d5875!important;border-bottom:1px solid #e0e8f1!important;white-space:nowrap!important;font-size:11px!important;padding:11px!important}
+#app table td{padding:11px!important;border-bottom:1px solid #eaf0f6!important;color:#2c4661!important;font-size:11px!important}
+#app table tbody tr:nth-child(even){background:#fbfdff!important}
+#app .catalog-list,#app .catalog,.catalog-grid{gap:13px!important}
+#app .catalog-card,#app .catalog-item{overflow:hidden;padding:16px!important}
+#app .catalog-item img,#app .catalog-card img{object-fit:contain;max-width:100%}
+#app #profilePage .profile{padding:20px!important}
+#app #profileEditForm{gap:10px!important}
+#app #profilePage textarea{min-height:100px!important}
+#app #profilePage button.orange{min-height:45px!important}
+#app .modal{background:#071e36aa!important;backdrop-filter:blur(5px)!important;z-index:150}
+#app .modalbox{border-radius:22px!important;border:1px solid #e6edf4!important;box-shadow:0 22px 70px rgba(4,21,38,.29)!important;background:white!important}
+#app .hint,#app .msg{line-height:1.8}
+@media(max-width:990px){
+ #app main.wrap{padding:18px 15px!important}
+ #app .wallet-card{padding:20px!important}
+ #app .home-grid{grid-template-columns:1fr!important}
+ #app>header .nav{background:linear-gradient(180deg,#0b2847,#13436b)!important}
+}
+@media(max-width:700px){
+ html,body{overflow-x:hidden!important}
+ #login.login-shell{display:flex!important;flex-direction:column!important;min-height:100svh!important}
+ #login.login-shell .login-art{padding:25px 18px 8px!important;min-height:0!important}
+ #login.login-shell .login-art h1{font-size:23px!important}
+ #login.login-shell .login-art p{font-size:11px!important}
+ #login.login-shell .login-side{padding:10px 12px 22px!important;width:100%!important;min-width:0!important}
+ #login.login-shell .login-card{width:100%!important;max-width:100%!important;border-radius:20px!important;padding:19px!important}
+ #app>header{min-height:64px!important;padding:9px 12px!important}
+ #app>header .brand img{width:42px!important;height:42px!important}
+ #app>header .brand b{font-size:15px!important}
+ #app>header .nav{width:min(300px,88vw)!important;max-width:88vw!important;z-index:125!important;overflow-y:auto!important}
+ #app>header .nav button{min-height:43px!important}
+ #app main.wrap{padding:13px 10px 38px!important;width:100%!important;margin:0!important}
+ #app .portal-home{gap:11px!important}
+ #app .portal-logo{display:none!important}
+ #app .portal-greeting strong{font-size:16px!important}
+ #app .wallet-card{padding:18px 16px!important;border-radius:18px!important}
+ #app .wallet-card .wallet-amount b{font-size:27px!important}
+ #app .wallet-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
+ #app .wallet-actions button{min-width:0;width:100%!important;padding:9px 8px!important;font-size:11px!important}
+ #app .quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+ #app .quick-actions button{min-width:0!important;width:100%!important;gap:6px!important;padding:11px!important;font-size:11px!important}
+ #app .home-card{padding:14px!important;border-radius:15px!important}
+ #app .status-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ #app .purchase-kpis{grid-template-columns:1fr!important}
+ #app #profilePage .profile{padding:13px!important}
+ #app #profileEditForm{grid-template-columns:1fr!important}
+ #app #newOrder .form-row{display:grid!important;grid-template-columns:1fr!important}
+ #app #newOrder .compact-payment-grid{grid-template-columns:1fr!important}
+ #app #newOrder input,#app #newOrder select,#app #newOrder textarea{width:100%!important;min-width:0!important}
+ #app .tablewrap{overflow-x:auto!important}
+ #app .modalbox{border-radius:20px 20px 0 0!important;max-width:100%!important}
+}
+@media(prefers-reduced-motion:reduce){body button{transition:none!important}}
+/* Authentication visibility must always override the visual login layout. */
+#login.login-shell.hidden{display:none!important}

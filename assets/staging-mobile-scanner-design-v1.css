@@ -1,0 +1,33 @@
+/* GHADIR Mobile Serial Scanner — unified staging visual layer, behavior unchanged. */
+@font-face{font-family:GPScannerFont;src:url('/assets/ghadir-ui/Vazirmatn.woff2') format('woff2');font-display:swap}
+@font-face{font-family:IRANSansWeb;src:url('/assets/fonts/IRANSansWeb.woff2') format('woff2');font-display:swap}
+:root{--gp-navy:#0d2e50;--gp-orange:#f58220;--gp-line:#e2ebf4;--gp-ink:#183855}
+html,body{max-width:100%!important;overflow-x:hidden!important}
+body{margin:0;background:linear-gradient(180deg,#f6f9fd,#edf3f9)!important;color:var(--gp-ink)!important;font-family:IRANSansWeb,IRANSans,GPScannerFont,Tahoma,Arial,sans-serif!important;min-height:100svh}
+body *,body *::before,body *::after{box-sizing:border-box}
+header{background:linear-gradient(120deg,#092743,#17486d)!important;min-height:78px!important;padding:12px 18px!important;border-bottom:1px solid #ffffff1e!important;box-shadow:0 12px 22px rgba(3,33,59,.12)!important}
+header img{width:52px!important;height:52px!important;border-radius:14px!important;padding:0!important;background:#ffffff12!important;border:1px solid #ffffff28!important}
+header b{font-size:18px!important;color:white}
+main{max-width:690px!important;padding:19px 14px 45px!important;margin:auto!important}
+.card{border:1px solid #e2ebf4!important;border-radius:18px!important;background:#fff!important;box-shadow:0 12px 32px rgba(14,45,74,.06)!important;padding:20px!important;margin-bottom:14px!important}
+.card h3{font-size:16px!important;color:#163956!important;line-height:1.6;margin:0 0 13px!important;font-weight:850}
+input,select,textarea{min-height:47px!important;width:100%!important;min-width:0!important;max-width:100%!important;background:#fbfdff!important;color:#24415a!important;border:1px solid #dae6f1!important;border-radius:12px!important;margin-top:10px!important;padding:11px 13px!important;font-family:inherit!important;font-size:13px!important}
+input:focus,select:focus,textarea:focus{border-color:#f5a66a!important;outline:none!important;box-shadow:0 0 0 3px #f5822018!important}
+button{width:100%;min-height:47px!important;border-radius:12px!important;border:0!important;color:#fff!important;background:#164364!important;margin-top:11px!important;padding:12px 14px!important;font-family:inherit!important;font-size:13px!important;font-weight:850!important;box-shadow:0 7px 16px #0c2d4917!important;transition:transform .18s,box-shadow .18s}
+button.orange{background:linear-gradient(110deg,#ffa14f,#f58220)!important;box-shadow:0 9px 20px #f5822038!important}
+button.danger{background:#ba3b3b!important}
+button:hover:not(:disabled){transform:translateY(-1px)}
+.small{color:#738399!important;font-size:11.5px!important;line-height:1.95!important}
+.orderbox{padding:13px!important;background:#f6f9fc!important;border:1px solid #e5edf5!important;border-radius:12px!important;color:#234562;line-height:1.95}
+.count{color:#18496d!important;font-size:21px!important}
+video{max-height:47vh!important;background:#081e31!important;border:3px solid #e4eef8!important;border-radius:15px!important;margin-top:10px!important;object-fit:cover!important;box-shadow:0 8px 22px #0a284626!important}
+#serial{direction:ltr;text-align:center;font:700 16px Consolas,monospace!important;letter-spacing:.6px!important;background:#f2f8ff!important;border-color:#cee2f3!important}
+.msg{padding:12px!important;border-radius:12px!important;line-height:1.8}
+.msg.ok{background:#eaf8ef!important;color:#137243!important;border:1px solid #bce4cb!important}
+.msg.err{background:#fff0ee!important;color:#b23e36!important;border:1px solid #f3cfcb!important}
+#httpsWarn{border:1px solid #ffd6a7!important;background:#fffbf6!important}
+#loginCard{max-width:530px;margin:22px auto!important}
+#scanApp>.card:last-child{background:#f9fcff!important}
+.hidden{display:none!important}
+@media(max-width:600px){header{padding:9px 12px!important;min-height:68px!important}header img{width:44px!important;height:44px!important}header b{font-size:16px!important}main{padding:12px 10px 35px!important}.card{padding:14px!important;border-radius:15px!important;margin-bottom:11px!important}.card h3{font-size:14px!important}video{max-height:39vh!important}}
+@media(prefers-reduced-motion:reduce){button{transition:none!important}}

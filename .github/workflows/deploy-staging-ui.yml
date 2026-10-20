@@ -9,6 +9,13 @@ on:
       - 'assets/staging-login-fullscreen-v2.js'
       - 'assets/staging-fullscreen-office-v2.webp'
       - 'assets/staging-lobby-login-v3.webp'
+      - 'assets/staging-site-design-v1.css'
+      - 'assets/staging-partner-design-v1.css'
+      - 'assets/staging-mobile-scanner-design-v1.css'
+      - 'partners/portal.html'
+      - 'mobile.html'
+      - 'brand-v5311.png'
+      - 'partners/brand-v5311.png'
       - '.github/workflows/deploy-staging-ui.yml'
   workflow_dispatch:
 
@@ -34,6 +41,16 @@ jobs:
           test -s assets/staging-login-fullscreen-v2.js
           test -s assets/staging-fullscreen-office-v2.webp
           test -s assets/staging-lobby-login-v3.webp
+          test -s assets/staging-site-design-v1.css
+          test -s assets/staging-partner-design-v1.css
+          test -s assets/staging-mobile-scanner-design-v1.css
+          test -s partners/portal.html
+          test -s mobile.html
+          test -s brand-v5311.png
+          test -s partners/brand-v5311.png
+          grep -Fq 'staging-site-design-v1.css' app.html
+          grep -Fq 'staging-partner-design-v1.css' partners/portal.html
+          grep -Fq 'staging-mobile-scanner-design-v1.css' mobile.html
           grep -Fq 'stg-fullscreen-login' app.html
           grep -Fq 'staging-login-fullscreen-v2.css' app.html
           ! grep -Fq 'ghadirpartner_app' app.html
@@ -47,6 +64,10 @@ jobs:
           STAGING_PASSWORD: ${{ secrets.GHADIR_STAGING_FTP_PASSWORD }}
         run: |
           if [[ -n "$STAGING_HOST" && -n "$STAGING_USER" && -n "$STAGING_PASSWORD" ]]; then
+            if [[ "$STAGING_USER" != "stagingui@ghadirpartner.ir" ]]; then
+              echo "STOP: unexpected FTP username; staging UI requires isolated account" >&2
+              exit 1
+            fi
             echo 'ready=true' >> "$GITHUB_OUTPUT"
           else
             echo 'ready=false' >> "$GITHUB_OUTPUT"
@@ -62,7 +83,7 @@ jobs:
           echo 'TLS certificate identity from the configured FTP host (read-only preflight):'
           timeout 15 openssl s_client -starttls ftp -connect "${STAGING_HOST}:21" -servername "$STAGING_HOST" </dev/null 2>/dev/null |
             openssl x509 -noout -subject -ext subjectAltName
-      - name: Deploy only 4 UI files to staging FTP root
+      - name: Deploy approved UI files to isolated staging FTP root
         if: steps.ftp.outputs.ready == 'true'
         shell: bash
         env:
@@ -79,7 +100,7 @@ jobs:
             echo 'STOP: expected staging marker absent. No deployment performed.' >&2
             exit 1
           fi
-          # Upload assets first and HTML last. Overwrite only these allowlisted paths.
+          # Upload only explicit UI files; HTML last. Never delete server-side files.
           # Never upload/delete config.php, .htaccess, index.php, index.html, or other app files.
           lftp -u "$STAGING_USER","$STAGING_PASSWORD" "ftp://$STAGING_HOST" -e '
             set cmd:fail-exit true;
@@ -89,6 +110,13 @@ jobs:
             put assets/staging-login-fullscreen-v2.css -o assets/staging-login-fullscreen-v2.css;
             put assets/staging-login-fullscreen-v2.js -o assets/staging-login-fullscreen-v2.js;
             put assets/staging-lobby-login-v3.webp -o assets/staging-lobby-login-v3.webp;
+            put assets/staging-site-design-v1.css -o assets/staging-site-design-v1.css;
+            put assets/staging-partner-design-v1.css -o assets/staging-partner-design-v1.css;
+            put assets/staging-mobile-scanner-design-v1.css -o assets/staging-mobile-scanner-design-v1.css;
+            put brand-v5311.png -o brand-v5311.png;
+            put partners/brand-v5311.png -o partners/brand-v5311.png;
+            put partners/portal.html -o partners/portal.html;
+            put mobile.html -o mobile.html;
             put app.html -o app.html;
             bye'
           echo 'Staging UI deployment completed. Production untouched.'
