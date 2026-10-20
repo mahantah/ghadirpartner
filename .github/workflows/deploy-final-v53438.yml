@@ -283,15 +283,34 @@ jobs:
           <?php
           header('Content-Type: application/json; charset=utf-8');
           if(!hash_equals('__TOKEN__',(string)($_GET['token']??''))){http_response_code(403);exit('{}');}
-          $cfg=require __DIR__.'/config.php';$m=$cfg['mysql']??[];
+          // Preserve a safe JSON failure even if configuration loading or PHP terminates.
+          @ini_set('display_errors','0');
+          $gpProbePhase='configuration';$gpProbeComplete=false;$gpProbeBuffer=ob_get_level();
+          ob_start();$gpProbeReserve=str_repeat('x',65536);
+          register_shutdown_function(function()use(&$gpProbeComplete,&$gpProbeReserve,&$gpProbePhase,$gpProbeBuffer){
+            if($gpProbeComplete)return;
+            $gpProbeReserve=null;$last=error_get_last();
+            $fatal=$last&&in_array($last['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR],true);
+            $kind=$fatal?'php_fatal_error':'probe_terminated';
+            if($fatal&&strpos(strtolower($last['message']??''),'allowed memory size')!==false)$kind='php_memory_limit';
+            while(ob_get_level()>$gpProbeBuffer)ob_end_clean();
+            http_response_code(500);header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok'=>false,'guard'=>$kind,'error'=>$kind,'phase'=>$gpProbePhase,'php_version'=>PHP_VERSION]);
+          });
           $pdo=null;
           try{
+            $cfg=require __DIR__.'/config.php';if(!is_array($cfg))throw new RuntimeException('configuration invalid');
+            $m=$cfg['mysql']??[];$gpProbePhase='database_connection';
             $pdo=new PDO('mysql:host='.($m['host']??'localhost').';port='.(int)($m['port']??3306).';dbname='.($m['database']??'').';charset='.($m['charset']??'utf8mb4'),(string)($m['username']??''),(string)($m['password']??''),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+            $gpProbePhase='database_read';
             $r=$pdo->query("SELECT state_json,revision FROM ghadir_state WHERE id=1")->fetch();if(!$r)throw new RuntimeException('state missing');
+            $gpProbePhase='state_decode';
             $s=json_decode($r['state_json'],true);if(!is_array($s))throw new RuntimeException('state invalid');
+            $gpProbePhase='backup';
             $dir=__DIR__.'/storage/Backups';@mkdir($dir,0750,true);$name='ghadir-mysql-pre-exact-v53438-'.date('Ymd-His').'.json';
             if(file_put_contents($dir.'/'.$name,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE),LOCK_EX)===false)throw new RuntimeException('backup failed');
             $revision=(int)$r['revision'];
+            $gpProbePhase='protected_counts';
             $wanted=['I90-097','I90-098','I90-099','I90-100','I90-101','I90-102','I90-103','I90-109','I90-110','I90-111','I90-112','I90-113','I90-114','I90-115','I90-116','I90-123','I90-124','I90-125'];
             $cart=[];foreach($s['cartons']??[] as $c)$cart[(string)($c['code']??'')]=$c;
             foreach($wanted as $code){
@@ -305,6 +324,7 @@ jobs:
                 throw new RuntimeException('target mismatch '.$code.' kind='.$kind.' expected=20 actual='.$actual.' free='.$free.' reserved='.$reserved);
               }
             }
+            while(ob_get_level()>$gpProbeBuffer)ob_end_clean();$gpProbeComplete=true;
             echo json_encode(['ok'=>true,'revision'=>$revision,'backup'=>$name,'counts'=>['inventory'=>count($s['inventory']??[]),'cartons'=>count($s['cartons']??[]),'orders'=>count($s['orders']??[])]],JSON_UNESCAPED_UNICODE);
           }catch(Throwable $e){
             http_response_code(500);
@@ -315,15 +335,17 @@ jobs:
             if(preg_match('/actual=(\d+)/',$msg,$m))$actual=(int)$m[1];
             if(preg_match('/free=(\d+)/',$msg,$m))$free=(int)$m[1];
             if(preg_match('/reserved=(\d+)/',$msg,$m))$reserved=(int)$m[1];
-            if(str_starts_with(strtolower($msg),'missing '))$kind=$kind?:'missing';
+            if(strpos(strtolower($msg),'missing ')===0)$kind=$kind?:'missing';
             $low=strtolower($msg);
-            $guard=(str_contains($low,'target mismatch')||str_contains($low,'missing i90-'))
+            $guard=(strpos($low,'target mismatch')!==false||strpos($low,'missing i90-')!==false)
               ?'protected_carton_state_mismatch'
-              :(str_contains($low,'backup')?'state_backup_failed'
-              :((str_contains($low,'sqlstate')||str_contains($low,'pdo'))?'database_error'
-              :((str_contains($low,'state missing')||str_contains($low,'state invalid'))?'database_state_missing_or_invalid':'server_precheck_error')));
+              :($gpProbePhase==='configuration'?'configuration_error'
+              :($gpProbePhase==='backup'?'state_backup_failed'
+              :((strpos($gpProbePhase,'database_')===0)?'database_error'
+              :($gpProbePhase==='state_decode'?'database_state_missing_or_invalid':'server_precheck_error'))));
             // Sanitized fields only: no state dump, serials, or credentials.
-            echo json_encode(['ok'=>false,'error'=>$msg,'guard'=>$guard,'carton'=>$carton,'kind'=>$kind,'expected'=>20,'actual'=>$actual,'free'=>$free,'reserved'=>$reserved],JSON_UNESCAPED_UNICODE);
+            while(ob_get_level()>$gpProbeBuffer)ob_end_clean();$gpProbeComplete=true;
+            echo json_encode(['ok'=>false,'error'=>$guard,'guard'=>$guard,'phase'=>$gpProbePhase,'php_version'=>PHP_VERSION,'carton'=>$carton,'kind'=>$kind,'expected'=>20,'actual'=>$actual,'free'=>$free,'reserved'=>$reserved],JSON_UNESCAPED_UNICODE);
           }
           PHP
           python3 - <<PY
