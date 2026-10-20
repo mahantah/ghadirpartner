@@ -24,6 +24,50 @@ concurrency:
   group: web-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  order-details-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate image rendering and canonical patch guards
+        run: |
+          node --check assets/order-details-v2.js
+          node tests/order-details-v2.js
+          python3 -m py_compile scripts/patch-order-details-v2.py
+          python3 tests/order-details-v2-patch.py
+      - name: Check desktop and mobile interactions
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for viewport in '390,844' '1440,1000'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --allow-file-access-from-files --no-first-run --window-size="$viewport" --virtual-time-budget=4000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/order-details-v2.html" \
+              > /tmp/order-details-test.html 2>/tmp/order-details-chrome.log
+            if ! grep -Fq 'ORDER_DETAILS_V2_PASS</output>' /tmp/order-details-test.html; then
+              grep -o 'ORDER_DETAILS_V2_FAIL[^<]*' /tmp/order-details-test.html || true
+              tail -c 2000 /tmp/order-details-test.html
+              exit 1
+            fi
+          done
+      - name: Capture synthetic design previews
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/order-details-preview
+          browser="$(command -v google-chrome || command -v chromium)"
+          for view in overview payment; do
+            for viewport in '390,844' '1440,1000'; do
+              "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+                --allow-file-access-from-files --no-first-run --hide-scrollbars --window-size="$viewport" --virtual-time-budget=4000 \
+                --screenshot="/tmp/order-details-preview/$view-$viewport.png" \
+                "file://$GITHUB_WORKSPACE/tests/order-details-v2.html?preview=1&view=$view" >/dev/null 2>&1
+            done
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: order-details-v2-synthetic-preview
+          path: /tmp/order-details-preview/*.png
+          retention-days: 14
   native-address-book-v1:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -986,4 +1030,5 @@ jobs:
           mkdir -p /tmp/release-build-output
           export GITHUB_OUTPUT=/tmp/release-build-output/output
           bash -Eeuo pipefail /tmp/release-build-integration.sh
+          python3 tests/order-details-v2-patch.py /tmp/v53438
           echo 'Full release build completed without FTP, database, or server access'

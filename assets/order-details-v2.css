@@ -1,0 +1,65 @@
+/* GP_ORDER_DETAILS_V2_20261020 */
+#orderDetailOverlay.od2-overlay{align-items:center;justify-content:center;background:rgba(16,42,67,.42);padding:24px;backdrop-filter:blur(4px)}
+#orderDetailOverlay .od2-drawer{width:min(1120px,100%);height:88vh;max-height:940px;padding:0 24px 24px;border-radius:24px;box-shadow:0 24px 90px #102a433d;background:#f4f7fb;color:#102a43;scrollbar-gutter:stable;direction:rtl}
+#orderDetailBody .od2-header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:24px 0 18px}
+#orderDetailBody .od2-eyebrow{color:#52677d;font-size:12px}
+#orderDetailBody .od2-heading h3{font-size:24px;margin:4px 0;font-variant-numeric:tabular-nums}
+#orderDetailBody .od2-heading p{margin:0;color:#52677d}
+#orderDetailBody .od2-header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#orderDetailBody a.btn2{display:inline-block;text-decoration:none}
+#orderDetailBody .od2-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:18px;background:#102a43;color:white;padding:20px;gap:16px}
+#orderDetailBody .od2-summary>div{display:flex;flex-direction:column;gap:8px;min-width:0}
+#orderDetailBody .od2-summary span{color:#c7d5e2;font-size:12px}
+#orderDetailBody .od2-summary strong{font-size:16px;overflow-wrap:anywhere}
+#orderDetailBody .od2-tabs{display:flex;gap:4px;overflow-x:auto;padding:12px 0;margin-bottom:8px;position:sticky;top:0;z-index:2;background:#f4f7fb;scrollbar-width:thin}
+#orderDetailBody .od2-tabs button{background:transparent;color:#52677d;border:1px solid transparent;border-radius:12px;white-space:nowrap;padding:12px 18px;min-height:44px;flex-shrink:0}
+#orderDetailBody .od2-tabs button[aria-selected="true"]{color:#102a43;background:#fff;border-color:#d7e1ea;box-shadow:0 2px 8px #102a4308}
+#orderDetailBody .od2-tabs button[aria-selected="true"]::after{content:"";display:block;height:3px;width:18px;margin:6px auto -8px;background:#f58220;border-radius:2px}
+#orderDetailBody .od2-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#orderDetailBody .od2-payment-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+#orderDetailBody .od2-card{border:1px solid #e0e7ef;background:#fff;border-radius:18px;padding:20px;min-width:0}
+#orderDetailBody .od2-card h4{font-size:16px;margin:0 0 18px}
+#orderDetailBody .od2-fields{margin:0}
+#orderDetailBody .od2-field{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(0,1.2fr);gap:16px;border-bottom:1px solid #edf1f5;padding:11px 0;font-size:13px}
+#orderDetailBody .od2-field:last-child{border:0}
+#orderDetailBody dt{color:#60758b;font-weight:400}
+#orderDetailBody dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap;unicode-bidi:plaintext}
+#orderDetailBody .od2-note{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;line-height:2}
+#orderDetailBody .od2-notice{margin:0 0 16px;background:#e9f0f7;border:1px solid #d6e3ee;color:#29465f;padding:14px 16px;border-radius:12px;font-size:13px;line-height:1.9}
+#orderDetailBody .od2-empty{padding:24px 12px;color:#60758b;text-align:center;line-height:2}
+#orderDetailBody .od2-evidence{margin:0;display:flex;align-items:center;flex-direction:column;gap:12px}
+#orderDetailBody .od2-image-button{width:100%;background:#f4f7fb;border:1px solid #d7e1ea;color:#29465f;padding:12px;border-radius:14px;cursor:zoom-in;display:flex;flex-direction:column;align-items:center;gap:12px}
+#orderDetailBody .od2-image-button img{display:block;max-width:100%;max-height:280px;object-fit:contain}
+#orderDetailBody .od2-image-button span,#orderDetailBody figcaption{font-size:12px;color:#52677d}
+#orderDetailBody .od2-table-wrap{overflow-x:auto}
+#orderDetailBody table{width:100%;border-collapse:collapse;font-size:13px}
+#orderDetailBody th,#orderDetailBody td{text-align:right;padding:14px 10px;border-bottom:1px solid #e7edf3;vertical-align:top}
+#orderDetailBody th{background:#f4f7fb;color:#52677d;white-space:nowrap}
+#orderDetailBody td small{display:block;margin-top:6px;color:#60758b}
+#orderDetailBody .od2-serials summary{cursor:pointer;color:#25567c;white-space:nowrap;min-height:44px}
+#orderDetailBody .od2-serials ul{padding:0;list-style:none;max-height:260px;overflow:auto;min-width:190px}
+#orderDetailBody .od2-serials li{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:8px;background:#f4f7fb;margin-bottom:6px;font-family:monospace;overflow-wrap:anywhere}
+#orderDetailBody .od2-history{padding:0;list-style:none;margin:0}
+#orderDetailBody .od2-history li{display:grid;grid-template-columns:170px minmax(0,1fr);gap:20px;padding:16px 0;border-bottom:1px solid #e7edf3}
+#orderDetailBody .od2-history time,#orderDetailBody .od2-history small{color:#60758b;font-size:12px}
+#orderDetailBody .od2-history strong{font-weight:500;white-space:pre-wrap;overflow-wrap:anywhere}
+#orderDetailBody .od2-history small{display:block;margin-top:8px}
+#orderDetailBody .od2-contacts{padding-inline-start:20px}
+.od2-image-dialog{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;padding:20px;background:#071b2de6;direction:rtl}
+.od2-image-sheet{width:min(1100px,100%);max-height:94vh;background:#fff;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px;align-items:center;overflow:auto}
+.od2-image-sheet img{max-width:100%;max-height:76vh;object-fit:contain}
+#orderDetailBody [hidden]{display:none!important}
+#orderDetailBody button:focus-visible,#orderDetailBody a:focus-visible,#orderDetailBody summary:focus-visible,.od2-image-dialog button:focus-visible,.od2-image-dialog a:focus-visible{outline:3px solid #f58220;outline-offset:3px}
+@media(max-width:700px){
+ #orderDetailOverlay.od2-overlay{padding:8px;align-items:flex-end}
+ #orderDetailOverlay .od2-drawer{height:94vh;max-height:94vh;border-radius:20px 20px 0 0;padding:0 14px 20px}
+ #orderDetailBody .od2-header{align-items:flex-start;padding-top:18px}
+ #orderDetailBody .od2-heading h3{font-size:20px}
+ #orderDetailBody .od2-summary{grid-template-columns:repeat(2,minmax(0,1fr));padding:16px;gap:20px}
+ #orderDetailBody .od2-grid,#orderDetailBody .od2-payment-grid{grid-template-columns:1fr}
+ #orderDetailBody .od2-card{padding:16px}
+ #orderDetailBody .od2-field{grid-template-columns:minmax(100px,.8fr) minmax(0,1.2fr);gap:10px}
+ #orderDetailBody .od2-tabs button{padding:12px}
+ #orderDetailBody .od2-history li{grid-template-columns:1fr;gap:8px}
+}
+@media(prefers-reduced-motion:reduce){#orderDetailOverlay *{scroll-behavior:auto}}

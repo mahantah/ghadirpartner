@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نمونه جزئیات سفارش — داده ساختگی</title>
+<link rel="stylesheet" href="../assets/order-details-v2.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eaf0f6;font:14px Tahoma,Arial;color:#102a43}
+button,a{font:inherit;cursor:pointer}.hidden{display:none!important}
+.btn2,.btnlight{border:1px solid #d7e1ea;border-radius:10px;padding:10px 14px;text-decoration:none;background:#fff;color:#102a43}
+.btn2{background:#102a43;color:#fff}.order-detail-overlay{position:fixed;inset:0;display:flex}
+.order-detail-drawer{overflow:auto}#result{position:fixed;bottom:0;left:0;z-index:200;background:white}
+.preview-label{padding:18px}h1{font-size:18px}
+</style></head><body>
+<div class="preview-label"><h1>نمای پیشنهادی جزئیات سفارش</h1><p>تمام اطلاعات و تصویر این صفحه ساختگی و صرفاً برای نمایش طراحی است.</p><button id="opener" class="btn2">مشاهده سفارش نمونه</button></div>
+<div id="orderDetailOverlay" class="order-detail-overlay hidden"><div class="order-detail-drawer"><div id="orderDetailBody"></div></div></div>
+<output id="result"></output>
+<script>
+const $=id=>document.getElementById(id);
+let role='admin';
+const has=r=>role==='admin'||role===r;
+const jalaliDateTime=s=>s||'';
+const closeOrderMenus=()=>{};
+const orderCustomer=()=>({id:1,code:'DEMO-001',name:'مشتری نمونه',company:'فروشگاه نمونه',mobile:'شماره تماس نمونه',province:'تهران',city:'تهران',address:'نشانی نمونه برای پیش‌نمایش'});
+const shipHistory=()=>null;
+const invBySerial=s=>({imei:'SAMPLE-IMEI',carton_code:'SAMPLE-01'});
+const serialSource=iv=>'کارتن '+iv.carton_code;
+const orderItemSerials=(_,it)=>it.serials||[];
+const canvas=document.createElement('canvas');canvas.width=900;canvas.height=480;
+const ctx=canvas.getContext('2d');ctx.fillStyle='#edf2f8';ctx.fillRect(0,0,900,480);
+ctx.strokeStyle='#708ca7';ctx.lineWidth=3;ctx.strokeRect(28,28,844,424);
+ctx.textAlign='right';ctx.fillStyle='#102a43';ctx.font='bold 30px Tahoma';
+ctx.fillText('مدرک پرداخت نمونه',830,100);ctx.font='24px Tahoma';
+ctx.fillText('صرفاً جهت نمایش طراحی؛ فاقد اعتبار بانکی',830,190);
+ctx.fillText('بانک نمونه — سررسید ۱۴۰۵/۰۸/۰۱',830,260);
+ctx.fillStyle='#f58220';ctx.fillRect(70,345,760,3);
+const ORD=[{id:1,number:'DEMO-000001',customer_id:1,customer_name:'مشتری نمونه',created_at:'۱۴۰۵/۰۷/۲۸ — ۱۴:۳۰',
+ created_by:'حساب نمونه',status:'در انتظار تأیید سفارش',approval_status:'در انتظار تأیید',payment_status:'پرداخت نشده',invoice_type:'رسمی',
+ requested_payment_method:'check',estimated_total:245000000,approved_total:0,
+ delivery_address:{province:'تهران',city:'تهران',address:'نشانی ثبت‌شده هنگام سفارش — نمونه'},
+ settlement_details:{check_number:'1234567890123456',bank_name:'بانک نمونه',due_date:'۱۴۰۵/۰۸/۰۱',image_base64:canvas.toDataURL('image/png').split(',')[1]},
+ notes:'لطفاً پیش از ارسال هماهنگ شود. اطلاعات این سفارش صرفاً نمایشی است.',
+ items:[{product:'کارتخوان I90',qty:20,unit_price:12250000,line_total:245000000,price_label:'قیمت نمونه',serials:['SAMPLE-0001','SAMPLE-0002']}],
+ history:[{at:'۱۴۰۵/۰۷/۲۸ — ۱۴:۳۰',by:'حساب نمونه',action:'سفارش توسط مشتری ثبت شد؛ در انتظار بررسی واحد فروش'}]}];
+</script>
+<script src="../assets/order-details-v2.js"></script>
+<script>
+$('opener').onclick=()=>openOrderDetails(1);
+function check(ok,label){if(!ok)throw Error(label);}
+try{
+ const query=new URLSearchParams(location.search);
+ if(query.has('preview')){
+  openOrderDetails(1,query.get('view')||'overview');
+  $('result').remove();
+ }else{
+  const before=JSON.stringify(ORD);
+  $('opener').focus();openOrderDetails(1);
+  check(document.querySelectorAll('[role="tab"]').length===5,'five tabs');
+  check(document.querySelectorAll('[role="tabpanel"]:not([hidden])').length===1,'one panel');
+  check(gpOdCurrent==='overview','overview default');
+  document.querySelector('[data-od2-tab="items"]').click();
+  check(gpOdCurrent==='items','items selection');
+  check(!document.querySelector('.od2-serials').open,'serials collapsed');
+  document.querySelector('.od2-serials summary').click();
+  check(document.querySelector('.od2-serials').open,'serial disclosure works');
+  document.querySelector('[data-od2-tab="payment"]').click();
+  check(document.querySelector('[data-od2-panel="payment"]').textContent.includes('1234567890123456'),'cheque fields');
+  const imageButton=document.querySelector('[data-od2-image]');
+  imageButton.focus();imageButton.click();
+  check(!!$('od2ImageDialog'),'image opens');
+  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  check(!$('od2ImageDialog')&&document.activeElement===imageButton,'image escape and focus return');
+  const tab=document.querySelector('[data-od2-tab="payment"]');tab.focus();
+  tab.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));
+  check(gpOdCurrent==='shipping','RTL keyboard tabs');
+  closeOrderDetails();check(document.activeElement===$('opener'),'drawer focus return');
+  role='prep';openOrderDetails(1,'payment');
+  check(!document.querySelector('[data-od2-image]'),'non finance image hidden');
+  check(!document.querySelector('[data-od2-panel="payment"]').textContent.includes('1234567890123456'),'non finance details hidden');
+  closeOrderDetails();role='finance';
+  const saved=ORD[0].settlement_details;ORD[0].settlement_details={};
+  openOrderDetails(1,'payment');
+  check(document.querySelector('[data-od2-panel="payment"]').textContent.includes('تصویری در اطلاعات پرداخت'),'empty evidence state');
+  closeOrderDetails();ORD[0].settlement_details=saved;
+  check(JSON.stringify(ORD)===before,'read only order data');
+  openOrderDetails(1,'payment');
+  const drawer=document.querySelector('.od2-drawer');
+  check(drawer.getBoundingClientRect().right<=innerWidth+1&&drawer.getBoundingClientRect().left>=-1,'drawer in viewport');
+  check(document.documentElement.scrollWidth<=innerWidth+1,'no page overflow');
+  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  check($('orderDetailOverlay').classList.contains('hidden'),'escape closes drawer');
+  $('result').textContent='ORDER_DETAILS_V2_PASS';
+ }
+}catch(e){$('result').textContent='ORDER_DETAILS_V2_FAIL: '+e.message;console.error(e);}
+</script></body></html>
