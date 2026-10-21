@@ -94,7 +94,7 @@ function gp_preswitch_carton_integrity(array $s, string $code): array {
         }
         $matches = 0;
         foreach ($o['items'] ?? [] as $it) {
-            $serials = array_map('gp_integrity_key', $it['serials'] ?? []);
+            $serials = array_map(static function($v) { return gp_integrity_key($v); }, $it['serials'] ?? []);
             if (!in_array($sn, $serials, true)) continue;
             if (gp_integrity_product($it['product'] ?? '') !== $product || count($serials) > (int)($it['qty'] ?? 0) || count(array_unique($serials)) !== count($serials)) {
                 $report['kind'] = 'allocation_item_mismatch'; return $report;
@@ -118,7 +118,7 @@ function gp_preswitch_carton_integrity(array $s, string $code): array {
         }
     }
     if (array_key_exists('serials', $carton)) {
-        $expected = array_map('gp_integrity_key', $carton['serials']);
+        $expected = array_map(static function($v) { return gp_integrity_key($v); }, $carton['serials']);
         sort($expected); sort($rowSerials);
         if ($expected !== $rowSerials) { $report['kind'] = 'carton_serial_mismatch'; return $report; }
     }
