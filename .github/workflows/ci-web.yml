@@ -987,6 +987,9 @@ jobs:
           sudo apt-get install -y -qq php-cli
           php -l lib/protected-cartons.php
           php tests/protected-carton-ops.php
+          php -l lib/preswitch-carton-integrity.php
+          php tests/preswitch-carton-integrity.php
+          python3 -m py_compile scripts/inline-preswitch-integrity.py
           # Deploy workflow must keep the guard and use the shared classifier (no bypass).
           grep -Fq 'protected_carton_state_mismatch' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'scripts/preswitch_safety.py' .github/workflows/deploy-final-v53438.yml

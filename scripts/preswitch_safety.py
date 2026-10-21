@@ -65,7 +65,9 @@ def format_mismatch_reason(payload: dict) -> str:
         expected = payload.get("expected", 20)
         parts.append(
             f"expected={expected}:actual={actual if actual is not None else '?'}"
-            f":free={payload.get('free', '?')}:reserved={payload.get('reserved', '?')}"
+            f":free={payload.get('free', '?')}:"
+            + (f"allocated={payload['allocated']}" if payload.get('allocated') is not None
+               else f"reserved={payload.get('reserved', '?')}")
         )
     return ":".join(parts)
 
@@ -73,7 +75,9 @@ def format_mismatch_reason(payload: dict) -> str:
 def classify_failure(payload: dict | None, http_status: str) -> str:
     if not isinstance(payload, dict):
         return f"unreadable response, HTTP {http_status}"
-    if payload.get("ok"):
+    if payload.get("ok") is True:
+        if str(http_status) != "200":
+            return "unexpected_http_status"
         counts = payload.get("counts") or {}
         inv = int(counts.get("inventory") or 0)
         cartons = int(counts.get("cartons") or 0)
@@ -136,7 +140,7 @@ def inspect_protected_carton(state: dict, code: str) -> dict:
         row
         for row in state.get("inventory") or []
         if (cid > 0 and int(row.get("carton_id") or 0) == cid)
-        or str(row.get("carton_code") or "") == code
+        or str(row.get("carton_code") or "").strip().upper() == code
     ]
     free = sum(1 for row in rows if int(row.get("order_id") or 0) == 0)
     reserved = len(rows) - free
@@ -159,6 +163,8 @@ def inspect_protected_carton(state: dict, code: str) -> dict:
         kind = "count_and_allocated"
     elif len(rows) != 20:
         kind = "count_mismatch"
+    elif invalid > 0:
+        kind = "invalid_links"
     elif reserved > 0:
         kind = "allocated"
     elif detached > 0:
@@ -296,6 +302,13 @@ def self_test() -> None:
     )
     assert classify_failure({"ok": False, "error": "backup failed"}, "500") == "state_backup_failed"
     assert classify_failure(None, "000") == "unreadable response, HTTP 000"
+    valid_counts = {"inventory": MIN_INVENTORY, "cartons": MIN_CARTONS}
+    for status in ("500", "403", "302", "000"):
+        assert classify_failure({"ok": True, "counts": valid_counts}, status) == "unexpected_http_status"
+    assert classify_failure({"ok": "false", "counts": valid_counts}, "200") != "ok"
+    healthy_links = json.loads(ok.read_text(encoding="utf-8"))
+    healthy_links['inventory'][0]['carton_code'] = 'I90-098'
+    assert inspect_protected_carton(healthy_links, 'I90-097')['kind'] == 'invalid_links'
     assert (
         classify_failure(
             {"ok": True, "counts": {"inventory": MIN_INVENTORY, "cartons": MIN_CARTONS}},

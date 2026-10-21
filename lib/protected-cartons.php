@@ -98,6 +98,8 @@ function ghadir_protected_carton_inspect(array $s, string $code): array {
         $kind = 'count_and_allocated';
     } elseif ($actual !== $expected) {
         $kind = 'count_mismatch';
+    } elseif ($invalid > 0) {
+        $kind = 'invalid_links';
     } elseif ($reserved > 0) {
         $kind = 'allocated';
     } elseif ($detached > 0) {
