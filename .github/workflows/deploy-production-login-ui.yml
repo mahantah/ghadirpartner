@@ -1,0 +1,48 @@
+name: Production login-only guarded release
+
+on:
+  push:
+    branches: [prep/production-login-ui-20261022]
+    paths:
+      - '.github/workflows/deploy-production-login-ui.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment helper syntax before touching production
+        run: python3 -m py_compile production-login-kit/deploy_login.py
+      - name: Install secure FTP client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Download and validate live production file; build login-only patch
+        run: python3 production-login-kit/deploy_login.py prepare
+      - name: Encrypt old production HTML for safe rollback backup
+        run: |
+          set -euo pipefail
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in /tmp/ghadir-production-login/original-app.html -out /tmp/ghadir-production-login/production-app-before-login.enc -pass env:FTP_PASSWORD
+          test -s /tmp/ghadir-production-login/production-app-before-login.enc
+      - name: Retain encrypted live file for rollback
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-production-login-backup-20261022
+          path: /tmp/ghadir-production-login/production-app-before-login.enc
+          if-no-files-found: error
+          retention-days: 30
+      - name: Transfer only login UI; verify each file; rollback app on error
+        run: python3 production-login-kit/deploy_login.py publish
