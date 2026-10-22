@@ -1,0 +1,99 @@
+/* Ghadir Partner staging / Uiverse-inspired floating form V5. Replaces previous stylesheet in full.
+   Presentation only. Never alters authentication, API, DB or server credentials. */
+@font-face{font-family:GhadirIranSans;src:url('/assets/fonts/IRANSansWeb.woff2') format('woff2');font-display:swap;font-weight:100 900}
+@font-face{font-family:GhadirVazir;src:url('/assets/ghadir-ui/Vazirmatn.woff2') format('woff2');font-display:swap}
+#login.stg-fullscreen-login,#login.stg-fullscreen-login *{box-sizing:border-box!important;font-family:GhadirIranSans,IRANSans,IRANSansWeb,GhadirVazir,Tahoma,sans-serif!important}
+#login.stg-fullscreen-login{direction:rtl;position:fixed!important;inset:0!important;z-index:9999!important;max-width:none!important;width:100%!important;min-height:100svh!important;height:100dvh!important;margin:0!important;padding:clamp(18px,4vw,66px) clamp(18px,5vw,90px)!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;overflow-x:hidden!important;overflow-y:auto!important;background:#102338!important;color:#fff!important;isolation:isolate}
+#login.stg-fullscreen-login.hidden{display:none!important}
+#login.stg-fullscreen-login .stg-stage-photo{position:fixed;inset:0;pointer-events:none;z-index:-2;background:#132d47 url('./staging-lobby-login-v5.webp') center center/cover no-repeat!important}
+#login.stg-fullscreen-login:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(270deg,#0315289e 0%,#07172b69 26%,#07172b10 63%,transparent 100%)}
+#login.stg-fullscreen-login .stg-staging-tag{position:fixed;right:clamp(18px,5vw,90px);top:14px;z-index:2;display:inline-flex;align-items:center;gap:7px;padding:6px 13px;font-size:10px;font-weight:700;color:#e4edfa;background:#11263b99;border:1px solid #ffffff57;border-radius:999px;backdrop-filter:blur(12px)}
+#login.stg-fullscreen-login .stg-status-dot{width:8px;height:8px;border-radius:50%;background:#ff932e;box-shadow:0 0 0 3px #ff932e33}
+#login.stg-fullscreen-login .stg-stage-caption{position:fixed;left:clamp(20px,4vw,70px);bottom:20px;max-width:min(450px,35vw);display:flex;align-items:center;flex-direction:row-reverse;gap:10px;padding:10px 16px;color:#fff;font-size:11px;background:#061b2c77;backdrop-filter:blur(8px);border:1px solid #ffffff2b;border-radius:12px}
+#login.stg-fullscreen-login .stg-caption-line{width:30px;height:3px;border-radius:2px;flex:none;background:#ff8e2b}
+#login.stg-fullscreen-login .automation-login-card{display:block!important;position:relative!important;isolation:isolate;z-index:1!important;flex:0 1 456px!important;width:min(456px,100%)!important;max-width:456px!important;min-width:0!important;min-height:0!important;max-height:none!important;margin:20px 0!important;padding:clamp(20px,2.4vw,30px)!important;border:1px solid #ffffff66!important;border-radius:28px!important;overflow:visible!important;background:linear-gradient(160deg,#162e4ebc,#0c1e35c9 65%,#12233bd0)!important;color:#fff!important;backdrop-filter:blur(27px) saturate(130%);-webkit-backdrop-filter:blur(27px) saturate(130%);box-shadow:0 28px 80px #010c21a6, inset 0 1px 0 #ffffff34!important;animation:gpCardEnter .65s cubic-bezier(.2,.8,.2,1) both}
+#login.stg-fullscreen-login .automation-login-card::before,#login.stg-fullscreen-login .automation-login-card::after{display:none!important}
+#login.stg-fullscreen-login .automation-login-inner{position:relative;z-index:1;min-width:0!important;width:100%!important}
+#login.stg-fullscreen-login .automation-login-brand{display:flex!important;gap:11px!important;align-items:center!important;justify-content:flex-start!important;margin:0 0 11px!important;text-align:right!important}
+#login.stg-fullscreen-login .automation-login-brand img{width:60px!important;height:60px!important;object-fit:contain!important;border-radius:18px!important;flex:none!important;background:transparent!important;padding:0!important;border:0!important;box-shadow:0 6px 22px #091c3499!important}
+#login.stg-fullscreen-login .stg-brand-label{min-width:0;display:grid;gap:2px}
+#login.stg-fullscreen-login .stg-brand-label b{font-size:20px!important;font-weight:900!important;color:#fff!important;line-height:1.3!important}
+#login.stg-fullscreen-login .stg-brand-label small{font-family:Arial,sans-serif!important;font-size:9px!important;font-weight:700!important;letter-spacing:1.9px!important;direction:ltr;text-align:right;color:#bacadb!important}
+#login.stg-fullscreen-login .stg-card-section-line{height:1px;margin:9px 0 12px!important;background:linear-gradient(90deg,transparent,#ffffff45,transparent)!important}
+#login.stg-fullscreen-login .auth-pill{display:none!important}
+#login.stg-fullscreen-login .gp-auth-container,#login.stg-fullscreen-login .gp-slider{width:100%;min-width:0}
+#login.stg-fullscreen-login .gp-tab-rail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;border-radius:15px;padding:4px;background:#081c33a6;border:1px solid #ffffff29;margin-bottom:20px}
+#login.stg-fullscreen-login .gp-tab{width:100%;min-width:0;border:0!important;border-radius:11px!important;font-size:12px!important;font-weight:750!important;min-height:39px;display:flex;align-items:center;justify-content:center;padding:7px 10px!important;color:#bfcede!important;background:transparent!important;box-shadow:none!important;transform:none!important;transition:color .2s,background .25s,box-shadow .25s!important}
+#login.stg-fullscreen-login .gp-tab-login{color:#fff!important;background:linear-gradient(110deg,#fd9326,#f87917)!important;box-shadow:0 6px 15px #ff811f35!important}
+#login.stg-fullscreen-login:has(#staffLoginForm.hidden) .gp-tab-login{background:transparent!important;color:#b9cce0!important;box-shadow:none!important}
+#login.stg-fullscreen-login:has(#staffLoginForm.hidden) .gp-tab-reset{color:#fff!important;background:linear-gradient(110deg,#fd9326,#f87917)!important;box-shadow:0 6px 15px #ff811f35!important}
+#login.stg-fullscreen-login .gp-slider{position:relative;overflow:hidden!important;border-radius:0!important}
+#login.stg-fullscreen-login .gp-form{display:flex!important;flex-direction:column!important;gap:0!important;position:relative!important;inset:auto!important;transform:none!important;min-height:auto!important;max-width:100%!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;box-shadow:none!important;animation:gpSwitch .32s ease-out both}
+#login.stg-fullscreen-login .gp-form.hidden{display:none!important}
+#login.stg-fullscreen-login .gp-title{display:block;margin:0 0 5px;font-weight:900;font-size:30px;line-height:1.45;letter-spacing:-.45px;color:#fff}
+#login.stg-fullscreen-login .stg-head-accent{color:#ffa047!important}
+#login.stg-fullscreen-login .gp-intro{color:#dce7f1!important;font-size:11px!important;line-height:1.95!important;margin:0 0 17px!important;text-align:right!important}
+#login.stg-fullscreen-login .gp-control{position:relative;min-width:0;width:100%;margin:0 0 15px;padding:0!important;line-height:normal}
+#login.stg-fullscreen-login .gp-input{position:relative;width:100%!important;min-width:0!important;max-width:100%!important;height:59px!important;display:block!important;border-radius:14px!important;margin:0!important;padding:21px 42px 9px 48px!important;border:1px solid #b8cce777!important;background:#f8fbff13!important;color:#fff!important;font-weight:600!important;font-size:13px!important;outline:0!important;text-align:right!important;box-shadow:inset 0 1px 0 #ffffff10!important;transition:border-color .2s,background .2s,box-shadow .2s!important}
+#login.stg-fullscreen-login .gp-input:focus{border-color:#ffab66!important;background:#f4f8ff25!important;box-shadow:0 0 0 3px #ff963022!important}
+#login.stg-fullscreen-login .gp-input::placeholder{color:transparent!important}
+#login.stg-fullscreen-login .gp-label{position:absolute;right:42px;top:50%;transform:translateY(-50%);margin:0;color:#d5e1ef;pointer-events:none;font-size:12px;line-height:1.25;transition:top .18s,font-size .18s,color .18s,transform .18s;z-index:2;text-align:right}
+#login.stg-fullscreen-login .gp-input:focus~.gp-label,#login.stg-fullscreen-login .gp-input:not(:placeholder-shown)~.gp-label{top:9px;transform:none;font-size:9px;color:#ffbb7d}
+#login.stg-fullscreen-login .gp-field-icon{position:absolute;right:13px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:22px;height:22px;pointer-events:none;color:#bcd5ef;transition:color .2s}
+#login.stg-fullscreen-login .gp-pass-toggle{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:37px;min-width:37px;height:37px;padding:0!important;border:1px solid #ffffff30!important;border-radius:11px!important;display:grid;place-items:center;background:#ffffff16!important;color:#e8f0f8!important;box-shadow:none!important;line-height:1!important}
+#login.stg-fullscreen-login .gp-pass-toggle:hover{background:#ffffff29!important;transform:translateY(-50%)!important}
+#login.stg-fullscreen-login .gp-mini-icon{width:20px;height:20px;display:block;flex:none;stroke:currentColor;fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+#login.stg-fullscreen-login .gp-field-icon .gp-mini-icon{width:19px;height:19px}
+#login.stg-fullscreen-login .gp-arrow .gp-mini-icon{width:20px;height:20px}
+#login.stg-fullscreen-login .stg-lock-icon .gp-mini-icon{width:14px;height:14px}
+#login.stg-fullscreen-login .gp-switch .gp-mini-icon{width:15px;height:15px;display:inline-block;vertical-align:middle;margin-left:4px}
+#login.stg-fullscreen-login .gp-pass-toggle .gp-eye-off{display:none}
+#login.stg-fullscreen-login .gp-pass-toggle[aria-pressed='true'] .gp-eye-open{display:none}
+#login.stg-fullscreen-login .gp-pass-toggle[aria-pressed='true'] .gp-eye-off{display:block}
+#login.stg-fullscreen-login .gp-control:focus-within .gp-field-icon{color:#ffb57f}
+#login.stg-fullscreen-login .gp-forgot-row{display:flex;justify-content:flex-start;margin:-2px 0 14px}
+#login.stg-fullscreen-login .gp-forgot,#login.stg-fullscreen-login .gp-switch{border:0!important;padding:2px!important;background:transparent!important;box-shadow:none!important;color:#ffb87d!important;font-size:11px!important;white-space:normal!important;text-decoration:none;transform:none!important}
+#login.stg-fullscreen-login .gp-forgot:hover,#login.stg-fullscreen-login .gp-switch:hover{text-decoration:underline;color:#fff!important;transform:none!important}
+#login.stg-fullscreen-login .gp-submit{position:relative!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:10px;width:100%!important;min-height:55px;border:1px solid #ffbf88!important;border-radius:13px!important;margin:0!important;padding:12px 50px 12px 15px!important;background:linear-gradient(110deg,#ff9d35,#ff7717 72%,#f36517)!important;color:#fff!important;font-size:16px!important;font-weight:900!important;box-shadow:0 13px 30px #f6752166!important;isolation:isolate;overflow:hidden!important;transition:transform .2s,box-shadow .2s,filter .2s!important}
+#login.stg-fullscreen-login .gp-submit::before{content:"";position:absolute;inset:-50% auto -50% -45%;width:30%;transform:rotate(18deg);z-index:-1;background:linear-gradient(90deg,transparent,#ffffff4e,transparent);animation:gpShine 4.4s infinite}
+#login.stg-fullscreen-login .gp-submit:hover{transform:translateY(-2px)!important;box-shadow:0 17px 35px #fa75249c!important;filter:brightness(1.04)}
+#login.stg-fullscreen-login .gp-submit:active{transform:scale(.99)!important}
+#login.stg-fullscreen-login .gp-arrow{position:absolute;left:9px;top:50%;transform:translateY(-50%);height:35px;width:35px;display:grid;place-items:center;background:#ffffff26;border:1px solid #ffffff7a;border-radius:11px}
+#login.stg-fullscreen-login .gp-message{color:#ffd5c9!important;min-height:15px;font-size:11px;text-align:center;margin:8px 0 0}
+#login.stg-fullscreen-login .gp-bottom{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;color:#c6d5e5;font-size:10px;line-height:1.9;padding:15px 5px 0;text-align:center;border-top:1px solid #ffffff24;margin-top:11px}
+#login.stg-fullscreen-login .gp-otp-fields{margin:11px 0 0}
+#login.stg-fullscreen-login .gp-otp-fields.hidden{display:none!important}
+#login.stg-fullscreen-login .gp-reset-send{margin-top:2px!important}
+#login.stg-fullscreen-login .gp-reset-form .staff-reset-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 0}
+#login.stg-fullscreen-login .staff-reset-actions button{display:block;min-width:0!important;width:100%!important;min-height:35px!important;border:1px solid #ffffff33!important;background:#ffffff0b!important;color:#e8f2fb!important;border-radius:10px!important;padding:6px!important;font-size:10px!important;box-shadow:none!important}
+#login.stg-fullscreen-login .stg-panel-footer{display:flex;align-items:center;justify-content:center;gap:8px;color:#aac2d7;font-size:9px;line-height:1.6;border-top:1px solid #ffffff1e;padding-top:10px;margin-top:13px;text-align:center}
+#login.stg-fullscreen-login .stg-lock-icon{display:inline-flex;align-items:center;justify-content:center;color:#ffb079}
+#login.stg-fullscreen-login button:focus-visible,#login.stg-fullscreen-login input:focus-visible{outline:2px solid #ffb473!important;outline-offset:3px!important}
+@keyframes gpSwitch{from{opacity:.3;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+@keyframes gpCardEnter{from{opacity:0;transform:translateY(18px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes gpShine{0%,38%{left:-45%}62%,100%{left:130%}}
+@media(min-width:1450px){#login.stg-fullscreen-login .automation-login-card{flex-basis:490px!important;max-width:490px!important}}
+@media(max-width:1000px){#login.stg-fullscreen-login{justify-content:center!important;padding:55px 18px 25px!important}#login.stg-fullscreen-login .stg-stage-photo{background-position:40% center!important}#login.stg-fullscreen-login .stg-stage-caption{display:none!important}}
+@media(max-width:680px){
+ #login.stg-fullscreen-login{align-items:flex-start!important;justify-content:center!important;min-height:100svh!important;height:100dvh!important;padding:65px 13px 19px!important;overscroll-behavior:contain!important;overflow-x:hidden!important}
+ #login.stg-fullscreen-login .stg-stage-photo{background-position:45% center!important}
+ #login.stg-fullscreen-login:before{background:#061b30a6!important}
+ #login.stg-fullscreen-login .stg-staging-tag{top:11px!important;right:50%!important;transform:translateX(50%);white-space:nowrap;font-size:10px!important}
+ #login.stg-fullscreen-login .automation-login-card{flex:0 0 auto!important;width:min(100%,430px)!important;max-width:430px!important;margin:0 auto!important;padding:20px 16px!important;border-radius:23px!important;overflow:hidden!important;backdrop-filter:blur(18px)!important}
+ #login.stg-fullscreen-login .automation-login-brand{justify-content:center!important}
+ #login.stg-fullscreen-login .automation-login-brand img{width:54px!important;height:54px!important}
+ #login.stg-fullscreen-login .stg-brand-label b{font-size:18px!important}
+ #login.stg-fullscreen-login .gp-tab-rail{margin-bottom:14px}
+ #login.stg-fullscreen-login .gp-title{font-size:26px}
+ #login.stg-fullscreen-login .gp-intro{font-size:10px!important;margin-bottom:14px!important}
+ #login.stg-fullscreen-login .gp-control{margin-bottom:12px}
+ #login.stg-fullscreen-login .gp-input{height:53px!important;min-width:0!important;padding:20px 38px 7px 41px!important;font-size:12px!important}
+ #login.stg-fullscreen-login .gp-label{right:38px}
+ #login.stg-fullscreen-login .gp-field-icon{right:12px;width:20px;height:20px}
+ #login.stg-fullscreen-login .gp-pass-toggle{left:7px;width:32px;min-width:32px;height:32px}
+ #login.stg-fullscreen-login .gp-submit{min-height:50px;font-size:14px!important}
+ #login.stg-fullscreen-login .gp-arrow{width:30px;height:30px}
+ #login.stg-fullscreen-login .gp-bottom{font-size:10px;margin-top:10px;padding-top:10px}
+}
+@media(max-height:720px) and (min-width:681px){#login.stg-fullscreen-login .automation-login-card{padding:18px 23px!important;margin:14px 0!important}#login.stg-fullscreen-login .gp-tab-rail{margin-bottom:10px}#login.stg-fullscreen-login .gp-intro{margin-bottom:9px!important}#login.stg-fullscreen-login .gp-control{margin-bottom:9px}#login.stg-fullscreen-login .gp-input{height:48px!important}#login.stg-fullscreen-login .gp-forgot-row{margin:0 0 8px}}
+@media(prefers-reduced-motion:reduce){#login.stg-fullscreen-login *{animation:none!important;transition:none!important}}
