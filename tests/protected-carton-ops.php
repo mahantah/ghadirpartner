@@ -47,6 +47,11 @@ unset($iv);
 $rep = ghadir_protected_carton_inspect($alloc, 'I90-110');
 gp_assert($rep['kind'] === 'allocated' && (int)$rep['reserved'] === 1 && (int)$rep['free'] === 19, 'allocated');
 
+$links = $ok;
+$links['inventory'][0]['carton_code'] = 'I90-098';
+$rep = ghadir_protected_carton_inspect($links, 'I90-097');
+gp_assert($rep['ok'] === false && $rep['kind'] === 'invalid_links', 'contradictory carton links must block even with 20 free rows');
+
 try {
     ghadir_protected_refuse_if_code($ok, 'I90-097', 'allocate');
     throw new RuntimeException('allocate of protected carton should fail');

@@ -13,6 +13,10 @@ spec.loader.exec_module(safety)
 workflow = (ROOT/'.github/workflows/deploy-final-v53438.yml').read_text()
 start = '          cat > "/tmp/$FILE" <<\'PHP\'\n'
 probe = textwrap.dedent(workflow.split(start,1)[1].split('\n          PHP\n',1)[0])
+inline_spec = importlib.util.spec_from_file_location('inline_integrity', ROOT/'scripts/inline-preswitch-integrity.py')
+inline = importlib.util.module_from_spec(inline_spec)
+inline_spec.loader.exec_module(inline)
+probe = inline.inline_probe(probe)
 # Supplying the token is isolated to this test PHP process.
 probe = probe.replace("header('Content-Type: application/json; charset=utf-8');", "$_GET['token']='fixture-token';\nheader('Content-Type: application/json; charset=utf-8');",1)
 probe = probe.replace('__TOKEN__','fixture-token')
@@ -65,12 +69,20 @@ class Result { function fetch(){return ['revision'=>1,'state_json'=>file_get_con
 '''
 state = {'cartons':[], 'inventory':[], 'orders':[]}
 for i, code in enumerate(safety.PROTECTED_CARTONS,1):
-    state['cartons'].append({'id':i,'code':code})
-    state['inventory'].extend({'carton_id':i,'order_id':0} for _ in range(20))
+    state['cartons'].append({'id':i,'code':code,'product':'I90'})
+    state['inventory'].extend({'carton_id':i,'carton_code':code,'order_id':0,
+        'serial':f'MOCK-{i}-{n}','product':'I90','warehouse_id':1} for n in range(20))
 state['cartons'].extend({'id':1000+i,'code':'fixture-'+str(i)} for i in range(safety.MIN_CARTONS-len(state['cartons'])))
 state['inventory'].extend({'carton_id':0,'order_id':0} for _ in range(safety.MIN_INVENTORY-len(state['inventory'])))
 run("<?php return ['mysql'=>[]];",'ok',prefix=prefix,state=state)
 state['inventory'][0]['order_id']=99
 payload = run("<?php return ['mysql'=>[]];",'protected_carton_state_mismatch','protected_counts',prefix=prefix,state=state)
 assert payload['actual']==20 and payload['free']==19 and payload['reserved']==1
-print('PASS: 10 generated-probe scenarios; configuration/fatal/memory/early-exit failures redacted and blocked; valid backup and protected-carton guard retained')
+assert payload['kind']=='invalid_allocation_order' and payload['allocated']==1
+# A complete, valid customer allocation must pass unchanged; it is not a free-stock error.
+serials=[r['serial'] for r in state['inventory'][:20]]
+for row in state['inventory'][:20]:row['order_id']=99
+state['orders']=[{'id':99,'number':'SAMPLE-ORDER','status':'در حال آماده سازی',
+    'items':[{'product':'I90','qty':20,'serials':serials}]}]
+run("<?php return ['mysql'=>[]];",'ok',prefix=prefix,state=state)
+print('PASS: 11 generated-probe scenarios; failures redacted and blocked; valid allocation preserved and invalid allocation rejected')
