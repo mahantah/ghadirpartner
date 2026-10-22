@@ -591,7 +591,7 @@ button{color:#fff!important}
 </style>
 <link rel="stylesheet" href="/assets/business-v53437.css?v=53437"><link rel="stylesheet" href="/assets/ops-v53434.css?v=53434">
 <link rel="stylesheet" href="/assets/warehouse-v53438.css?v=53438wh1">
-<link rel="stylesheet" href="/assets/staging-login-fullscreen-v2.css?v=6">
+<link rel="stylesheet" href="/assets/staging-login-fullscreen-v2.css?v=7">
 </head><body>
 <div id="login" class="automation-login stg-fullscreen-login">
   <div class="stg-stage-photo" aria-hidden="true"></div>
@@ -621,18 +621,18 @@ button{color:#fff!important}
       <div class="gp-control form_control">
         <input id="lu" name="username" class="gp-input input" type="text" placeholder=" " autocomplete="username" dir="rtl" required aria-label="نام کاربری">
         <label class="gp-label label" for="lu">نام کاربری</label>
-        <span class="gp-field-icon" aria-hidden="true">♙</span>
+        <span class="gp-field-icon" aria-hidden="true"><svg class="gp-mini-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg></span>
       </div>
       <div class="gp-control form_control">
         <input id="lp" name="password" class="gp-input input" type="password" placeholder=" " autocomplete="current-password" required aria-label="رمز عبور">
         <label class="gp-label label" for="lp">رمز عبور</label>
-        <span class="gp-field-icon" aria-hidden="true">♧</span>
-        <button type="button" id="stg-password-toggle" class="gp-pass-toggle stg-password-toggle" aria-label="نمایش رمز عبور" aria-pressed="false" title="نمایش رمز عبور">◉</button>
+        <span class="gp-field-icon" aria-hidden="true"><svg class="gp-mini-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v3"/></svg></span>
+        <button type="button" id="stg-password-toggle" class="gp-pass-toggle stg-password-toggle" aria-label="نمایش رمز عبور" aria-pressed="false" title="نمایش رمز عبور"><svg class="gp-mini-icon gp-eye-open" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="gp-mini-icon gp-eye-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.1A11.3 11.3 0 0 1 12 6c6.4 0 10 6 10 6a15 15 0 0 1-3 3.6"/><path d="M7.1 7.1C3.9 9 2 12 2 12s3.6 6 10 6c1 0 1.9-.1 2.8-.4"/><path d="M10 10a3 3 0 0 0 4 4"/></svg></button>
       </div>
       <div class="gp-forgot-row"><button type="button" class="gp-forgot stg-inline-reset" onclick="toggleStaffReset(true)">رمزتان را فراموش کرده‌اید؟</button></div>
-      <button id="loginbtn" class="gp-submit stg-animated-login" type="button"><span>ورود به سامانه</span><span class="gp-arrow" aria-hidden="true">←</span></button>
+      <button id="loginbtn" class="gp-submit stg-animated-login" type="button"><span>ورود به سامانه</span><span class="gp-arrow" aria-hidden="true"><svg class="gp-mini-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></span></button>
       <div id="lmsg" class="gp-message msg" role="alert" aria-live="polite"></div>
-      <div class="gp-bottom bottom_text">برای بازیابی دسترسی، <button type="button" class="gp-switch swtich" onclick="toggleStaffReset(true)">از پیامک استفاده کنید</button>.</div>
+      <div class="gp-bottom bottom_text">برای بازیابی دسترسی، <button type="button" class="gp-switch swtich" onclick="toggleStaffReset(true)"><svg class="gp-mini-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg> از پیامک استفاده کنید</button>.</div>
     </form>
     <form id="staffResetForm" class="gp-form form gp-reset-form staff-reset-panel hidden" onsubmit="event.preventDefault();requestStaffOtp()" novalidate>
       <span class="gp-title title">بازیابی رمز<span class="stg-head-accent">.</span></span>
@@ -640,9 +640,9 @@ button{color:#fff!important}
       <div class="gp-control form_control">
         <input id="sri" class="gp-input input" type="text" placeholder=" " autocomplete="username" aria-label="نام کاربری یا شماره موبایل">
         <label class="gp-label label" for="sri">نام کاربری یا شماره موبایل</label>
-        <span class="gp-field-icon" aria-hidden="true">♙</span>
+        <span class="gp-field-icon" aria-hidden="true"><svg class="gp-mini-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg></span>
       </div>
-      <button id="staffOtpBtn" class="gp-submit gp-reset-send" type="button" onclick="requestStaffOtp()">دریافت کد یکبارمصرف <span class="gp-arrow" aria-hidden="true">←</span></button>
+      <button id="staffOtpBtn" class="gp-submit gp-reset-send" type="button" onclick="requestStaffOtp()">دریافت کد یکبارمصرف <span class="gp-arrow" aria-hidden="true"><svg class="gp-mini-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></span></button>
       <div id="staffOtpFields" class="gp-otp-fields hidden">
         <div class="gp-control form_control"><input id="sro" class="gp-input input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder=" " aria-label="کد شش رقمی"><label class="gp-label label" for="sro">کد ۶ رقمی</label></div>
         <div class="gp-control form_control"><input id="srp" class="gp-input input" type="password" autocomplete="new-password" placeholder=" " aria-label="رمز جدید"><label class="gp-label label" for="srp">رمز جدید حداقل ۸ کاراکتر</label></div>
@@ -654,7 +654,7 @@ button{color:#fff!important}
     </form>
   </div>
 </div>
-<div class="stg-panel-footer"><span class="stg-lock-icon">⌁</span> ورود ایمن به پنل قدیر پارتنر</div>
+<div class="stg-panel-footer"><span class="stg-lock-icon" aria-hidden="true"><svg class="gp-mini-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span> ورود ایمن به پنل قدیر پارتنر</div>
     </div>
   </div>
 </div>
@@ -2172,4 +2172,4 @@ window.printWarehouseLabelsBatch = function(){
 <!-- PERFORMANCE_BOOTSTRAP_V1_20261014 -->
 <!-- WAREHOUSE_PURCHASE_SUPPLIER_UI_V9_20261015 -->
 <!-- SUPPLIER_CANONICAL_UI_V8_20261016 -->
-<script src="/assets/staging-login-fullscreen-v2.js?v=1" defer></script></body></html>
+<script src="/assets/staging-login-fullscreen-v2.js?v=2" defer></script></body></html>
