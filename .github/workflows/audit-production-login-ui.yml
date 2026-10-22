@@ -1,0 +1,75 @@
+name: Audit live login before controlled UI transfer
+
+on:
+  push:
+    branches: [prep/production-login-ui-20261022]
+    paths:
+      - '.github/workflows/audit-production-login-ui.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit-login-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: production
+    steps:
+      - name: Install FTPS client
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Download production app for read-only compatibility audit
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$FTP_SERVER"
+          test -n "$FTP_PASSWORD"
+          if [[ "${FTP_USERNAME,,}" != "deploy@ghadirpartner.ir" ]]; then
+            echo "STOP: production transfer FTP identity not confirmed" >&2
+            exit 1
+          fi
+          mkdir -p /tmp/ghadir-login-audit
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          set net:max-retries 1
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/ghadir-login-audit/live-app.html
+          bye
+          EOF
+          test -s /tmp/ghadir-login-audit/live-app.html
+      - name: Print nonsecret compatibility summary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, hashlib, json
+          raw = Path('/tmp/ghadir-login-audit/live-app.html').read_bytes()
+          data = raw.decode('utf-8')
+          required_ids = ['login','app','lu','lp','loginbtn','lmsg']
+          optional_reset_ids = ['staffLoginForm','staffResetForm','sri','sro','srp','staffOtpBtn','staffOtpFields']
+          functions = ['toggleStaffReset','requestStaffOtp','confirmStaffReset']
+          tag = re.compile(r'<(?:div|form)\b[^>]*\bid=["\'](login|app)["\']',re.I)
+          tags = [m.group(1) for m in tag.finditer(data)]
+          counts = {name:len(re.findall(r'\bid=["\']'+re.escape(name)+r'["\']',data)) for name in required_ids + optional_reset_ids}
+          funcs = {name: bool(re.search(r'\b(?:function\s+'+name+r'\b|(?:window\.)?'+name+r'\s*=)',data)) for name in functions}
+          summary = {
+            'sha256':hashlib.sha256(raw).hexdigest(),
+            'bytes':len(raw),
+            'top_level_tags':tags,
+            'id_counts':counts,
+            'reset_handlers_available':funcs,
+            'existing_login_style_class': (re.search(r'<div\s+id="login"[^>]*',data) or ['not-found'])[0][:120],
+            'production_content_modified':False,
+          }
+          print(json.dumps(summary, ensure_ascii=False, indent=2))
+          if len(raw)<30000 or any(counts[k]!=1 for k in required_ids) or tags[:2]!=['login','app']:
+            raise SystemExit('STOP: live application structure cannot be safely patched')
+          PY
