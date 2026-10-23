@@ -1,0 +1,60 @@
+name: Audit live sidebar before visual-only release
+on:
+  push:
+    branches: [prep/production-sidebar-20261023]
+    paths: ['.github/workflows/audit-production-sidebar.yml']
+permissions:
+  contents: read
+jobs:
+  read-only-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - name: Install secure FTPS client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Read only production UI file
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${FTP_USERNAME,,}" == "deploy@ghadirpartner.ir" ]] || exit 1
+          test -n "$FTP_SERVER"; test -n "$FTP_PASSWORD"
+          lftp <<EOF
+          set cmd:fail-exit true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate true
+          set net:max-retries 2
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/live-ghadir-app.html
+          bye
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          p=Path('/tmp/live-ghadir-app.html')
+          html=p.read_bytes().decode('utf-8')
+          checks={
+            'app_exists':html.count('id="app"')==1,
+            'sidebar':html.count("let mainNav=document.querySelector('.topnav')")==1,
+            'original_mobile_toggle':html.count("navToggle.className='nav-toggle'")==1,
+            'original_desktop_collapse':html.count("desktopCollapse.id='desktopSidebarCollapse'")==1,
+            'original_desktop_open':html.count("desktopOpen.id='desktopSidebarOpen'")==1,
+            'obsolete_cross':html.count('class="sidebar-close" type="button"')==1,
+            'footer_userbox':html.count('class="userbox"')==1,
+            'change_password_action':html.count('id="changePasswordBtn"')==1,
+            'logout_action':html.count('id="logoutbtn"')==1,
+            'mobile_userbox_relocation':'function syncUserbox()' in html,
+            'old_handlers_present':"$('logoutbtn').onclick=doLogout" in html and "$('changePasswordBtn').onclick=openChangePassword" in html,
+            'not_already_patched':'production-sidebar-controls-v1.js' not in html,
+          }
+          print(json.dumps({'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'size':p.stat().st_size,'checks':checks},indent=2))
+          if not all(checks.values()):raise SystemExit('STOP: production sidebar structure mismatch')
+          PY
