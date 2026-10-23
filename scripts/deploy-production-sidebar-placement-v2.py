@@ -29,7 +29,7 @@ def prepare_html(original: bytes) -> bytes:
     content = original.decode('utf-8')
     for marker in (
         'id="app"', 'id="changePasswordBtn"', 'id="logoutbtn"',
-        'desktopSidebarCollapse', 'gpSidebarSwitch',
+        "desktopCollapse.id='desktopSidebarCollapse'",
         OLD_CSS, OLD_JS, '</head>', '</body>',
     ):
         if content.count(marker) != 1:
