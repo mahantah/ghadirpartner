@@ -1,0 +1,36 @@
+/* GHADIR_PRODUCTION_SIDEBAR_PLACEMENT_V2_20261023
+   The single animated switch belongs in the empty CENTER of the sidebar
+   brand row, never over the right-aligned title or left-aligned brand mark. */
+#app #gpSidebarSwitch {
+  position: fixed !important;
+  top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+  left: var(--gp-sidebar-v2-left, auto) !important;
+  right: var(--gp-sidebar-v2-right, 14px) !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  z-index: 230 !important;
+  border-radius: 12px !important;
+  touch-action: manipulation;
+}
+
+/* Keep the legacy handler-bound button in the DOM but never in the UI.
+   Its click handler is reused by the animated replacement. */
+#app > header .topnav .sidebar-head #desktopSidebarCollapse,
+#app > header .topnav #desktopSidebarCollapse,
+#app #desktopSidebarCollapse {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+#app #gpSidebarSwitch:focus-visible {
+  outline: 3px solid #9ad5ff !important;
+  outline-offset: 3px !important;
+}
+
+@media (max-width: 760px) {
+  #app #gpSidebarSwitch {
+    top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+  }
+}
