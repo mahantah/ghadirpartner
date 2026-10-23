@@ -159,6 +159,9 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-warehouse-free-stock-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-staff-login-otp-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-login-startup-loader-v1.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/patch-prod-sidebar-controls-v1.py" "$ROOT"
+          node --check "$ROOT/assets/prod-sidebar-controls-v1.js"
+          grep -q 'GHADIR_PROD_SIDEBAR_CONTROLS_V1_20261023' "$ROOT/app.html"
           base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > "$ROOT/assets/ghadir-contact-qr.png"
           grep -q 'SERIAL_CONTINUATION_WAREHOUSE_FIX_20261011' "$ROOT/index.php"
           grep -q 'SERIAL_LOCATION_DISPLAY_FIX_20261011' "$ROOT/app.html"
@@ -315,7 +318,9 @@ jobs:
             $gpProbePhase='protected_counts';
             $wanted=['I90-097','I90-098','I90-099','I90-100','I90-101','I90-102','I90-103','I90-109','I90-110','I90-111','I90-112','I90-113','I90-114','I90-115','I90-116','I90-123','I90-124','I90-125'];
             foreach($wanted as $code){
-              $integrity=gp_preswitch_carton_integrity($s,$code);
+              // All 18 cartons are allocated (20/20) by confirmed business policy.
+              // Fail closed on unallocated stock AND on any order/serial mismatch.
+              $integrity=gp_preswitch_allocated_carton_integrity($s,$code);
               if(!$integrity['ok']){
                 throw new RuntimeException('target mismatch '.$code.' kind='.$integrity['kind'].' expected=20 actual='.$integrity['actual'].' free='.$integrity['free'].' reserved='.$integrity['allocated']);
               }
@@ -406,6 +411,8 @@ jobs:
           put "$ROOT/assets/sidebar-collapse-v3.css" -o /assets/sidebar-collapse-v3.css
           put "$ROOT/assets/sidebar-real-edge-v4.css" -o /assets/sidebar-real-edge-v4.css
           put "$ROOT/assets/sidebar-real-edge-v4.js" -o /assets/sidebar-real-edge-v4.js
+          put "$ROOT/assets/prod-sidebar-controls-v1.css" -o /assets/prod-sidebar-controls-v1.css
+          put "$ROOT/assets/prod-sidebar-controls-v1.js" -o /assets/prod-sidebar-controls-v1.js
           put "$ROOT/assets/warehouse-serial-filters-v1.css" -o /assets/warehouse-serial-filters-v1.css
           put "$ROOT/assets/warehouse-serial-filters-v1.js" -o /assets/warehouse-serial-filters-v1.js
           put "$ROOT/assets/warehouse-serial-filters-v2.css" -o /assets/warehouse-serial-filters-v2.css
@@ -472,6 +479,8 @@ jobs:
           get /assets/sidebar-collapse-v3.css -o /tmp/livecheck/assets/sidebar-collapse-v3.css
           get /assets/sidebar-real-edge-v4.css -o /tmp/livecheck/assets/sidebar-real-edge-v4.css
           get /assets/sidebar-real-edge-v4.js -o /tmp/livecheck/assets/sidebar-real-edge-v4.js
+          get /assets/prod-sidebar-controls-v1.css -o /tmp/livecheck/assets/prod-sidebar-controls-v1.css
+          get /assets/prod-sidebar-controls-v1.js -o /tmp/livecheck/assets/prod-sidebar-controls-v1.js
           get /assets/warehouse-serial-filters-v1.css -o /tmp/livecheck/assets/warehouse-serial-filters-v1.css
           get /assets/warehouse-serial-filters-v1.js -o /tmp/livecheck/assets/warehouse-serial-filters-v1.js
           get /assets/warehouse-serial-filters-v2.css -o /tmp/livecheck/assets/warehouse-serial-filters-v2.css
@@ -505,6 +514,10 @@ jobs:
           grep -q "GHADIR_DESKTOP_SIDEBAR_COLLAPSE_V3_20261017" /tmp/livecheck/app.html
           grep -q "GHADIR_SIDEBAR_REAL_EDGE_V4_20261017" /tmp/livecheck/app.html
           node --check /tmp/livecheck/assets/sidebar-real-edge-v4.js
+          node --check /tmp/livecheck/assets/prod-sidebar-controls-v1.js
+          cmp "$ROOT/assets/prod-sidebar-controls-v1.css" /tmp/livecheck/assets/prod-sidebar-controls-v1.css
+          cmp "$ROOT/assets/prod-sidebar-controls-v1.js" /tmp/livecheck/assets/prod-sidebar-controls-v1.js
+          grep -q 'GHADIR_PROD_SIDEBAR_CONTROLS_V1_20261023' /tmp/livecheck/app.html
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v1.js
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v2.js
           node --check /tmp/livecheck/assets/warehouse-serial-filters-v3.js

@@ -24,6 +24,14 @@ function check(array $s, string $reason='ok'): void {
     $n++;echo 'case '.$n.': '.$reason."\n";
 }
 check(fixture());check(allocated());check(allocated(7));
+$allocReport=gp_preswitch_allocated_carton_integrity(allocated(),'I90-097');
+if (!$allocReport['ok'] || $allocReport['allocated']!==20 || $allocReport['free']!==0) throw new RuntimeException('fully allocated guard must pass');
+$freeReport=gp_preswitch_allocated_carton_integrity(fixture(),'I90-097');
+if ($freeReport['ok'] || $freeReport['kind']!=='allocation_not_complete') throw new RuntimeException('free stock must block allocated-only deploy');
+$partial=allocated();$partial['inventory'][0]['order_id']=0;
+if (gp_preswitch_allocated_carton_integrity($partial,'I90-097')['ok']) throw new RuntimeException('partial allocation must block deploy');
+$broken=allocated();$broken['orders']=[];
+if (gp_preswitch_allocated_carton_integrity($broken,'I90-097')['ok']) throw new RuntimeException('missing order must block deploy');
 $s=allocated();$s['orders'][0]['status']='ارسال شد';$s['orders'][0]['exit_items']=$s['orders'][0]['items'];
 foreach($s['inventory'] as &$iv)$iv['warehouse_id']=0;unset($iv);
 check($s);$s['orders'][0]['status']='تحویل شد';check($s);

@@ -330,6 +330,9 @@ jobs:
           set -euo pipefail
           node --check assets/nav-morph-v1.js
           python3 -m py_compile scripts/patch-nav-morph-v1.py
+          node --check assets/prod-sidebar-controls-v1.js
+          node tests/prod-sidebar-controls.test.js
+          python3 tests/prod-sidebar-build.py
       - name: Apply and repeat patch without changing existing routes
         shell: bash
         run: |
@@ -992,6 +995,7 @@ jobs:
           python3 -m py_compile scripts/inline-preswitch-integrity.py
           # Deploy workflow must keep the guard and use the shared classifier (no bypass).
           grep -Fq 'protected_carton_state_mismatch' .github/workflows/deploy-final-v53438.yml
+          grep -Fq 'gp_preswitch_allocated_carton_integrity' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'scripts/preswitch_safety.py' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'preswitch_safety.py" classify' .github/workflows/deploy-final-v53438.yml
           grep -Fq 'patch-protected-carton-ops-v1.py' .github/workflows/deploy-final-v53438.yml
@@ -1033,5 +1037,6 @@ jobs:
           mkdir -p /tmp/release-build-output
           export GITHUB_OUTPUT=/tmp/release-build-output/output
           bash -Eeuo pipefail /tmp/release-build-integration.sh
+          grep -q 'GHADIR_PROD_SIDEBAR_CONTROLS_V1_20261023' /tmp/v53438/*/app.html 2>/dev/null || grep -q 'GHADIR_PROD_SIDEBAR_CONTROLS_V1_20261023' /tmp/v53438/app.html
           python3 tests/order-details-v2-patch.py /tmp/v53438
           echo 'Full release build completed without FTP, database, or server access'
