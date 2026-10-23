@@ -1,0 +1,102 @@
+name: Reconcile Legacy I90-097 Shipment
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Write one verified legacy shipment snapshot (false = inspect only)'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify guarded single-carton repair using fabricated fixtures
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-cli lftp curl
+          php -l lib/preswitch-carton-integrity.php
+          php -l lib/legacy-shipment-reconciliation.php
+          php tests/legacy-shipment-reconciliation.php
+          python3 -m py_compile scripts/inline-legacy-shipment-reconciliation.py
+
+      - name: Inspect and optionally reconcile live missing shipment metadata
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          APPLY: ${{ inputs.apply }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 32)"
+          FILE="__gp_i90097_legacy_ship_${GITHUB_RUN_ID}.php"
+          cp scripts/legacy-shipment-reconcile-once.php "/tmp/$FILE"
+          python3 scripts/inline-legacy-shipment-reconciliation.py "/tmp/$FILE"
+          sed -i "s/__RECONCILE_TOKEN__/$TOKEN/" "/tmp/$FILE"
+          php -l "/tmp/$FILE"
+          cleanup() {
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          URL="https://ghadirpartner.ir/$FILE"
+          STATUS="$(curl -sS --max-time 50 --output /tmp/gp-legacy-inspect.json --write-out '%{http_code}' \
+            -X POST -H "X-GP-Reconcile-Token: $TOKEN" --data 'mode=inspect' "$URL")"
+          if [[ "$STATUS" != 200 ]]; then
+            echo "Guarded inspection blocked: HTTP $STATUS"
+            jq -c '{ok,error}' /tmp/gp-legacy-inspect.json || true
+            exit 2
+          fi
+          jq -e '(.ok == true) and (.inventory_unchanged == true) and (.units == 20) and (.revision > 0)' /tmp/gp-legacy-inspect.json >/dev/null
+          jq -c '{mode,eligible,units,revision,inventory_unchanged}' /tmp/gp-legacy-inspect.json
+          REV="$(jq -er '.revision' /tmp/gp-legacy-inspect.json)"
+          if [[ "$APPLY" == true ]] && [[ "$(jq -r '.eligible' /tmp/gp-legacy-inspect.json)" == true ]]; then
+            STATUS="$(curl -sS --max-time 60 --output /tmp/gp-legacy-applied.json --write-out '%{http_code}' \
+              -X POST -H "X-GP-Reconcile-Token: $TOKEN" \
+              --data 'mode=apply' --data-urlencode "expected_revision=$REV" "$URL")"
+            if [[ "$STATUS" != 200 ]]; then
+              echo "Guarded application blocked: HTTP $STATUS"
+              jq -c '{ok,error}' /tmp/gp-legacy-applied.json || true
+              exit 2
+            fi
+            jq -e '(.ok == true) and (.mode == "applied") and (.inventory_unchanged == true) and (.backup_created == true) and (.units == 20)' /tmp/gp-legacy-applied.json >/dev/null
+            jq -c '{mode,units,revision,inventory_unchanged,backup_created}' /tmp/gp-legacy-applied.json
+          fi
+          STATUS="$(curl -sS --max-time 50 --output /tmp/gp-legacy-verify.json --write-out '%{http_code}' \
+            -X POST -H "X-GP-Reconcile-Token: $TOKEN" --data 'mode=verify' "$URL")"
+          if [[ "$APPLY" == true ]] || [[ "$(jq -r '.eligible' /tmp/gp-legacy-inspect.json)" == false ]]; then
+            [[ "$STATUS" == 200 ]] || exit 2
+            jq -e '(.ok == true) and (.kind == "ok") and (.units == 20) and (.allocated == 20)' /tmp/gp-legacy-verify.json >/dev/null
+          fi
+          jq -c '{mode,ok,kind,units,allocated}' /tmp/gp-legacy-verify.json
