@@ -992,6 +992,10 @@ jobs:
           php tests/protected-carton-ops.php
           php -l lib/preswitch-carton-integrity.php
           php tests/preswitch-carton-integrity.php
+          php -l lib/legacy-shipment-reconciliation.php
+          php -l scripts/legacy-shipment-reconcile-once.php
+          php tests/legacy-shipment-reconciliation.php
+          python3 -m py_compile scripts/inline-legacy-shipment-reconciliation.py
           python3 -m py_compile scripts/inline-preswitch-integrity.py
           # Deploy workflow must keep the guard and use the shared classifier (no bypass).
           grep -Fq 'protected_carton_state_mismatch' .github/workflows/deploy-final-v53438.yml
