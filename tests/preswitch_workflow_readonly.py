@@ -36,10 +36,11 @@ assert "ghadir-mysql-pre-exact-v53438-" in probe, "Preserve the backup"
 assert "file_put_contents(" in probe, "Preserve the pre-switch backup"
 assert "target mismatch " in probe, "Keep the protected carton checks"
 assert "protected_carton_state_mismatch" in probe, "Keep blocking error classification"
-assert "gp_preswitch_carton_integrity($s,$code)" in probe
+assert "gp_preswitch_allocated_carton_integrity($s,$code)" in probe, "Allocation-aware guard must run"
 assert "if(!$integrity['ok'])" in probe
 for reason in ('count_mismatch','invalid_links','duplicate_or_missing_serial',
-               'invalid_allocation_order','allocation_serial_mismatch','exit_without_shipment'):
+               'invalid_allocation_order','allocation_serial_mismatch','exit_without_shipment',
+               'allocation_not_complete'):
     assert reason in probe, reason
 
 preflight = workflow.split("      - name: Snapshot and verify MySQL before deployment", 1)[1]

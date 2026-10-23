@@ -125,3 +125,18 @@ function gp_preswitch_carton_integrity(array $s, string $code): array {
     $report['ok'] = true; $report['kind'] = 'ok';
     return $report;
 }
+
+/**
+ * Deployment policy for the 18 I90 cartons explicitly confirmed as allocated.
+ * Keep the full serial/order/warehouse validator above; additionally fail closed
+ * if even one of the 20 units becomes free. No state is modified.
+ */
+function gp_preswitch_allocated_carton_integrity(array $s, string $code): array {
+    $report = gp_preswitch_carton_integrity($s, $code);
+    if (!$report['ok']) return $report;
+    if ($report['actual'] !== 20 || $report['free'] !== 0 || $report['allocated'] !== 20) {
+        $report['ok'] = false;
+        $report['kind'] = 'allocation_not_complete';
+    }
+    return $report;
+}
