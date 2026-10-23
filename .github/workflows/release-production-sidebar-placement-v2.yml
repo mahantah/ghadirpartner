@@ -1,0 +1,37 @@
+name: Release Production Sidebar Placement V2
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  sidebar-placement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify minimal presentation-only change
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-sidebar-placement-v2.py
+          python3 tests/production-sidebar-placement-v2.py
+          node --check assets/production-sidebar-placement-v2.js
+          node tests/production-sidebar-placement-v2.test.js
+          test -s assets/production-sidebar-placement-v2.css
+          grep -q 'desktopSidebarCollapse' assets/production-sidebar-placement-v2.css
+          grep -q -- '--gp-sidebar-v2-left' assets/production-sidebar-placement-v2.css
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Back up live HTML and fail closed on unexpected code
+        run: python3 scripts/deploy-production-sidebar-placement-v2.py inspect
+      - name: Publish presentation-only asset links with read-back and rollback
+        run: python3 scripts/deploy-production-sidebar-placement-v2.py publish
