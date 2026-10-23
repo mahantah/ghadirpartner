@@ -68,7 +68,7 @@ def prepare():
     css = SOURCES["production-sidebar-controls-v1.css"].read_text("utf-8")
     if not all(token in js for token in ("desktopClose.click()", "desktopOpen.click()", "mobileButton.click()", "gp-sidebar-userbox")):
         raise RuntimeError("STOP: menu JS missing preserved original control calls")
-    if not all(token in css for token in ("gp-sidebar-switch", "gp-sidebar-userbox", "gp-switch-bar")):
+    if not all(token in css for token in ("#gpSidebarSwitch", "gp-sidebar-userbox", "gp-switch-bar")):
         raise RuntimeError("STOP: sidebar CSS missing styled controls")
     ftp(["get /app.html -o " + quoted(ROOT / "original-app.html")])
     original = (ROOT / "original-app.html").read_bytes()

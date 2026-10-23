@@ -19,6 +19,7 @@ jobs:
       FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      # Corrected CSS guard: #gpSidebarSwitch is the actual selector. No release changes.
       - name: Validate Python and JavaScript before any production write
         run: |
           set -euo pipefail
