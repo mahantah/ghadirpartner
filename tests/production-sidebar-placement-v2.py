@@ -10,8 +10,8 @@ spec.loader.exec_module(mod)
 base = b'''<html><head>
 <link rel="stylesheet" href="/assets/production-sidebar-controls-v1.css?v=1">
 </head><body><div id="app"><button id="changePasswordBtn"></button>
-<button id="logoutbtn"></button><button id="desktopSidebarCollapse"></button>
-<button id="gpSidebarSwitch"></button></div>
+<button id="logoutbtn"></button></div>
+<script>desktopCollapse.id='desktopSidebarCollapse'</script>
 <script src="/assets/production-sidebar-controls-v1.js?v=1" defer></script>
 </body></html>'''
 patched = mod.prepare_html(base)
