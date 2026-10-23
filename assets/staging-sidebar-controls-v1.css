@@ -1,0 +1,68 @@
+/* GHADIR Partner sidebar controls V1 — scoped to authenticated #app only.
+   Uiverse vinodjangid07-inspired three-bar morph; colors adapted to Ghadir. */
+#app #gpSidebarSwitch{
+ position:fixed!important;right:calc(var(--gp-side, 258px) - 58px)!important;top:99px!important;
+ z-index:220!important;display:flex!important;align-items:center!important;justify-content:center!important;
+ width:42px!important;height:42px!important;min-width:42px!important;min-height:42px!important;
+ padding:7px!important;border-radius:12px!important;color:#ffb572!important;
+ background:rgba(255,255,255,.085)!important;border:1px solid rgba(255,255,255,.23)!important;
+ box-shadow:0 7px 18px rgba(4,22,43,.20)!important;cursor:pointer!important;
+ transition:background .24s,border-color .24s,right .35s ease!important;
+}
+#app #gpSidebarSwitch:hover{background:rgba(245,130,32,.20)!important;border-color:#ffae6c!important;transform:none!important}
+#app #gpSidebarSwitch .gp-switch-bars{display:flex;position:relative;align-items:center;justify-content:center;flex-direction:column;gap:7px;width:27px;height:27px;transition:transform .5s ease}
+#app #gpSidebarSwitch .gp-switch-bar{display:block;flex:0 0 3px;width:70%;height:3px;border-radius:5px;background:currentColor;transition:width .5s ease,transform .5s ease,opacity .45s ease}
+#app #gpSidebarSwitch .gp-switch-bar:nth-child(2){width:100%;transition:transform .8s ease,opacity .3s ease}
+#app #gpSidebarSwitch.is-open .gp-switch-bars{transform:rotate(180deg)}
+#app #gpSidebarSwitch.is-open .gp-switch-bar{position:absolute;width:100%}
+#app #gpSidebarSwitch.is-open .gp-switch-bar:nth-child(1){transform:rotate(45deg)}
+#app #gpSidebarSwitch.is-open .gp-switch-bar:nth-child(2){transform:scaleX(0);opacity:0}
+#app #gpSidebarSwitch.is-open .gp-switch-bar:nth-child(3){transform:rotate(-45deg)}
+#app.sidebar-collapsed #gpSidebarSwitch{right:15px!important;top:15px!important;background:#113857!important;color:#ffa45d!important}
+#app>header .desktop-sidebar-collapse,
+#app>.desktop-sidebar-open,
+#app>header .nav-toggle,
+#app>header .topnav .sidebar-close{display:none!important}
+/* Display the original, handler-bound account controls in the sidebar footer. */
+#app>header .topnav .gp-sidebar-userbox{
+ display:grid!important;position:sticky!important;bottom:0!important;top:auto!important;
+ right:auto!important;left:auto!important;transform:none!important;
+ grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+ gap:8px!important;order:999!important;flex:0 0 auto!important;
+ width:100%!important;max-width:100%!important;min-width:0!important;
+ margin:auto 0 0!important;padding:13px 7px 8px!important;
+ background:linear-gradient(180deg,rgba(12,36,60,.97),rgba(11,42,70,.98))!important;
+ border:1px solid rgba(255,255,255,.16)!important;border-radius:14px!important;
+ box-shadow:0 -11px 20px rgba(7,29,53,.32)!important;
+ z-index:3!important;
+}
+#app>header .topnav .gp-sidebar-userbox #who{
+ display:block!important;grid-column:1/-1!important;min-width:0!important;
+ padding:7px 9px!important;text-align:center!important;border-radius:9px!important;
+ white-space:normal!important;overflow-wrap:anywhere!important;
+ background:rgba(255,255,255,.09)!important;color:#e8f3ff!important;font-size:12px!important;
+}
+#app>header .topnav .gp-sidebar-userbox #changePasswordBtn,
+#app>header .topnav .gp-sidebar-userbox #logoutbtn{
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ min-width:0!important;width:100%!important;min-height:38px!important;
+ margin:0!important;padding:7px 5px!important;border-radius:9px!important;
+ font-size:11.5px!important;font-weight:780!important;
+ background:rgba(255,255,255,.07)!important;color:#fff!important;
+ border:1px solid rgba(255,255,255,.29)!important;box-shadow:none!important;
+}
+#app>header .topnav .gp-sidebar-userbox #logoutbtn{border-color:rgba(255,170,117,.48)!important;color:#ffc79a!important}
+#app>header .topnav .gp-sidebar-userbox button:hover{background:rgba(255,146,46,.18)!important}
+#app>header .topnav{min-height:0!important;overscroll-behavior:contain!important}
+@media(max-width:820px){
+ #app #gpSidebarSwitch{right:14px!important;top:13px!important;z-index:220!important}
+}
+@media(max-width:760px){
+ #app>header .brand{padding-right:51px!important}
+ #app>header .topnav .sidebar-head{padding-right:49px!important}
+ #app>header .topnav .gp-sidebar-userbox{margin:auto 0 0!important;bottom:0!important;padding-bottom:calc(9px + env(safe-area-inset-bottom,0px))!important}
+ #app #gpSidebarSwitch{right:14px!important;top:13px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ #app #gpSidebarSwitch,#app #gpSidebarSwitch .gp-switch-bars,#app #gpSidebarSwitch .gp-switch-bar{transition:none!important;animation:none!important}
+}

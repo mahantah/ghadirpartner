@@ -13,6 +13,8 @@ on:
       - 'assets/staging-site-design-v1.css'
       - 'assets/staging-partner-design-v1.css'
       - 'assets/staging-mobile-scanner-design-v1.css'
+      - 'assets/staging-sidebar-controls-v1.css'
+      - 'assets/staging-sidebar-controls-v1.js'
       - 'partners/portal.html'
       - 'mobile.html'
       - 'brand-v5311.png'
@@ -46,6 +48,8 @@ jobs:
           test -s assets/staging-site-design-v1.css
           test -s assets/staging-partner-design-v1.css
           test -s assets/staging-mobile-scanner-design-v1.css
+          test -s assets/staging-sidebar-controls-v1.css
+          test -s assets/staging-sidebar-controls-v1.js
           test -s partners/portal.html
           test -s mobile.html
           test -s brand-v5311.png
@@ -116,6 +120,8 @@ jobs:
             put assets/staging-site-design-v1.css -o assets/staging-site-design-v1.css;
             put assets/staging-partner-design-v1.css -o assets/staging-partner-design-v1.css;
             put assets/staging-mobile-scanner-design-v1.css -o assets/staging-mobile-scanner-design-v1.css;
+            put assets/staging-sidebar-controls-v1.css -o assets/staging-sidebar-controls-v1.css;
+            put assets/staging-sidebar-controls-v1.js -o assets/staging-sidebar-controls-v1.js;
             put brand-v5311.png -o brand-v5311.png;
             put partners/brand-v5311.png -o partners/brand-v5311.png;
             put partners/portal.html -o partners/portal.html;
