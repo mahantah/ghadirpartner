@@ -1,0 +1,48 @@
+name: Production sidebar visual-only guarded release
+on:
+  push:
+    branches: [prep/production-sidebar-20261023]
+    paths: ['.github/workflows/deploy-production-sidebar.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  sidebar-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python and JavaScript before any production write
+        run: |
+          set -euo pipefail
+          python3 -m py_compile production-sidebar-kit/deploy_sidebar.py
+          node --check production-sidebar-kit/production-sidebar-controls-v1.js
+          test -s production-sidebar-kit/production-sidebar-controls-v1.css
+          test -s production-sidebar-kit/production-sidebar-controls-v1.js
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Verify active production hash and prepare minimal patch
+        run: python3 production-sidebar-kit/deploy_sidebar.py prepare
+      - name: Encrypt pre-release HTML backup
+        run: |
+          set -euo pipefail
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in /tmp/ghadir-sidebar-release/original-app.html -out /tmp/ghadir-sidebar-release/production-sidebar-original.enc -pass env:FTP_PASSWORD
+          test -s /tmp/ghadir-sidebar-release/production-sidebar-original.enc
+      - name: Keep encrypted rollback artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-original-production-sidebar-20261023
+          path: /tmp/ghadir-sidebar-release/production-sidebar-original.enc
+          retention-days: 30
+          if-no-files-found: error
+      - name: Deploy sidebar-only assets and reverify all bytes
+        run: python3 production-sidebar-kit/deploy_sidebar.py publish
