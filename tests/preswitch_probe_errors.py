@@ -69,20 +69,34 @@ class Result { function fetch(){return ['revision'=>1,'state_json'=>file_get_con
 '''
 state = {'cartons':[], 'inventory':[], 'orders':[]}
 for i, code in enumerate(safety.PROTECTED_CARTONS,1):
+    order_id = 1000+i
+    serials = [f'MOCK-{i}-{n}' for n in range(20)]
     state['cartons'].append({'id':i,'code':code,'product':'I90'})
-    state['inventory'].extend({'carton_id':i,'carton_code':code,'order_id':0,
-        'serial':f'MOCK-{i}-{n}','product':'I90','warehouse_id':1} for n in range(20))
+    state['inventory'].extend({'carton_id':i,'carton_code':code,'order_id':order_id,
+        'serial':sn,'product':'I90','warehouse_id':1} for sn in serials)
+    state['orders'].append({'id':order_id,'number':f'SAMPLE-ORDER-{i}',
+        'status':'در حال آماده سازی',
+        'items':[{'product':'I90','qty':20,'serials':serials}]})
 state['cartons'].extend({'id':1000+i,'code':'fixture-'+str(i)} for i in range(safety.MIN_CARTONS-len(state['cartons'])))
 state['inventory'].extend({'carton_id':0,'order_id':0} for _ in range(safety.MIN_INVENTORY-len(state['inventory'])))
 run("<?php return ['mysql'=>[]];",'ok',prefix=prefix,state=state)
-state['inventory'][0]['order_id']=99
+
+# A protected carton must remain 20/20 allocated even if a deallocation is
+# otherwise internally consistent (no stale order claim for that serial).
+state['inventory'][0]['order_id']=0
+state['orders'][0]['items'][0]['serials']=state['orders'][0]['items'][0]['serials'][1:]
 payload = run("<?php return ['mysql'=>[]];",'protected_carton_state_mismatch','protected_counts',prefix=prefix,state=state)
-assert payload['actual']==20 and payload['free']==19 and payload['reserved']==1
-assert payload['kind']=='invalid_allocation_order' and payload['allocated']==1
-# A complete, valid customer allocation must pass unchanged; it is not a free-stock error.
-serials=[r['serial'] for r in state['inventory'][:20]]
-for row in state['inventory'][:20]:row['order_id']=99
-state['orders']=[{'id':99,'number':'SAMPLE-ORDER','status':'در حال آماده سازی',
-    'items':[{'product':'I90','qty':20,'serials':serials}]}]
+assert payload['actual']==20 and payload['free']==1 and payload['reserved']==19
+assert payload['kind']=='allocation_not_complete' and payload['allocated']==19
+
+# Broken allocation to a nonexistent order must still fail even at 20/20.
+state['inventory'][0]['order_id']=999999
+state['orders'][0]['items'][0]['serials'].insert(0,state['inventory'][0]['serial'])
+payload = run("<?php return ['mysql'=>[]];",'protected_carton_state_mismatch','protected_counts',prefix=prefix,state=state)
+assert payload['actual']==20 and payload['free']==0 and payload['reserved']==20
+assert payload['kind']=='invalid_allocation_order' and payload['allocated']==20
+
+# Restore the exact original order link: the full 18-carton allocation passes.
+state['inventory'][0]['order_id']=state['orders'][0]['id']
 run("<?php return ['mysql'=>[]];",'ok',prefix=prefix,state=state)
-print('PASS: 11 generated-probe scenarios; failures redacted and blocked; valid allocation preserved and invalid allocation rejected')
+print('PASS: 12 generated-probe scenarios; failures redacted and blocked; complete allocation required and validated')
