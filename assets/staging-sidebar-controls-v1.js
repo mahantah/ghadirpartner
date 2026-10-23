@@ -15,7 +15,9 @@
     }
     if (document.getElementById("gpSidebarSwitch")) return;
     if (!nav.id) nav.id = "gpMainNavigation";
-    nav.querySelector(".sidebar-close")?.remove(); // Obsolete ×, original close controls remain through overlay/Escape.
+    // The old × is redundant and can be visually present without a usable action.
+    // Keep the original drawer/desktop handlers, but use one visible switch only.
+    nav.querySelectorAll(".sidebar-close").forEach(function(button) { button.remove(); });
     var toggle = document.createElement("button");
     toggle.type = "button";
     toggle.id = "gpSidebarSwitch";
@@ -24,7 +26,9 @@
     toggle.setAttribute("aria-label", "جمع‌کردن منو");
     toggle.innerHTML = '<span class="gp-switch-bars" aria-hidden="true"><span class="gp-switch-bar"></span><span class="gp-switch-bar"></span><span class="gp-switch-bar"></span></span>';
     app.appendChild(toggle);
-    function mobile() { return window.matchMedia("(max-width:760px)").matches; }
+    // The app changes to drawer navigation at 820px, not 760px. Using the
+    // smaller breakpoint leaves the new button ineffective on tablets.
+    function mobile() { return window.matchMedia("(max-width:820px)").matches; }
     function opened() {
       return mobile() ? nav.classList.contains("sidebar-open") : !app.classList.contains("sidebar-collapsed");
     }
