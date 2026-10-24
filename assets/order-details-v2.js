@@ -33,6 +33,27 @@ function gpOdField(label,value,html=false){
 }
 function gpOdCard(title,content){return '<section class="od2-card"><h4>'+gpOdEsc(title)+'</h4>'+content+'</section>';}
 function gpOdFields(content){return '<dl class="od2-fields">'+content+'</dl>';}
+function gpOdQuickField(label,value){return '<div class="od2-quick-field"><dt>'+gpOdEsc(label)+'</dt><dd>'+(gpOdEsc(value)||'ثبت نشده')+'</dd></div>';}
+function gpOdQuickCard(name,title,fields,linkLabel){
+  return '<article class="od2-quick-card od2-quick-'+name+'"><h5>'+gpOdEsc(title)+'</h5><dl>'+fields+'</dl>'+
+    (linkLabel?'<button type="button" class="od2-quick-link" data-od2-jump="'+name+'">'+gpOdEsc(linkLabel)+' <span aria-hidden="true">←</span></button>':'')+'</article>';
+}
+function gpOdQuickHtml(o,c){
+  const customer=c&&typeof c==='object'?c:{},address=o.delivery_address&&typeof o.delivery_address==='object'?o.delivery_address:{};
+  const snapshot=gpOdText(o.shipping_address)||[address.province,address.city,address.address].map(gpOdText).filter(Boolean).join(' - ');
+  const current=[customer.province,customer.city,customer.address].map(gpOdText).filter(Boolean).join(' - ');
+  const amount=gpOdAmount(o),financial=has('finance');
+  const requested=({cash:'نقد',check:'چک',credit:'اعتباری'})[o.requested_payment_method]||gpOdText(o.requested_payment_method_label)||o.requested_payment_method;
+  return '<section class="od2-quick" aria-label="مرور سریع مشتری، پرداخت و ارسال"><div class="od2-quick-heading"><h4>اطلاعات مهم در یک نگاه</h4><p>نمایش اطلاعات ثبت‌شده سفارش؛ وضعیت پرداخت و ارسال فقط براساس سوابق تأییدشده سامانه است.</p></div><div class="od2-quick-grid">'+
+    gpOdQuickCard('customer','مشتری',gpOdQuickField('نام سفارش',o.customer_name||customer.name)+
+      gpOdQuickField('کد مشتری',customer.code||o.customer_id)+gpOdQuickField('شماره تماس پرونده',customer.mobile),'')+
+    gpOdQuickCard('payment','پرداخت',gpOdQuickField('وضعیت ثبت‌شده',o.payment_status)+
+      gpOdQuickField(amount.label,amount.value===null?'ثبت نشده':gpOdMoney(amount.value))+
+      gpOdQuickField('روش درخواستی',financial?requested:'ویژه واحد مالی'),'مشاهده پرداخت و مدارک')+
+    gpOdQuickCard('shipping','ارسال',gpOdQuickField('وضعیت سفارش',o.status)+
+      gpOdQuickField('روش ارسال',o.shipping_type)+gpOdQuickField(snapshot?'نشانی سفارش':'نشانی فعلی پرونده',snapshot||current)+
+      gpOdQuickField('کد رهگیری مرسوله',o.tracking_code),'مشاهده جزئیات ارسال')+'</div></section>';
+}
 function gpOdPaymentHtml(o){
   if(!has('finance'))return '<p class="od2-empty">مشاهده مدارک پرداخت برای مدیر و واحد مالی در دسترس است.</p>';
   const d=gpOdDetails(o),image=gpOdImage(d.image_base64),method=({cash:'نقد',check:'چک',credit:'اعتباری'})[o.requested_payment_method]||gpOdText(o.requested_payment_method_label);
@@ -46,7 +67,7 @@ function gpOdPaymentHtml(o){
     gpOdField('زمان تأیید چک',gpOdDate(o.check_approved_at),true));
   const evidence=image?'<figure class="od2-evidence"><button type="button" class="od2-image-button" data-od2-image aria-label="بزرگ‌نمایی '+label+'"><img src="'+image.src+'" alt="'+label+'" data-od2-preview><span>برای بزرگ‌نمایی انتخاب کنید</span></button><figcaption>'+label+'</figcaption><a class="btn2" href="'+image.src+'" download="payment-'+String(Number(o.id)||0)+'.'+image.extension+'">دانلود تصویر</a></figure>':
     '<p class="od2-empty">'+(d.image_base64?'تصویر ذخیره‌شده معتبر نیست یا قالب آن پشتیبانی نمی‌شود.':'تصویری در اطلاعات پرداخت این سفارش ثبت نشده است.')+'</p>';
-  return '<p class="od2-notice">مدارک ارسالی مشتری برای بررسی است. مشاهده تصویر به معنی تأیید پرداخت یا مجوز ارسال نیست.</p><div class="od2-payment-grid">'+gpOdCard('اطلاعات پرداخت',fields)+gpOdCard('مدرک ارسالی مشتری',evidence)+'</div>';
+  return '<p class="od2-notice">اطلاعات و مدارک ارسالی مشتری از اپلیکیشن، در صورت ثبت، اینجا نمایش داده می‌شوند. مشاهده رسید به معنی تأیید پرداخت یا مجوز ارسال نیست.</p><div class="od2-payment-grid">'+gpOdCard('جزئیات پرداخت ثبت‌شده مشتری',fields)+gpOdCard('مدرک ارسالی مشتری',evidence)+'</div>';
 }
 function gpOdItemHtml(o){
   const rows=gpOdList(o.items).map((it,n)=>{
@@ -58,7 +79,7 @@ function gpOdItemHtml(o){
 }
 function gpOdOverviewHtml(o,c){
   const contacts=gpOdList(c.contacts).map(x=>'<li>'+gpOdEsc(x.title||x.name)+'<br>'+gpOdEsc(x.name)+' '+gpOdEsc(x.mobile)+'<br>'+gpOdEsc(x.address)+'</li>').join('');
-  return '<div class="od2-grid">'+gpOdCard('اطلاعات سفارش',gpOdFields(
+  return gpOdQuickHtml(o,c)+'<div class="od2-grid">'+gpOdCard('اطلاعات سفارش',gpOdFields(
     gpOdField('تاریخ ثبت',gpOdDate(o.created_at),true)+gpOdField('ثبت‌کننده',o.created_by)+
     gpOdField('نوع فاکتور',o.invoice_type)+gpOdField('تأیید سفارش',o.approval_status)+
     gpOdField('کد تخفیف',o.promo_code)+gpOdField('سفارش فوری',o.fros?'بله':'خیر')
@@ -75,7 +96,7 @@ function gpOdShippingHtml(o,c){
   const current=[c.province,c.city,c.address].map(gpOdText).filter(Boolean).join(' - ');
   const ship=shipHistory(o),panels=gpOdList(o.panels).length?o.panels:(o.psp?[o.psp]:[]);
   return '<div class="od2-grid">'+gpOdCard('نشانی و ارسال',gpOdFields(
-    gpOdField(snapshot?'نشانی ثبت‌شده سفارش':'نشانی فعلی پرونده مشتری',snapshot||current)+
+    gpOdField('عنوان نشانی انتخاب‌شده',d.title)+gpOdField(snapshot?'نشانی ثبت‌شده سفارش':'نشانی فعلی پرونده مشتری',snapshot||current)+
     gpOdField('کدپستی سفارش',d.postal_code)+gpOdField('روش ارسال',o.shipping_type)+
     gpOdField('وضعیت سفارش',o.status)+gpOdField('زمان ارسال',gpOdDate(ship&&ship.at),true)+
     gpOdField('کد مرسوله',o.tracking_code)+gpOdField('ثبت در پنل',panels.map(gpOdText).join('، '))
@@ -123,6 +144,11 @@ function openOrderDetails(id,section='overview'){
       ({overview:()=>gpOdOverviewHtml(o,c),items:()=>gpOdItemHtml(o),payment:()=>gpOdPaymentHtml(o),shipping:()=>gpOdShippingHtml(o,c),history:()=>gpOdHistoryHtml(o)})[key]()+'</section>').join('');
   root.onclick=e=>{
     const tab=e.target.closest('[data-od2-tab]');if(tab){gpOdActivate(tab.dataset.od2Tab);return;}
+    const jump=e.target.closest('[data-od2-jump]');if(jump){
+      gpOdActivate(jump.dataset.od2Jump);
+      const panel=root.querySelector('[data-od2-panel="'+gpOdCurrent+'"]');if(panel)panel.focus();
+      return;
+    }
     if(e.target.closest('[data-od2-close]')){closeOrderDetails();return;}
     const image=e.target.closest('[data-od2-image]');if(image)gpOdOpenImage(o,image);
   };
@@ -153,4 +179,4 @@ function gpOdKeydown(e){
   }
 }
 if(typeof document!=='undefined')document.addEventListener('keydown',gpOdKeydown,true);
-if(typeof module!=='undefined'&&module.exports)module.exports={gpOdImage,gpOdDetails,gpOdAmount,gpOdEsc,gpOdPaymentHtml,gpOdOverviewHtml,gpOdShippingHtml,gpOdItemHtml};
+if(typeof module!=='undefined'&&module.exports)module.exports={gpOdImage,gpOdDetails,gpOdAmount,gpOdEsc,gpOdPaymentHtml,gpOdOverviewHtml,gpOdShippingHtml,gpOdItemHtml,gpOdQuickHtml};
