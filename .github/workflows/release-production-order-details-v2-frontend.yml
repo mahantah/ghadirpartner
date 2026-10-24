@@ -1,0 +1,40 @@
+name: Release Production Order Details V2 Frontend
+on:
+  # One-time release; subsequent code pushes do not touch the production site.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-production-order-details-v2-frontend.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  ui-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate approved order details and live-only guardrails
+        run: |
+          set -euo pipefail
+          node --check assets/order-details-v2.js
+          node --check assets/production-order-details-bridge-v1.js
+          node tests/order-details-v2.js
+          node tests/production-order-details-bridge-v1.test.js
+          python3 -m py_compile scripts/deploy-production-order-details-v2-frontend.py
+          python3 tests/order-details-v2-patch.py
+          python3 tests/production-order-details-v2-frontend.py
+      - name: Install encrypted FTP client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish only guarded HTML references and approved UI assets
+        run: python3 scripts/deploy-production-order-details-v2-frontend.py deploy
