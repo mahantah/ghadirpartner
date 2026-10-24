@@ -1,9 +1,11 @@
-/* GHADIR_PRODUCTION_SIDEBAR_PLACEMENT_V2_20261023
-   The single animated switch belongs in the empty CENTER of the sidebar
-   brand row, never over the right-aligned title or left-aligned brand mark. */
+/* GHADIR_PRODUCTION_SIDEBAR_PLACEMENT_V2_20261024
+   The single animated switch tracks the sidebar brand row exactly:
+   centered in .sidebar-head while open, docked top-end while closed.
+   Coordinates come from JS via --gp-sidebar-v2-* (updated every animation frame
+   during menubar transitions). */
 #app #gpSidebarSwitch {
   position: fixed !important;
-  top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+  top: var(--gp-sidebar-v2-top, calc(16px + env(safe-area-inset-top, 0px))) !important;
   left: var(--gp-sidebar-v2-left, auto) !important;
   right: var(--gp-sidebar-v2-right, 14px) !important;
   width: 40px !important;
@@ -18,6 +20,8 @@
   outline: 0 !important;
   background: #102a43 !important;
   touch-action: manipulation;
+  /* Position transitions disabled — JS pins to live menubar rect each frame. */
+  transition: background .24s, border-color .24s, color .24s !important;
 }
 
 #app #gpSidebarSwitch:hover,
@@ -42,8 +46,8 @@
   outline-offset: 3px !important;
 }
 
-@media (max-width: 760px) {
+@media (prefers-reduced-motion: reduce) {
   #app #gpSidebarSwitch {
-    top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+    transition: none !important;
   }
 }
