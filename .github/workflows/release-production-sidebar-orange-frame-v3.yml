@@ -1,0 +1,31 @@
+name: Release Production Sidebar Orange Frame V3
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  css-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate visual-only change and guardrails
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-sidebar-orange-frame-v3.py
+          python3 tests/production-sidebar-orange-frame-v3.py
+          node tests/production-sidebar-placement-v2.test.js
+      - name: Install encrypted FTP client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Release only sidebar CSS and its HTML cache URL
+        run: python3 scripts/deploy-production-sidebar-orange-frame-v3.py deploy
