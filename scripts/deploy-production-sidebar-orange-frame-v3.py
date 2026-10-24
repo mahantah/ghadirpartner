@@ -40,7 +40,7 @@ def expected_old_css(new_css: bytes) -> bytes:
         if new_css.count(block) != 1:
             raise ValueError('STOP: missing or duplicated approved sidebar CSS block')
         new_css = new_css.replace(block, b'', 1)
-    if not new_css.startswith(b'/* GHADIR_PRODUCTION_SIDEBAR_PLACEMENT_V2_20261023'):
+    if not new_css.startswith(b'/* GHADIR_PRODUCTION_SIDEBAR_PLACEMENT_V2_20261024'):
         raise ValueError('STOP: unexpected stylesheet')
     return new_css
 
