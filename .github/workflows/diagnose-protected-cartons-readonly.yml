@@ -1,0 +1,125 @@
+name: Diagnose protected I90 carton state (read only)
+
+# Deliberately runs on a one-off diagnostic branch, never on production release.
+on:
+  push:
+    branches:
+      - diag/protected-cartons-20261023
+    paths:
+      - '.github/workflows/diagnose-protected-cartons-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  protected_carton_readonly_diagnosis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate read-only probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l scripts/diagnose-protected-cartons-readonly.php
+          python3 - <<'PY'
+          from pathlib import Path
+          code = Path('scripts/diagnose-protected-cartons-readonly.php').read_text()
+          assert code.count('__GP_READONLY_DIAG_TOKEN__') == 1
+          assert code.count("SELECT state_json, revision FROM ghadir_state WHERE id=1") == 1
+          assert "file_put_contents" not in code
+          assert "->exec(" not in code
+          assert "->prepare(" not in code
+          assert "->query(" in code
+          print('Read-only PHP probe static and syntax checks passed.')
+          PY
+
+      - name: Run token-gated ephemeral diagnostic, then remove probe
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Match the established guarded production FTPS helper (case-insensitive).
+          test "${FTP_USERNAME,,}" = 'deploy@ghadirpartner.ir'
+          command -v lftp >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y lftp; }
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          FILE="__gp_protected_readonly_${GITHUB_RUN_ID}_$(openssl rand -hex 8).php"
+          STAGE="$(mktemp)"
+          REPORT="$(mktemp)"
+          python3 - "$TOKEN" "$STAGE" <<'PY'
+          import pathlib, sys
+          token, dest = sys.argv[1:]
+          code = pathlib.Path('scripts/diagnose-protected-cartons-readonly.php').read_text()
+          marker = '__GP_READONLY_DIAG_TOKEN__'
+          if code.count(marker) != 1:
+              raise SystemExit('Missing or duplicate probe token marker')
+          pathlib.Path(dest).write_text(code.replace(marker, token))
+          PY
+          cleanup() {
+            set +e
+            lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate true
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+            result=$?
+            rm -f "$STAGE" "$REPORT"
+            if [ "$result" -ne 0 ]; then
+              echo '::error::Ephemeral probe cleanup failed; remove the named diagnostic PHP file immediately.'
+              return 1
+            fi
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate true
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$STAGE" -o "/$FILE"
+          bye
+          EOF
+          STATUS="$(curl -sS --max-time 90 -X POST -H "X-GP-Readonly-Token: $TOKEN" \
+            -H 'Cache-Control: no-store' \
+            --output "$REPORT" --write-out '%{http_code}' "https://ghadirpartner.ir/$FILE")"
+          python3 - "$STATUS" "$REPORT" <<'PY'
+          import json,sys
+          status=int(sys.argv[1])
+          try:
+              data=json.load(open(sys.argv[2]))
+          except (ValueError,OSError):
+              raise SystemExit('Diagnostic endpoint did not return JSON; status '+str(status))
+          if status != 200 or data.get('ok') is not True or data.get('read_only') is not True:
+              raise SystemExit('Read-only diagnostic unavailable; HTTP '+str(status))
+          allowed=('code','kind','actual','free','reserved',
+                   'distinct_order_references','identity_conflicts')
+          summary_keys=('read_only','safety_passed','revision',
+                        'protected_cartons_expected','cartons_with_mismatch',
+                        'protected_inventory_actual','protected_inventory_reserved')
+          summary={key:data.get(key) for key in summary_keys}
+          print('SANITIZED_PROTECTED_CARTON_SUMMARY:',json.dumps(summary,ensure_ascii=False))
+          for carton in data.get('cartons',[]):
+              print('SANITIZED_CARTON:',json.dumps({key:carton.get(key) for key in allowed},ensure_ascii=False))
+          if data.get('safety_passed') is not True:
+              print('PRODUCTION_RELEASE_REMAINS_BLOCKED: protected cartons do not satisfy guard.')
+          else:
+              print('Diagnostic carton check passed; full release preflight still required.')
+          print('READ_ONLY_DIAGNOSTIC_COMPLETE: zero database writes.')
+          PY
