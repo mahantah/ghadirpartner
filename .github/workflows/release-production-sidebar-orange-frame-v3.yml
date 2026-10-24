@@ -1,5 +1,11 @@
 name: Release Production Sidebar Orange Frame V3
 on:
+  # One-shot guarded release when this workflow is first merged to main.
+  # Later unrelated pushes never deploy this stylesheet.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-production-sidebar-orange-frame-v3.yml'
   workflow_dispatch:
 permissions:
   contents: read
