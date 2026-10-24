@@ -54,6 +54,14 @@ try{
   const before=JSON.stringify(ORD);
   $('opener').focus();openOrderDetails(1);
   check(document.querySelectorAll('[role="tab"]').length===5,'five tabs');
+  check(document.querySelectorAll('.od2-quick-card').length===3,'customer/payment/shipping quick cards');
+  check(document.querySelector('[data-od2-jump="shipping"]'),'shipping jump exists');
+  document.querySelector('[data-od2-jump="shipping"]').click();
+  check(gpOdCurrent==='shipping'&&document.activeElement.dataset.od2Panel==='shipping','quick shipping jump and focus');
+  document.querySelector('[data-od2-tab="overview"]').click();
+  document.querySelector('[data-od2-jump="payment"]').click();
+  check(gpOdCurrent==='payment'&&document.activeElement.dataset.od2Panel==='payment','quick payment jump and focus');
+  document.querySelector('[data-od2-tab="overview"]').click();
   check(document.querySelectorAll('[role="tabpanel"]:not([hidden])').length===1,'one panel');
   check(gpOdCurrent==='overview','overview default');
   document.querySelector('[data-od2-tab="items"]').click();
