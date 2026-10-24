@@ -11,6 +11,20 @@
 #orderDetailBody .od2-summary>div{display:flex;flex-direction:column;gap:8px;min-width:0}
 #orderDetailBody .od2-summary span{color:#c7d5e2;font-size:12px}
 #orderDetailBody .od2-summary strong{font-size:16px;overflow-wrap:anywhere}
+#orderDetailBody .od2-quick{margin:4px 0 22px}
+#orderDetailBody .od2-quick-heading{padding:4px 2px 14px}
+#orderDetailBody .od2-quick-heading h4{font-size:17px;margin:0 0 5px;color:#102a43}
+#orderDetailBody .od2-quick-heading p{font-size:12px;line-height:1.9;color:#60758b;margin:0}
+#orderDetailBody .od2-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+#orderDetailBody .od2-quick-card{display:flex;flex-direction:column;gap:12px;min-width:0;padding:18px;border:1px solid #dce6f0;border-radius:18px;background:#fff;box-shadow:0 3px 12px rgba(16,42,67,.04)}
+#orderDetailBody .od2-quick-card h5{font-size:15px;margin:0;color:#102a43}
+#orderDetailBody .od2-quick-card dl{margin:0;display:grid;gap:10px}
+#orderDetailBody .od2-quick-field{min-width:0;display:grid;gap:3px}
+#orderDetailBody .od2-quick-field dt{color:#60758b;font-size:11px}
+#orderDetailBody .od2-quick-field dd{color:#183b56;font-size:13px;font-weight:650;margin:0;line-height:1.7;overflow-wrap:anywhere;white-space:pre-wrap}
+#orderDetailBody .od2-quick-link{margin-top:auto;min-height:44px;padding:9px 12px;border:1px solid #d7e4ef;border-radius:11px;background:#edf4fa;color:#194a71;font-weight:700;text-align:right;cursor:pointer}
+#orderDetailBody .od2-quick-link:hover{background:#e1eef8;border-color:#a7c7e0}
+#orderDetailBody .od2-quick-link span{display:inline-block;margin-inline-start:5px}
 #orderDetailBody .od2-tabs{display:flex;gap:4px;overflow-x:auto;padding:12px 0;margin-bottom:8px;position:sticky;top:0;z-index:2;background:#f4f7fb;scrollbar-width:thin}
 #orderDetailBody .od2-tabs button{background:transparent;color:#52677d;border:1px solid transparent;border-radius:12px;white-space:nowrap;padding:12px 18px;min-height:44px;flex-shrink:0}
 #orderDetailBody .od2-tabs button[aria-selected="true"]{color:#102a43;background:#fff;border-color:#d7e1ea;box-shadow:0 2px 8px #102a4308}
@@ -50,12 +64,16 @@
 .od2-image-sheet img{max-width:100%;max-height:76vh;object-fit:contain}
 #orderDetailBody [hidden]{display:none!important}
 #orderDetailBody button:focus-visible,#orderDetailBody a:focus-visible,#orderDetailBody summary:focus-visible,.od2-image-dialog button:focus-visible,.od2-image-dialog a:focus-visible{outline:3px solid #f58220;outline-offset:3px}
+@media (max-width:1000px) and (min-width:701px){#orderDetailBody .od2-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){
  #orderDetailOverlay.od2-overlay{padding:8px;align-items:flex-end}
  #orderDetailOverlay .od2-drawer{height:94vh;max-height:94vh;border-radius:20px 20px 0 0;padding:0 14px 20px}
  #orderDetailBody .od2-header{align-items:flex-start;padding-top:18px}
  #orderDetailBody .od2-heading h3{font-size:20px}
  #orderDetailBody .od2-summary{grid-template-columns:repeat(2,minmax(0,1fr));padding:16px;gap:20px}
+ #orderDetailBody .od2-quick-grid{grid-template-columns:1fr;gap:10px}
+ #orderDetailBody .od2-quick-card{padding:15px;gap:9px}
+ #orderDetailBody .od2-quick-card dl{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px}
  #orderDetailBody .od2-grid,#orderDetailBody .od2-payment-grid{grid-template-columns:1fr}
  #orderDetailBody .od2-card{padding:16px}
  #orderDetailBody .od2-field{grid-template-columns:minmax(100px,.8fr) minmax(0,1.2fr);gap:10px}

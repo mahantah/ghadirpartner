@@ -37,7 +37,22 @@ const denied=v.gpOdPaymentHtml(o);assert.ok(!denied.includes(png)&&!denied.inclu
 global.has=()=>true;
 const shipping=v.gpOdShippingHtml({...o,delivery_address:{address:'نشانی قدیمی'},tracking_code:'TRACK-1',panels:['PSP'],history:[]},{address:'نشانی جدید'});
 assert.ok(shipping.includes('نشانی قدیمی')&&!shipping.includes('نشانی جدید'));
+const quick=v.gpOdQuickHtml({...o,shipping_type:'تیپاکس',tracking_code:'TRACK-1',
+  delivery_address:{city:'تهران',address:'نشانی ثبت‌شده سفارش'},approved_total:245000000},
+  {name:'مشتری پرونده',code:'C-101',mobile:'0912-SAMPLE',address:'نشانی فعلی پرونده'});
+assert.ok(quick.includes('مشتری')&&quick.includes('پرداخت')&&quick.includes('ارسال'));
+assert.ok(quick.includes('0912-SAMPLE')&&quick.includes('C-101'));
+assert.ok(quick.includes('تیپاکس')&&quick.includes('TRACK-1')&&quick.includes('نشانی ثبت‌شده سفارش'));
+assert.ok(!quick.includes('نشانی فعلی پرونده'));
+assert.ok(quick.includes('data-od2-jump="payment"')&&quick.includes('data-od2-jump="shipping"'));
+assert.ok(quick.includes('چک')&&quick.includes('پرداخت نشده'));
+const escapedQuick=v.gpOdQuickHtml({...o,customer_name:'<svg onload=alert(1)>',shipping_type:'<script>'},{name:'مشتری'});
+assert.ok(escapedQuick.includes('&lt;svg')&&!escapedQuick.includes('<svg')&&!escapedQuick.includes('<script>'));
+global.has=()=>false;
+const hiddenQuick=v.gpOdQuickHtml(o,{name:'مشتری'});
+assert.ok(hiddenQuick.includes('ویژه واحد مالی')&&!hiddenQuick.includes('روش درخواستی</dt><dd>چک'));
+global.has=()=>true;
 const items=v.gpOdItemHtml({items:[{product:'I90',qty:1200,serials:['SAMPLE-0001']}]});
 assert.ok(items.includes('1200')&&items.includes('<details')&&!items.includes('<details open'));
 assert.ok(items.includes('SAMPLE-0001'));
-console.log('PASS: image validation, injection handling, access gating, payment states, snapshots and collapsed serials');
+console.log('PASS: image validation, injection handling, access gating, quick customer/payment/shipping, snapshots and collapsed serials');
