@@ -1,6 +1,6 @@
 name: Release Production Sidebar Orange Frame V3
 on:
-  # One-shot guarded release when this workflow is first merged to main.
+  # One-shot guarded release for the verified 2026-10-24 live CSS baseline.
   # Later unrelated pushes never deploy this stylesheet.
   push:
     branches: [main]
