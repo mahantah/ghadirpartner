@@ -12,7 +12,20 @@
   min-height: 40px !important;
   z-index: 230 !important;
   border-radius: 12px !important;
+  /* Keep the animated three bars, remove only the orange tile/frame behind. */
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background: #102a43 !important;
   touch-action: manipulation;
+}
+
+#app #gpSidebarSwitch:hover,
+#app #gpSidebarSwitch:active {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background: #102a43 !important;
 }
 
 /* Keep the legacy handler-bound button in the DOM but never in the UI.
