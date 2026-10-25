@@ -1,0 +1,39 @@
+name: Release Production Number Counter Remove V1
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  remove-counter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate counter removal
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-number-counter-remove-v1.py
+          python3 tests/production-number-counter-remove-v1.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Remove live number counter
+        run: python3 scripts/deploy-production-number-counter-remove-v1.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          ! grep -Fq 'number-counter-v1.js' /tmp/live-app.html
+          ! grep -Fq 'GP_NUMBER_COUNTER_V1_20261025' /tmp/live-app.html
+          grep -Fq 'shamsi-calendar-table-v1.js?v=1' /tmp/live-app.html
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo
