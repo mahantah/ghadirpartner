@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import importlib.util
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 MENU2 = ROOT / 'assets/ui-v53435-menu2.js'
@@ -15,6 +16,38 @@ def load_deploy():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def ensure_live():
+    if LIVE.is_file() and LIVE.stat().st_size > 10000:
+        return LIVE.read_bytes()
+    LIVE.parent.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen('https://ghadirpartner.ir/app.html', timeout=40) as resp:
+        LIVE.write_bytes(resp.read())
+    return LIVE.read_bytes()
+
+
+def assert_patched(out):
+    if b'GP_MENU_LIVE_V3_20261025' not in out or b'menu-live-v3.js?v=3' not in out:
+        raise AssertionError('patched HTML missing v3 tag')
+    if b'ui-v53435-menu2.js?v=2' not in out:
+        raise AssertionError('menu builder was not retargeted')
+    if b'ui-v53435.js?v=53435' in out:
+        raise AssertionError('old menu builder must not stay linked')
+    if b'warehouse-ui-refine-v53438.js?v=53438ui5' not in out:
+        raise AssertionError('refine cache was not busted')
+    if b"customerAdd:['sales','viewer']" not in out:
+        raise AssertionError('TAB_ACCESS missing customerAdd')
+    if b'id="customerAdd"' not in out or b'id="gpChannelBox"' not in out:
+        raise AssertionError('customer add tab/channel box missing')
+    if b'id="salesAgents"' not in out or b'id="salesReps"' not in out:
+        raise AssertionError('agents/reps sections missing')
+    if b'customer-channel-offers-v2.js' in out:
+        raise AssertionError('v2 overlay should be replaced')
+    if b'nav-restructure-v1.js' not in out:
+        raise AssertionError('nav overlay must stay')
+    if b'number-counter-v1.js' in out:
+        raise AssertionError('number counter must stay unlinked')
 
 
 def main():
@@ -56,28 +89,21 @@ def main():
         raise AssertionError('refine was not retitled')
 
     deploy = load_deploy()
-    raw = LIVE.read_bytes()
+    raw = ensure_live()
+    if b'menu-live-v3.js?v=3' in raw and b'ui-v53435-menu2.js?v=2' in raw:
+        assert_patched(raw)
+        try:
+            deploy.patch_html(raw)
+        except RuntimeError as exc:
+            if 'already' not in str(exc):
+                raise
+        else:
+            raise AssertionError('second v3 patch should fail closed')
+        print('menu live v3 passed')
+        return
+
     out = deploy.patch_html(raw)
-    if deploy.MARKER not in out or b'menu-live-v3.js?v=3' not in out:
-        raise AssertionError('patched HTML missing v3 tag')
-    if b'ui-v53435-menu2.js?v=2' not in out:
-        raise AssertionError('menu builder was not retargeted')
-    if b'ui-v53435.js?v=53435' in out:
-        raise AssertionError('old menu builder must not stay linked')
-    if b'warehouse-ui-refine-v53438.js?v=53438ui5' not in out:
-        raise AssertionError('refine cache was not busted')
-    if b"customerAdd:['sales','viewer']" not in out:
-        raise AssertionError('TAB_ACCESS missing customerAdd')
-    if b'id="customerAdd"' not in out or b'id="gpChannelBox"' not in out:
-        raise AssertionError('customer add tab/channel box missing')
-    if b'id="salesAgents"' not in out or b'id="salesReps"' not in out:
-        raise AssertionError('agents/reps sections missing')
-    if b'customer-channel-offers-v2.js' in out:
-        raise AssertionError('v2 overlay should be replaced')
-    if b'nav-restructure-v1.js' not in out:
-        raise AssertionError('nav overlay must stay')
-    if b'number-counter-v1.js' in out:
-        raise AssertionError('number counter must stay unlinked')
+    assert_patched(out)
     try:
         deploy.patch_html(out)
     except RuntimeError as exc:
