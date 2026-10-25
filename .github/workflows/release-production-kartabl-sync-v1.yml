@@ -1,0 +1,45 @@
+name: Release Production Kartabl Sync V1
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  kartabl-sync-v1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate kartabl sync v1
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-kartabl-sync-v1.py
+          python3 tests/production-kartabl-sync-v1.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish kartabl sync v1
+        run: python3 scripts/deploy-production-kartabl-sync-v1.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          grep -Fq 'GP_KARTABL_SYNC_V1_20261025' /tmp/live-app.html
+          grep -Fq 'kartabl-sync-v1.js?v=1' /tmp/live-app.html
+          grep -Fq 'customer-form-polish-v1.js?v=1' /tmp/live-app.html
+          ! grep -Fq 'number-counter-v1.js' /tmp/live-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/kartabl-sync-v1.js?v=1' -o /tmp/live-sync.js
+          grep -Fq 'syncGlobals' /tmp/live-sync.js
+          grep -Fq 'typeof CUST' /tmp/live-sync.js
+          grep -Fq 'gpOpenPlanApply' /tmp/live-sync.js
+          grep -Fq 'کاربران اتوماسیون' /tmp/live-sync.js
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo

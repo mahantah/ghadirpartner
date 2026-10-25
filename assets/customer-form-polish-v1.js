@@ -27,7 +27,10 @@
   }
 
   function customers() {
-    return (window.CUST || []).filter(function (c) { return c && !c.deleted; });
+    var list = [];
+    try { if (typeof CUST !== 'undefined' && Array.isArray(CUST)) list = CUST; } catch (e) {}
+    if (!list.length && Array.isArray(window.CUST)) list = window.CUST;
+    return list.filter(function (c) { return c && !c.deleted; });
   }
 
   function channelOf(c) {
