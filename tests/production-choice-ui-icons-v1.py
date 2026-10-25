@@ -42,6 +42,7 @@ def main():
         'background:#fff!important',
         'نماینده',
         'عامل فروش',
+        'عاملین فروش',
     ):
         if needle not in js:
             raise AssertionError('choice overlay missing ' + needle)

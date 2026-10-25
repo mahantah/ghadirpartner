@@ -157,6 +157,14 @@
     nodes.forEach(function (inp) {
       var lab = inp.closest('label');
       var text = (lab ? lab.textContent : inp.value || '').replace(/\s+/g, ' ').trim();
+      if (name === 'gpChannel' || name === 'gpEditChannel' || name === 'gpOpsChannel') {
+        if (inp.value === 'agent') text = 'عاملین فروش';
+        if (inp.value === 'rep') text = 'نمایندگان';
+      }
+      if (name === 'gpPlanAud') {
+        if (inp.value === 'all') text = 'همه مشتریان';
+        if (inp.value === 'selected') text = 'مشتری‌های دلخواه';
+      }
       if (!inp.id) inp.id = name + '_' + inp.value;
       inp.classList.add('customCheckBoxInput');
       var chip = chipLabel(text);
