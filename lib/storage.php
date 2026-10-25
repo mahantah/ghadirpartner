@@ -22,6 +22,9 @@ function ghadir_warehouse_prepare_state(array &$s): void {
         ];
     }
     if (!isset($s['warehouse_movements']) || !is_array($s['warehouse_movements'])) $s['warehouse_movements'] = [];
+    // Immutable daily closing balances are stored separately from the live movement ledger.
+    // Never infer or overwrite historical closes during state preparation.
+    if (!isset($s['warehouse_daily_closes']) || !is_array($s['warehouse_daily_closes'])) $s['warehouse_daily_closes'] = [];
     if (!isset($s['next_warehouse_movement'])) {
         $mx=0; foreach($s['warehouse_movements'] as $m) $mx=max($mx,(int)($m['id']??0));
         $s['next_warehouse_movement']=$mx+1;
