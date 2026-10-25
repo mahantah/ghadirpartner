@@ -246,7 +246,12 @@
     const view = preset || (/قیمت|موجودی|لیست/.test(text) ? 'catalog' : /طرح|آفر/.test(text) ? 'offers' : /پیامک/.test(text) ? 'sms' : 'accounts');
     b.dataset.gpView = view;
     if (view === 'catalog') {
+      if (catalogBtn && catalogBtn !== b) {
+        hideNav(b);
+        return;
+      }
       catalogBtn = b;
+      b.id = b.id || 'gpNavCatalog';
       showNav(b);
       label(b, 'قیمت و موجودی', 'catalog');
       b.onclick = () => {
@@ -275,6 +280,7 @@
     catalogBtn.type = 'button';
     catalogBtn.dataset.tab = 'portalAdmin';
     catalogBtn.dataset.gpView = 'catalog';
+    catalogBtn.id = 'gpNavCatalog';
     catalogBtn.className = 'adminOnly';
     label(catalogBtn, 'قیمت و موجودی', 'catalog');
     catalogBtn.onclick = () => {
@@ -358,18 +364,37 @@
     setChildrenOrder(sub, [daily, reports, stocktake, vault, inventory, scanBtn]);
   }
 
+  function dumpBin() {
+    let bin = $('gpNavDump');
+    if (!bin) {
+      bin = document.createElement('div');
+      bin.id = 'gpNavDump';
+      bin.hidden = true;
+      bin.style.display = 'none';
+      document.body.appendChild(bin);
+    }
+    return bin;
+  }
+
   function orderTopNav() {
-    setChildrenOrder(nav, [
+    if (catalogBtn) catalogBtn.id = catalogBtn.id || 'gpNavCatalog';
+    const keep = [
       nav.querySelector('.sidebar-head'),
       nav.querySelector('[data-tab="dashboard"]'),
       $('gpOrders'),
-      catalogBtn,
+      catalogBtn || $('gpNavCatalog'),
       warehouseGroup,
       $('gpCustomers'),
       nav.querySelector('[data-tab="salesReports"]'),
       $('gpSystem'),
       nav.querySelector('.sidebar-footer')
-    ]);
+    ].filter(Boolean);
+    setChildrenOrder(nav, keep);
+    const keepSet = new Set(keep);
+    [...nav.children].forEach((child) => {
+      if (keepSet.has(child)) return;
+      dumpBin().appendChild(child);
+    });
   }
 
   ensureSection('customerAdd', '');
@@ -436,7 +461,7 @@
       sync();
     }, 200);
   });
-  observer.observe(nav, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+  observer.observe(nav, { subtree: true, childList: true });
   setTimeout(() => { fillWarehouse(); orderTopNav(); sync(); }, 300);
   setTimeout(() => { fillWarehouse(); orderTopNav(); sync(); }, 1200);
   sync();

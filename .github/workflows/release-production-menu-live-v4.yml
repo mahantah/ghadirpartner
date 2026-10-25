@@ -1,0 +1,48 @@
+name: Release Production Menu Live V4
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  menu-live-v4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate menu live v4
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-menu-live-v4.py
+          python3 tests/production-menu-live-v4.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish menu live v4
+        run: python3 scripts/deploy-production-menu-live-v4.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          grep -Fq 'GP_MENU_LIVE_V4_20261025' /tmp/live-app.html
+          grep -Fq 'menu-live-v4.js?v=4' /tmp/live-app.html
+          grep -Fq 'ui-v53435-menu2.js?v=3' /tmp/live-app.html
+          grep -Fq 'menu-live-v3.js?v=3' /tmp/live-app.html
+          grep -Fq 'id="gpChannelBox"' /tmp/live-app.html
+          ! grep -Fq 'ui-v53435-menu2.js?v=2"' /tmp/live-app.html
+          ! grep -Fq 'number-counter-v1.js' /tmp/live-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/menu-live-v4.js?v=4' -o /tmp/live-v4.js
+          grep -Fq 'gpNavDump' /tmp/live-v4.js
+          grep -Fq 'freezeCatalogWrites' /tmp/live-v4.js
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/ui-v53435-menu2.js?v=3' -o /tmp/live-menu2.js
+          grep -Fq 'gpNavDump' /tmp/live-menu2.js
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo

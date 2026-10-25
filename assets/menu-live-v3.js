@@ -35,7 +35,6 @@
   function lockCatalogLabel() {
     document.querySelectorAll('.topnav [data-tab="portalAdmin"][data-gp-view="catalog"]').forEach(function (b) {
       setMenuText(b, 'قیمت و موجودی');
-      showEl(b);
     });
     document.querySelectorAll('.topnav [data-tab="portalAdmin"]').forEach(function (b) {
       var t = (b.textContent || '').replace(/\s+/g, ' ');
@@ -509,7 +508,7 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () { setTimeout(apply, 80); });
   }
-  setInterval(lockCatalogLabel, 400);
+  // Label is pinned once; a timer here made «قیمت و موجودی» flicker against refine.
   var queued = false;
   if (document.body) {
     new MutationObserver(function () {
