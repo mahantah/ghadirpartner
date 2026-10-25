@@ -1,0 +1,43 @@
+name: Release Production Customer Channel Offers V1
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  customer-channel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate customer channel overlay
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-customer-channel-offers-v1.py
+          python3 tests/production-customer-channel-offers-v1.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish customer channel overlay
+        run: python3 scripts/deploy-production-customer-channel-offers-v1.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          grep -Fq 'GP_CUSTOMER_CHANNEL_OFFERS_V1_20261025' /tmp/live-app.html
+          grep -Fq 'customer-channel-offers-v1.js?v=1' /tmp/live-app.html
+          grep -Fq 'nav-restructure-v1.js?v=1' /tmp/live-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/customer-channel-offers-v1.js?v=1' -o /tmp/live-ch.js
+          grep -Fq 'sales_channel' /tmp/live-ch.js
+          grep -Fq 'gpRepParent' /tmp/live-ch.js
+          grep -Fq 'زیرمجموعه بازاریاب' /tmp/live-ch.js
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo
