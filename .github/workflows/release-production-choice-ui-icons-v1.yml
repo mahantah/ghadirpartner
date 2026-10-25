@@ -1,0 +1,44 @@
+name: Release Production Choice UI Icons V1
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  choice-ui-icons-v1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate choice ui icons v1
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-choice-ui-icons-v1.py
+          python3 tests/production-choice-ui-icons-v1.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish choice ui icons v1
+        run: python3 scripts/deploy-production-choice-ui-icons-v1.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          grep -Fq 'GP_CHOICE_UI_ICONS_V1_20261025' /tmp/live-app.html
+          grep -Fq 'choice-ui-icons-v1.js?v=1' /tmp/live-app.html
+          grep -Fq 'plans-icon-agent-lock-v1.js?v=1' /tmp/live-app.html
+          ! grep -Fq 'number-counter-v1.js' /tmp/live-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/choice-ui-icons-v1.js?v=1' -o /tmp/live-choice.js
+          grep -Fq 'customCheckBoxHolder' /tmp/live-choice.js
+          grep -Fq 'نماینده' /tmp/live-choice.js
+          grep -Fq 'gpNavPlans' /tmp/live-choice.js
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo
