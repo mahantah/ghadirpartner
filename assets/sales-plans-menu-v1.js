@@ -77,8 +77,9 @@
         : 'اعمال طرح جدید';
     }
     btn.setAttribute('data-tab', 'salesPlans');
-    btn.textContent = btn.querySelector('.gp-menu-text') ? btn.textContent : 'اعمال طرح جدید';
-    if (btn.querySelector('.gp-menu-text')) btn.querySelector('.gp-menu-text').textContent = 'اعمال طرح جدید';
+    var label = btn.querySelector('.gp-menu-text');
+    if (label) label.textContent = 'طرح‌ها و تخفیف‌ها';
+    else if (!btn.querySelector('.gp-menu-icon')) btn.textContent = 'طرح‌ها و تخفیف‌ها';
     btn.hidden = false;
     btn.classList.remove('hidden');
     btn.style.display = '';

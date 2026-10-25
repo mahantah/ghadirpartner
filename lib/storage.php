@@ -262,13 +262,19 @@ function ghadir_mysql_bootstrap(PDO $pdo): void {
 
 function ghadir_mysql_db(bool $write, callable $fn) {
     static $readCache = null;
+    static $readCacheRev = null; /* GP_MYSQL_REV_CACHE_V1_20261025 */
     $pdo = ghadir_mysql_pdo();
     ghadir_mysql_bootstrap($pdo);
     try {
         if (!$write && is_array($readCache)) {
-            $s = $readCache;
-            if (isset($s['products']) && is_array($s['products'])) $GLOBALS['PRODUCTS'] = $s['products'];
-            return $fn($s);
+            $revNow = (int)$pdo->query('SELECT revision FROM ghadir_state WHERE id=1')->fetchColumn();
+            if ($revNow === (int)($readCacheRev ?? -1)) {
+                $s = $readCache;
+                if (isset($s['products']) && is_array($s['products'])) $GLOBALS['PRODUCTS'] = $s['products'];
+                return $fn($s);
+            }
+            $readCache = null;
+            $readCacheRev = null;
         }
         if ($write) $pdo->beginTransaction();
         $sql = 'SELECT state_json,revision FROM ghadir_state WHERE id=1' . ($write ? ' FOR UPDATE' : '');
@@ -278,7 +284,10 @@ function ghadir_mysql_db(bool $write, callable $fn) {
         if (!is_array($s)) throw new RuntimeException('state invalid');
         ghadir_state_prepare($s);
         if (isset($s['products']) && is_array($s['products'])) $GLOBALS['PRODUCTS'] = $s['products'];
-        if (!$write) $readCache = $s;
+        if (!$write) {
+            $readCache = $s;
+            $readCacheRev = (int)$row['revision'];
+        }
         $r = $fn($s);
         if ($write) {
             $encoded = json_encode($s, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -291,6 +300,7 @@ function ghadir_mysql_db(bool $write, callable $fn) {
             $st->execute([$revision, $checksum, strlen($encoded)]);
             $pdo->commit();
             $readCache = $s;
+            $readCacheRev = $revision;
             if (isset($s['products']) && is_array($s['products'])) $GLOBALS['PRODUCTS'] = $s['products'];
         }
         return $r;
