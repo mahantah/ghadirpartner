@@ -1,0 +1,57 @@
+name: Release Production Menu Live V3
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  menu-live-v3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate menu live v3
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-menu-live-v3.py
+          python3 tests/production-menu-live-v3.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish menu live v3
+        run: python3 scripts/deploy-production-menu-live-v3.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          grep -Fq 'GP_MENU_LIVE_V3_20261025' /tmp/live-app.html
+          grep -Fq 'menu-live-v3.js?v=3' /tmp/live-app.html
+          grep -Fq 'ui-v53435-menu2.js?v=2' /tmp/live-app.html
+          grep -Fq 'warehouse-ui-refine-v53438.js?v=53438ui5' /tmp/live-app.html
+          grep -Fq "customerAdd:['sales','viewer']" /tmp/live-app.html
+          grep -Fq 'id="gpChannelBox"' /tmp/live-app.html
+          grep -Fq 'id="customerAdd"' /tmp/live-app.html
+          grep -Fq 'id="salesAgents"' /tmp/live-app.html
+          ! grep -Fq 'ui-v53435.js?v=53435' /tmp/live-app.html
+          ! grep -Fq 'customer-channel-offers-v2.js' /tmp/live-app.html
+          ! grep -Fq 'number-counter-v1.js' /tmp/live-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/ui-v53435-menu2.js?v=2' -o /tmp/live-menu2.js
+          grep -Fq 'GP_UI_MENU2_20261025' /tmp/live-menu2.js
+          grep -Fq 'قیمت و موجودی' /tmp/live-menu2.js
+          grep -Fq 'کارتابل مشتریان' /tmp/live-menu2.js
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/menu-live-v3.js?v=3' -o /tmp/live-v3.js
+          grep -Fq 'interceptNavClick' /tmp/live-v3.js
+          grep -Fq 'sales_channel' /tmp/live-v3.js
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/warehouse-ui-refine-v53438.js?v=53438ui5' -o /tmp/live-refine.js
+          grep -Fq "setGpMenuLabel(b,'قیمت و موجودی')" /tmp/live-refine.js
+          ! grep -Fq "setGpMenuLabel(b,'لیست قیمت')" /tmp/live-refine.js
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo

@@ -181,7 +181,7 @@ function setGpMenuLabel(btn,text){
 function fixWarehouseAndPriceMenuLabels(){
   const warehouseProducts=document.querySelector('#warehouseNavGroup [data-tab="products"]')||document.querySelector('[data-tab="products"]');
   setGpMenuLabel(warehouseProducts,'محصولات');
-  document.querySelectorAll('[data-tab="portalAdmin"][data-gp-view="catalog"]').forEach(b=>setGpMenuLabel(b,'لیست قیمت'));
+  document.querySelectorAll('[data-tab="portalAdmin"][data-gp-view="catalog"]').forEach(b=>setGpMenuLabel(b,'قیمت و موجودی'));
 }
 function mergeCustomerSerialCards(){
   const sec=document.getElementById('inventory');
