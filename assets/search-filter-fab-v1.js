@@ -710,12 +710,13 @@
   }
 
   function apply() {
+    if (window.__gpBusy) return;
     try { ensureStyle(); } catch (e) {}
     try { ensureRoot(); } catch (e) {}
-    try { wrapFns(); } catch (e) {}
     try { sync(); } catch (e) {}
   }
 
+  try { wrapFns(); } catch (e) {}
   apply();
   [160, 700, 1600, 2800, 4500].forEach(function (ms) { setTimeout(apply, ms); });
   if (document.readyState === 'loading') {
@@ -727,10 +728,12 @@
   if (!document.__gpFabWatch) {
     document.__gpFabWatch = true;
     var obs = new MutationObserver(function () {
-      if (obs._q) return;
+      if (window.__gpBusy || obs._q) return;
       obs._q = true;
-      setTimeout(function () { obs._q = false; apply(); }, 80);
+      setTimeout(function () { obs._q = false; apply(); }, 280);
     });
-    if (document.body) obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+    if (document.body) {
+      obs.observe(document.body, { childList: true, subtree: true });
+    }
   }
 })();

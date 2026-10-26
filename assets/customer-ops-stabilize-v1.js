@@ -174,6 +174,20 @@
     }
   }
 
+  function hardenBoot() {
+    if (typeof window.boot !== 'function' || window.boot.__gpStabBoot) return;
+    var base = window.boot;
+    window.boot = async function () {
+      window.__gpBusy = true;
+      try {
+        return await base.apply(this, arguments);
+      } finally {
+        window.__gpBusy = false;
+      }
+    };
+    window.boot.__gpStabBoot = true;
+  }
+
   function hardenRefresh() {
     if (typeof window.refresh !== 'function' || window.refresh.__gpStab1) return;
     var base = window.refresh;
@@ -640,6 +654,7 @@
     try { ensureStyle(); } catch (e) {}
     try { hardenReq(); } catch (e) {}
     try { hardenPoll(); } catch (e) {}
+    try { hardenBoot(); } catch (e) {}
     try { hardenRefresh(); } catch (e) {}
     try { installAddRoles(); } catch (e) {}
     try { wrapEditOpen(); } catch (e) {}
