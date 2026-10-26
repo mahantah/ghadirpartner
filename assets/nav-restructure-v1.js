@@ -418,9 +418,9 @@
     bindOnce(stocktake, function () {
       if (typeof show === 'function') show('stocktake');
     });
-    if (daily) setLabel(daily, 'دفتر روزانه انبار');
+    if (daily) setLabel(daily, 'تاریخچه و موجودی کالا');
     if (reports) setLabel(reports, 'گزارش خروج');
-    if (vault) setLabel(vault, 'مخزن انبار');
+    if (vault) setLabel(vault, 'انبار سریال');
     [].forEach.call(sub.querySelectorAll('[data-tab="products"]'), hideNav);
     setChildrenOrder(sub, [daily, reports, stocktake, vault, inventory, scan]);
   }

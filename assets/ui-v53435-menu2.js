@@ -184,10 +184,10 @@
     dashboard: 'پیشخوان',
     orders: 'فهرست سفارش‌ها',
     neworder: 'ثبت سفارش',
-    warehouse: 'مخزن انبار',
+    warehouse: 'انبار سریال',
     inventory: 'سریال‌های مشتریان',
     reports: 'گزارش خروج',
-    warehouseDaily: 'دفتر روزانه انبار',
+    warehouseDaily: 'تاریخچه و موجودی کالا',
     users: 'کاربران داخلی',
     settings: 'تنظیمات عمومی',
     salesReports: 'گزارش فروش',
@@ -346,9 +346,9 @@
     const vault = sub.querySelector('[data-tab="warehouse"]');
     const inventory = sub.querySelector('[data-tab="inventory"]');
     const scanBtn = document.getElementById('mobileScanBtn');
-    if (daily) label(daily, 'دفتر روزانه انبار', 'reports');
+    if (daily) label(daily, 'تاریخچه و موجودی کالا', 'reports');
     if (reports) label(reports, 'گزارش خروج', 'reports');
-    if (vault) label(vault, 'مخزن انبار', 'warehouse');
+    if (vault) label(vault, 'انبار سریال', 'warehouse');
     if (inventory) label(inventory, 'سریال‌های مشتریان', 'inventory');
     sub.querySelectorAll('[data-tab="products"]').forEach(hideNav);
     let stocktake = $('gpNavStocktake') || sub.querySelector('[data-tab="stocktake"]');

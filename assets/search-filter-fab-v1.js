@@ -186,7 +186,7 @@
       repFrom: 'از تاریخ خروج',
       repTo: 'تا تاریخ خروج',
       repShip: 'روش ارسال',
-      warehouseLedgerMonth: 'ماه دفتر روزانه'
+      warehouseLedgerMonth: 'ماه تاریخچه و موجودی'
     };
     return map[el.id] || 'فیلتر';
   }
@@ -532,7 +532,7 @@
   function ensureDailyFields(pane) {
     if (pane.dataset.gpDailyExtra === '1') return;
     pane.dataset.gpDailyExtra = '1';
-    addInput(pane, 'gpFabDailyQ', 'جستجوی مدل در دفتر روزانه', 'نام مدل دستگاه');
+    addInput(pane, 'gpFabDailyQ', 'جستجوی مدل در تاریخچه و موجودی', 'نام مدل دستگاه');
     bindApply($('gpFabDailyQ'), applyDaily);
   }
 
@@ -579,14 +579,14 @@
 
   function titles(tabId) {
     var map = {
-      warehouse: ['جستجو و فیلتر مخزن انبار', 'باکس، سریال، مدل، انبار، رنگ، وضعیت'],
+      warehouse: ['جستجو و فیلتر انبار سریال', 'باکس، سریال، مدل، انبار، رنگ، وضعیت'],
       inventory: ['جستجو در سریال مشتریان', 'سریال، مشتری، مدل و تاریخ'],
       customers: ['جستجو در کارتابل مشتریان', 'نام، کد، موبایل، نوع همکاری'],
       orders: ['جستجو و فیلتر سفارش‌ها', 'شماره، مشتری، وضعیت، تسویه'],
       dashboard: ['جستجوی داشبورد', 'سفارش یا مشتری'],
       products: ['جستجوی محصولات', 'نام محصول یا سازنده'],
       reports: ['فیلتر گزارش خروج', 'تاریخ، ارسال، کالا'],
-      warehouseDaily: ['جستجوی دفتر روزانه', 'ماه و مدل دستگاه'],
+      warehouseDaily: ['جستجو در تاریخچه و موجودی کالا', 'ماه و مدل دستگاه'],
       stocktake: ['جستجوی انبارگردانی', 'مدل و نوع موجودی'],
       salesAgents: ['جستجوی عاملین فروش', 'نام، کد، موبایل، شرکت'],
       salesReps: ['جستجوی نمایندگان', 'نام، کد، نقش، بازاریاب'],
