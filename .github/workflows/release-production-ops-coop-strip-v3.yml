@@ -1,0 +1,43 @@
+name: Release Production Ops Coop Strip V3
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  ops-coop-strip-v3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate ops coop strip v3
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-ops-coop-strip-v3.py
+          python3 tests/production-ops-coop-strip-v3.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish ops coop strip v3
+        run: python3 scripts/deploy-production-ops-coop-strip-v3.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          grep -Fq 'GP_OPS_COOP_STRIP_V3_20261026' /tmp/live-app.html
+          grep -Fq 'ops-coop-strip-v3.js?v=1' /tmp/live-app.html
+          grep -Fq 'warehouse-ops-harden-v2.js?v=1' /tmp/live-app.html
+          ! grep -Fq 'number-counter-v1.js' /tmp/live-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/ops-coop-strip-v3.js?v=1' -o /tmp/live-strip.js
+          grep -Fq 'gp-ops-quick' /tmp/live-strip.js
+          grep -Fq 'stripAll' /tmp/live-strip.js
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo
