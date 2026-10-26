@@ -17,8 +17,6 @@ jobs:
       FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: feature/order-return-exchange-20261026
       - name: Validate order return exchange
         run: |
           set -euo pipefail
