@@ -1,27 +1,80 @@
 <?php
 declare(strict_types=1);
 
-/** GP_ORDER_RETURN_EXCHANGE_V1_20261026 — return replacement without new sale or qty/total changes. */
+/** GP_ORDER_RETURN_EXCHANGE_V1_20261026 — return replacement without new sale or qty/total changes.
+ *  GP_ORDER_RETURN_EXCHANGE_V2_20261026 — replace returned serials in order items (not append). */
 
-function ghadir_order_exchange_pending_by_product(array $order): array {
-    $original = [];
+/** @return array<string,string> serial (upper) => product */
+function ghadir_order_serial_product_map(array $order): array {
+    $map = [];
     foreach ($order['items'] ?? [] as $it) {
         $p = (string)($it['product'] ?? '');
+        if ($p === '') {
+            continue;
+        }
         foreach ($it['serials'] ?? [] as $sn) {
-            $original[strtoupper((string)$sn)] = $p;
+            $map[strtoupper((string)$sn)] = $p;
         }
     }
-    $returned = [];
+    foreach ($order['exchanges'] ?? [] as $ex) {
+        $p = (string)($ex['product'] ?? '');
+        if ($p === '') {
+            continue;
+        }
+        foreach (array_merge(
+            (array)($ex['returned_serials_replaced'] ?? []),
+            (array)($ex['new_serials'] ?? []),
+            (array)($ex['returned_serials_snapshot'] ?? [])
+        ) as $sn) {
+            $key = strtoupper((string)$sn);
+            if ($key !== '' && !isset($map[$key])) {
+                $map[$key] = $p;
+            }
+        }
+    }
+    return $map;
+}
+
+/** @return array<string,true> */
+function ghadir_order_replaced_returned_serials(array $order, string $product = ''): array {
+    $set = [];
+    foreach ($order['exchanges'] ?? [] as $ex) {
+        if ($product !== '' && (string)($ex['product'] ?? '') !== $product) {
+            continue;
+        }
+        foreach ($ex['returned_serials_replaced'] ?? [] as $sn) {
+            $set[strtoupper((string)$sn)] = true;
+        }
+    }
+    return $set;
+}
+
+function ghadir_order_unreplaced_returned_serials(array $order, string $product): array {
+    $map = ghadir_order_serial_product_map($order);
+    $replaced = ghadir_order_replaced_returned_serials($order, $product);
+    $out = [];
     foreach ($order['returns'] ?? [] as $ret) {
         foreach ($ret['serials'] ?? [] as $sn) {
-            $returned[strtoupper((string)$sn)] = true;
+            $key = strtoupper((string)$sn);
+            if (($map[$key] ?? '') !== $product || !empty($replaced[$key])) {
+                continue;
+            }
+            $out[] = (string)$sn;
         }
     }
+    return array_values(array_unique($out));
+}
+
+function ghadir_order_exchange_pending_by_product(array $order): array {
+    $map = ghadir_order_serial_product_map($order);
     $counts = [];
-    foreach ($returned as $sn => $_) {
-        $p = $original[$sn] ?? '';
-        if ($p !== '') {
-            $counts[$p] = ($counts[$p] ?? 0) + 1;
+    foreach ($order['returns'] ?? [] as $ret) {
+        foreach ($ret['serials'] ?? [] as $sn) {
+            $key = strtoupper((string)$sn);
+            $p = $map[$key] ?? '';
+            if ($p !== '') {
+                $counts[$p] = ($counts[$p] ?? 0) + 1;
+            }
         }
     }
     foreach ($order['exchanges'] ?? [] as $ex) {
@@ -41,25 +94,7 @@ function ghadir_order_exchange_pending_by_product(array $order): array {
 }
 
 function ghadir_order_returned_serials_for_product(array $order, string $product): array {
-    $original = [];
-    foreach ($order['items'] ?? [] as $it) {
-        if ((string)($it['product'] ?? '') !== $product) {
-            continue;
-        }
-        foreach ($it['serials'] ?? [] as $sn) {
-            $original[strtoupper((string)$sn)] = true;
-        }
-    }
-    $list = [];
-    foreach ($order['returns'] ?? [] as $ret) {
-        foreach ($ret['serials'] ?? [] as $sn) {
-            $key = strtoupper((string)$sn);
-            if (!empty($original[$key])) {
-                $list[] = (string)$sn;
-            }
-        }
-    }
-    return array_values(array_unique($list));
+    return ghadir_order_unreplaced_returned_serials($order, $product);
 }
 
 /**
@@ -199,8 +234,19 @@ function ghadir_order_return_exchange(array &$s, array $x, array $u): array {
             break;
         }
     }
+    $returnedForProduct = ghadir_order_unreplaced_returned_serials($o, $product);
+    $replaceBatch = array_slice($returnedForProduct, 0, count($serials));
+    if (count($replaceBatch) < count($serials)) {
+        fail('سریال مرجوعی برای جایگزینی پیدا نشد');
+    }
+
     if ($itIdx >= 0) {
         $cur = array_values($o['items'][$itIdx]['serials'] ?? []);
+        $remove = array_fill_keys(array_map(fn($v) => strtoupper((string)$v), $replaceBatch), true);
+        $cur = array_values(array_filter(
+            $cur,
+            fn($sn) => !isset($remove[strtoupper((string)$sn)])
+        ));
         foreach ($serials as $sn) {
             if (!in_array($sn, $cur, true)) {
                 $cur[] = $sn;
@@ -220,7 +266,6 @@ function ghadir_order_return_exchange(array &$s, array $x, array $u): array {
         $s['next_exchange'] = $mx + 1;
     }
     $exchangeId = (int)$s['next_exchange']++;
-    $returnedForProduct = ghadir_order_returned_serials_for_product($o, $product);
 
     $o['exchanges'][] = [
         'id' => $exchangeId,
@@ -228,6 +273,7 @@ function ghadir_order_return_exchange(array &$s, array $x, array $u): array {
         'by' => $u['username'],
         'product' => $product,
         'new_serials' => $serials,
+        'returned_serials_replaced' => $replaceBatch,
         'returned_serials_snapshot' => $returnedForProduct,
         'movement_ids' => $movementIds,
         'request_id' => $requestId,

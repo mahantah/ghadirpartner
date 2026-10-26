@@ -85,7 +85,7 @@ window.openOrderExchange=async function(id){
   +'<div class="gp-exchange-head"><div class="gp-exchange-card"><b>مشتری</b><span>'+esc(c.company||c.mobile||c.code||'—')+'</span></div><div class="gp-exchange-card"><b>وضعیت سفارش</b><span>'+esc(o.status||'')+' · '+esc(o.payment_status||'')+'</span></div></div>'
   +'<label>مدل دستگاه مرجوع‌شده<select id="exchangeProduct" onchange="renderExchangeSerials('+id+')">'+options+'</select></label>'
   +'<div id="exchangeQuota" class="gp-exchange-quota"></div>'
-  +'<div class="gp-exchange-section"><h4>سریال‌های مرجوعی (در سابقه سفارش باقی می‌مانند)</h4><div id="exchangeReturned" class="gp-exchange-returned"></div></div>'
+  +'<div class="gp-exchange-section"><h4>سریال‌های مرجوعی (هنوز جایگزین نشده)</h4><div id="exchangeReturned" class="gp-exchange-returned"></div></div>'
   +'<div class="gp-exchange-section"><h4>انتخاب سریال جایگزین از موجودی آزاد</h4><div id="exchangeSerialList"><p class="small">در حال بارگذاری سریال‌های آزاد…</p></div></div>'
   +'<div class="gp-exchange-section"><h4>تاریخچه تعویض</h4><div id="exchangeHistory" class="gp-exchange-history"></div></div>'
   +'<div class="gp-exchange-toolbar"><button type="button" class="primary" onclick="submitOrderExchange('+id+')">ثبت نهایی تعویض</button><button type="button" class="ghost" onclick="closeModal()">انصراف</button></div></div>');

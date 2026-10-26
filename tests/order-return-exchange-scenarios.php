@@ -117,6 +117,9 @@ try {
     assert_true($r['ok'] === true, 'four replace ok');
     assert_true(count($o['exchanges']) === 1, 'one exchange');
     assert_true(in_array('P125000101', $o['items'][0]['serials'], true), 'new serial on order');
+    assert_true(!in_array('P125000001', $o['items'][0]['serials'], true), 'returned serial removed from order items');
+    assert_true(count($o['items'][0]['serials']) === $qty, 'item serial count matches qty');
+    assert_true(($o['exchanges'][0]['returned_serials_replaced'] ?? []) === ['P125000001', 'P125000002', 'P125000003', 'P125000004'], 'replaced batch recorded');
     assert_true($o['items'][0]['qty'] === $qty, 'qty unchanged');
     assert_true($o['approved_total'] === $total, 'total unchanged');
     assert_true(free_count($s, 'MOREFUN - H9 PRO') === $beforeFree - 4, 'inventory reduced by 4');
