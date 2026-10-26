@@ -1,0 +1,42 @@
+name: Release Production Kartabl Sync V2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate
+        run: |
+          set -euo pipefail
+          node --check assets/kartabl-sync-v1.js
+          grep -Fq onCustomersTab assets/kartabl-sync-v1.js
+          python3 -m py_compile scripts/deploy-production-kartabl-sync-v2.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Deploy
+        run: python3 scripts/deploy-production-kartabl-sync-v2.py deploy
+      - name: Verify live
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 60 https://ghadirpartner.ir/app.html -o /tmp/gp-app.html
+          grep -Fq 'GP_KARTABL_SYNC_V2_20261026' /tmp/gp-app.html
+          grep -Fq 'kartabl-sync-v1.js?v=2' /tmp/gp-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/kartabl-sync-v1.js?v=2' | grep -Fq onCustomersTab

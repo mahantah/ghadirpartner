@@ -58,12 +58,28 @@
     return customers().filter(function (x) { return +x.id === +id; })[0] || null;
   }
 
+  function activeTabId() {
+    var tabs = document.querySelectorAll('section.tab, .tab[id]');
+    for (var i = 0; i < tabs.length; i++) {
+      var sec = tabs[i];
+      if (!sec.id) continue;
+      if (!sec.classList.contains('hidden') && !sec.hasAttribute('hidden')) return sec.id;
+    }
+    return '';
+  }
+
+  function onCustomersTab() {
+    var t = activeTabId();
+    return t === 'customers' || t === 'customerAdd' || t === 'salesAgents' || t === 'salesReps';
+  }
+
   function ensureStyle() {
     if ($(STYLE_ID)) return;
     var css = document.createElement('style');
     css.id = STYLE_ID;
     css.textContent =
-      '#customers .card:has(#ctbody),#customers .card:has(#custSearch){display:block!important;visibility:visible!important}' +
+      '#customers:not(.hidden):not([hidden]) .card:has(#ctbody),' +
+      '#customers:not(.hidden):not([hidden]) .card:has(#custSearch){display:block!important;visibility:visible!important}' +
       '#gpKartablTools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}' +
       '#ctbody tr.gp-coop-agent td{background:#d8f5e3!important}' +
       '#ctbody tr.gp-coop-marketer td{background:#ffe0bf!important}' +
@@ -83,11 +99,11 @@
   }
 
   function revealKartabl() {
+    if (!onCustomersTab()) return;
     var body = $('ctbody');
     var search = $('custSearch');
     showCard(body && body.closest('.card'));
     showCard(search && search.closest('.card'));
-    showCard($('customers'));
     ['portalAccounts', 'portalRegistrations'].forEach(function (id) {
       var node = $(id);
       var card = node && node.closest('.card');
@@ -120,6 +136,7 @@
   }
 
   function renderKartabl() {
+    if (!onCustomersTab()) return;
     syncGlobals();
     revealKartabl();
     ensureTools();
@@ -492,7 +509,7 @@
         var out = await base.apply(this, arguments);
         try {
           syncGlobals();
-          renderKartabl();
+          if (onCustomersTab()) renderKartabl();
           paintChannelPages();
         } catch (e) {}
         return out;
@@ -505,7 +522,7 @@
         var out = baseShow.apply(this, arguments);
         try {
           syncGlobals();
-          if (t === 'customers') renderKartabl();
+          if (t === 'customers' || t === 'customerAdd') renderKartabl();
           if (t === 'salesAgents' || t === 'salesReps') paintChannelPages();
           if (t === 'users') {
             slimUsersPage();
@@ -521,13 +538,12 @@
   function apply() {
     try { ensureStyle(); } catch (e) {}
     try { syncGlobals(); } catch (e) {}
-    try { revealKartabl(); } catch (e) {}
     try { wrapRender(); } catch (e) {}
     try { wrapMenu(); } catch (e) {}
     try { wrapUsers(); } catch (e) {}
     try { wrapViews(); } catch (e) {}
     try {
-      if ($('customers') && !$('customers').classList.contains('hidden')) renderKartabl();
+      if (onCustomersTab()) renderKartabl();
     } catch (e) {}
   }
 
