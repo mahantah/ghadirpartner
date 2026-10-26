@@ -223,4 +223,37 @@ try {
     exit(1);
 }
 
+try {
+    $s = base_state();
+    ghadir_order_return_exchange($s, ['id' => 137, 'product' => 'MOREFUN - H9 PRO', 'serials' => ['P125000101', 'P125000102', 'P125000103', 'P125000104'], 'request_id' => 'req-repair'], $u);
+    $s['orders'][0]['items'][0]['serials'] = array_merge(
+        ['P125000001', 'P125000002', 'P125000003', 'P125000004'],
+        ['P125000101', 'P125000102', 'P125000103', 'P125000104']
+    );
+    unset($s['orders'][0]['exchanges'][0]['returned_serials_replaced']);
+    foreach ($s['inventory'] as &$iv) {
+        $sn = strtoupper((string)($iv['serial'] ?? ''));
+        if (in_array($sn, ['P125000101', 'P125000102', 'P125000103', 'P125000104'], true)) {
+            $iv['order_id'] = 137;
+            $iv['warehouse_id'] = 0;
+        }
+        if (in_array($sn, ['P125000001', 'P125000002', 'P125000003', 'P125000004'], true)) {
+            $iv['order_id'] = 0;
+            $iv['warehouse_id'] = 1;
+        }
+    }
+    unset($iv);
+    $changed = ghadir_order_repair_exchange_item_serials($s['orders'][0], $s['inventory']);
+    assert_true($changed, 'repair changed items');
+    assert_true(count($s['orders'][0]['items'][0]['serials']) === 4, 'repair serial count');
+    assert_true(!in_array('P125000001', $s['orders'][0]['items'][0]['serials'], true), 'repair removed returned serial');
+    assert_true(in_array('P125000104', $s['orders'][0]['items'][0]['serials'], true), 'repair kept replacement serial');
+    assert_true(count($s['orders'][0]['exchanges'][0]['returned_serials_replaced'] ?? []) === 4, 'repair backfilled exchange metadata');
+    $passed++;
+    echo "OK: repair legacy duplicate serials\n";
+} catch (Throwable $e) {
+    echo "ERR repair: {$e->getMessage()}\n";
+    exit(1);
+}
+
 echo "ALL {$passed} scenario groups passed\n";

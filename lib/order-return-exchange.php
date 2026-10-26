@@ -312,3 +312,125 @@ function ghadir_order_return_exchange(array &$s, array $x, array $u): array {
         'movement_ids' => $movementIds,
     ];
 }
+
+/** Backfill returned_serials_replaced on exchanges recorded before V2. */
+function ghadir_order_backfill_exchange_replaced(array &$order): int {
+    if (!isset($order['exchanges']) || !is_array($order['exchanges'])) {
+        return 0;
+    }
+    $map = ghadir_order_serial_product_map($order);
+    $used = [];
+    $patched = 0;
+    foreach ($order['exchanges'] as $i => $ex) {
+        $product = (string)($ex['product'] ?? '');
+        $newSerials = array_values($ex['new_serials'] ?? []);
+        $need = count($newSerials);
+        if ($product === '' || $need < 1) {
+            continue;
+        }
+        $existing = array_values($ex['returned_serials_replaced'] ?? []);
+        if (count($existing) === $need) {
+            foreach ($existing as $sn) {
+                $used[strtoupper((string)$sn)] = true;
+            }
+            continue;
+        }
+        $batch = [];
+        foreach ($order['returns'] ?? [] as $ret) {
+            foreach ($ret['serials'] ?? [] as $sn) {
+                $key = strtoupper((string)$sn);
+                if (($map[$key] ?? '') !== $product || !empty($used[$key])) {
+                    continue;
+                }
+                $batch[] = (string)$sn;
+                $used[$key] = true;
+                if (count($batch) >= $need) {
+                    break 2;
+                }
+            }
+        }
+        if (count($batch) !== $need) {
+            continue;
+        }
+        $order['exchanges'][$i]['returned_serials_replaced'] = $batch;
+        $patched++;
+    }
+    return $patched;
+}
+
+/**
+ * Align items[].serials with post-exchange reality (inventory on order, else logical swap).
+ * Does not modify inventory, totals, or qty.
+ *
+ * @param array<string,mixed> $order
+ * @param array<int,array<string,mixed>> $inventory
+ */
+function ghadir_order_repair_exchange_item_serials(array &$order, array $inventory): bool {
+    $exPatched = ghadir_order_backfill_exchange_replaced($order);
+    $oid = (int)($order['id'] ?? 0);
+    $changed = $exPatched > 0;
+    if (!isset($order['items']) || !is_array($order['items'])) {
+        return $changed;
+    }
+    foreach ($order['items'] as $i => $it) {
+        $product = (string)($it['product'] ?? '');
+        if ($product === '') {
+            continue;
+        }
+        $qty = (int)($it['qty'] ?? 0);
+        $before = array_values($it['serials'] ?? []);
+        $fromInv = [];
+        foreach ($inventory as $iv) {
+            if ((int)($iv['order_id'] ?? 0) !== $oid) {
+                continue;
+            }
+            if ((string)($iv['product'] ?? '') !== $product) {
+                continue;
+            }
+            if ((int)($iv['warehouse_id'] ?? 0) > 0) {
+                continue;
+            }
+            $fromInv[] = (string)($iv['serial'] ?? '');
+        }
+        $seen = [];
+        $target = [];
+        foreach ($fromInv as $sn) {
+            $key = strtoupper(trim($sn));
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $target[] = $sn;
+        }
+        if (!$target) {
+            $cur = $before;
+            foreach ($order['exchanges'] ?? [] as $ex) {
+                if ((string)($ex['product'] ?? '') !== $product) {
+                    continue;
+                }
+                $remove = array_fill_keys(
+                    array_map(fn($v) => strtoupper((string)$v), (array)($ex['returned_serials_replaced'] ?? [])),
+                    true
+                );
+                $cur = array_values(array_filter(
+                    $cur,
+                    fn($sn) => !isset($remove[strtoupper((string)$sn)])
+                ));
+                foreach ($ex['new_serials'] ?? [] as $sn) {
+                    if (!in_array($sn, $cur, true)) {
+                        $cur[] = $sn;
+                    }
+                }
+            }
+            $target = $cur;
+        }
+        if ($qty > 0 && count($target) > $qty) {
+            $target = array_slice($target, 0, $qty);
+        }
+        if ($target !== $before) {
+            $order['items'][$i]['serials'] = $target;
+            $changed = true;
+        }
+    }
+    return $changed;
+}
