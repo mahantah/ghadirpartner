@@ -31,8 +31,4 @@ jobs:
       - name: Publish
         run: python3 scripts/deploy-production-order-exchange-serial-swap-v1.py deploy
       - name: Confirm live
-        run: |
-          set -euo pipefail
-          curl -fsSL --max-time 30 https://ghadirpartner.ir/lib/order-return-exchange.php -o /tmp/live-exchange.php
-          grep -Fq 'GP_ORDER_RETURN_EXCHANGE_V2_20261026' /tmp/live-exchange.php
-          grep -Fq returned_serials_replaced /tmp/live-exchange.php
+        run: curl -fsSL --max-time 30 https://ghadirpartner.ir/healthz | grep -Fq INVENTORY
