@@ -78,8 +78,15 @@ function gpWarehouseMovementMatchesProduct(m,product){
 }
 function gpWarehouseStockOnJalaliDayKeys(state,wid,keys,jday,today){
   if(!state) return 0;
-  let q=gpWarehouseCurrentQtyKeys(state,wid,keys);
   const day=String(jday||'');
+  const iso=(typeof whIsoDate==='function' && /^\\d{4}\\/\\d{2}\\/\\d{2}$/.test(day))
+    ? whIsoDate(...day.split('/').map(Number)) : '';
+  const close=iso && state.daily_closes && state.daily_closes[iso];
+  if(close && close.balances){
+    const balances=close.balances[String(wid)]||close.balances[wid]||{};
+    return (keys||[]).reduce((sum,key)=>sum+(Number(balances[key])||0),0);
+  }
+  let q=gpWarehouseCurrentQtyKeys(state,wid,keys);
   const now=String(today||'');
   for(const m of (state.movements||[])){
     if(!(keys||[]).some(k=>gpWarehouseMovementMatchesProduct(m,k))) continue;
