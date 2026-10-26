@@ -91,15 +91,15 @@
       '#gp-warehouse-filter-box,#gp-inventory-filter-box,.gp-warehouse-filters{display:none!important}' +
       '#gpSearchFabRoot{position:fixed;left:18px;bottom:18px;z-index:260;font-family:Tahoma,Arial;pointer-events:none}' +
       '#gpSearchFabRoot.hidden{display:none!important}' +
-      '#gpSearchFabRoot.is-open,#gpSearchFabRoot .gp-fab-btn,#gpSearchFabRoot .gp-fab-sheet,#gpSearchFabRoot .gp-fab-back{pointer-events:auto}' +
+      '#gpSearchFabRoot .gp-fab-btn,#gpSearchFabRoot .gp-fab-sheet{pointer-events:auto}' +
       '.gp-fab-btn{width:58px;height:58px;border:0;border-radius:50%;background:linear-gradient(160deg,#16324d,#102a43);color:#fff;box-shadow:0 10px 28px #102a4355,0 0 0 3px #ffffffcc;cursor:pointer;display:grid;place-items:center;position:relative;z-index:4;padding:0}' +
       '.gp-fab-btn:hover{transform:translateY(-1px);filter:brightness(1.06)}' +
       '.gp-fab-btn svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}' +
       '.gp-fab-btn.is-active{background:linear-gradient(160deg,#f58220,#d96a12);box-shadow:0 10px 28px #f5822040,0 0 0 3px #fff6}' +
       '.gp-fab-badge{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#fff;color:#b42318;font-size:11px;font-weight:800;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px #0002}' +
       '.gp-fab-btn.is-active .gp-fab-badge{display:flex}' +
-      '.gp-fab-back{position:fixed;inset:0;background:#102a4322;opacity:0;pointer-events:none;transition:.18s;z-index:1}' +
-      '#gpSearchFabRoot.is-open .gp-fab-back{opacity:1;pointer-events:auto}' +
+      '.gp-fab-back{display:none!important;pointer-events:none!important}' +
+      '#gpSearchFabRoot.is-open .gp-fab-back{display:none!important;pointer-events:none!important}' +
       '.gp-fab-sheet{position:absolute;left:0;bottom:70px;width:min(420px,calc(100vw - 28px));max-height:min(74vh,640px);background:#fff;color:#111;border:1px solid #e4ebf2;border-radius:18px;box-shadow:0 22px 60px #102a4338;display:none;overflow:hidden;z-index:3;pointer-events:auto}' +
       '#gpSearchFabRoot.is-open .gp-fab-sheet{display:flex;flex-direction:column}' +
       '.gp-fab-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid #edf1f5;background:#f8fafc}' +

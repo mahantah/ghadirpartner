@@ -15,14 +15,14 @@
         'z-index:260!important;' +
         'pointer-events:none!important;' +
       '}' +
-      '#gpSearchFabRoot.is-open,' +
       '#gpSearchFabRoot .gp-fab-btn,' +
-      '#gpSearchFabRoot .gp-fab-sheet,' +
-      '#gpSearchFabRoot .gp-fab-back{' +
+      '#gpSearchFabRoot .gp-fab-sheet{' +
         'pointer-events:auto!important;' +
       '}' +
-      '#gpSearchFabRoot .gp-fab-back{' +
-        'z-index:1!important;' +
+      '#gpSearchFabRoot .gp-fab-back,' +
+      '#gpSearchFabRoot.is-open .gp-fab-back{' +
+        'display:none!important;' +
+        'pointer-events:none!important;' +
       '}' +
       '#gpSearchFabRoot .gp-fab-sheet{' +
         'position:absolute!important;' +

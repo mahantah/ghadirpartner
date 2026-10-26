@@ -1,0 +1,43 @@
+name: Release Production Search Filter Fab Click V3
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  search-filter-fab-click-v3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate search filter fab click v3
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/deploy-production-search-filter-fab-click-v3.py
+          python3 tests/production-search-filter-fab-click-v3.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish search filter fab click v3
+        run: python3 scripts/deploy-production-search-filter-fab-click-v3.py deploy
+      - name: Confirm public automation page
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/app.html' -o /tmp/live-app.html
+          grep -Fq 'GP_SEARCH_FILTER_FAB_CLICK_V3_20261026' /tmp/live-app.html
+          grep -Fq 'search-filter-fab-click-v3.js?v=1' /tmp/live-app.html
+          grep -Fq 'wh-label-v1.js?v=1' /tmp/live-app.html
+          ! grep -Fq 'number-counter-v1.js' /tmp/live-app.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/search-filter-fab-click-v3.js?v=1' -o /tmp/live-fab-click.js
+          grep -Fq 'disarmBack' /tmp/live-fab-click.js
+          grep -Fq 'gp-fab-back' /tmp/live-fab-click.js
+          curl -fsSL --max-time 20 https://ghadirpartner.ir/healthz
+          echo
