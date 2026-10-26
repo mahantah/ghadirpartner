@@ -1,0 +1,46 @@
+name: Release Production Warehouse Ledger History V1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-ui-refine-v53438.js
+          node tests/warehouse-ledger-anchor.js
+          grep -Fq 'GP_LEDGER_FULL_CATALOG_AND_HISTORY_V1_20261026' assets/warehouse-ui-refine-v53438.js
+          ! grep -Fq 'renderDailyMovementSummary()}catch' assets/warehouse-ui-refine-v53438.js
+          python3 -m py_compile scripts/deploy-production-warehouse-ledger-history-v1.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Deploy
+        run: python3 scripts/deploy-production-warehouse-ledger-history-v1.py deploy
+      - name: Verify live
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 60 https://ghadirpartner.ir/app.html -o /tmp/gp-app-ledger.html
+          grep -Fq 'GP_LEDGER_FULL_CATALOG_AND_HISTORY_V1_20261026' /tmp/gp-app-ledger.html
+          grep -Fq 'warehouse-ui-refine-v53438.js?v=53438ui7' /tmp/gp-app-ledger.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/warehouse-ui-refine-v53438.js?v=53438ui7' -o /tmp/gp-refine-ui7.js
+          grep -Fq 'GP_LEDGER_FULL_CATALOG_AND_HISTORY_V1_20261026' /tmp/gp-refine-ui7.js
+          ! grep -Fq 'renderDailyMovementSummary()}catch' /tmp/gp-refine-ui7.js

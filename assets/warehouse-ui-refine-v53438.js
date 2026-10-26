@@ -30,6 +30,10 @@ window.__GP_WAREHOUSE_UI_REFINE_53438__=true;
 */
 const GP_WHOLESALE_WAREHOUSE_ID=1;
 /* GP_I90_LEDGER_FAMILY_V5_20261018 — one ledger row for split I90 product names. */
+/* GP_LEDGER_FULL_CATALOG_AND_HISTORY_V1_20261026
+   Daily grid lists all catalog models (including zero stock); رسید و گردش keeps
+   the per-movement history table instead of a daily rollup summary.
+*/
 function gpWarehouseLedgerFamilyKey(name){
   const n=String(name||'').trim();
   if(/\bI90\b/i.test(n)) return 'FAMILY:I90';
@@ -62,7 +66,7 @@ function gpWarehouseLedgerRows(state,wid){
     touch(m.product);
   });
   return [...fam.values()]
-    .filter(r=>[...r.keys].some(k=>gpWarehouseCurrentQty(state,wid,k)>0))
+    .filter(r=>r.catalog||[...r.keys].some(k=>gpWarehouseCurrentQty(state,wid,k)>0))
     .map(r=>({product:r.label,keys:[...r.keys]}))
     .sort((a,b)=>warehouseProductOrder(a.product)-warehouseProductOrder(b.product)||a.product.localeCompare(b.product,'fa'));
 }
@@ -567,15 +571,12 @@ function wrapWarehouseRender(){
     const base=renderWarehouseLedger;
     const wrapped=function(){
       window.WAREHOUSE_STATE=window.WAREHOUSE_LEDGER_DATA||window.WAREHOUSE_STATE;
-      const body=document.getElementById('warehouseMovementBody'); if(body) delete body.dataset.gpGroupedSig;
       const r=base.apply(this,arguments);
       try{gpRewriteLedgerGridToCurrent()}catch(e){}
       try{renderSeparateWarehouseLiveSummary()}catch(e){}
-      try{renderDailyMovementSummary()}catch(e){}
       return r;
     };
     wrapped.__gpCurrentGrid=true;
-    wrapped.__gpDailyGrouped=true;
     renderWarehouseLedger=wrapped;
   }
   if(typeof loadWarehouse==='function' && !loadWarehouse.__gpHydrateSerials){
@@ -662,13 +663,12 @@ function normalizeUI(){
   emphasizeForceOrders();
   installSeparatedStocktake();
   try{ if(document.getElementById('reports') && !document.getElementById('reports').classList.contains('hidden')) loadStocktakeSeparated(); }catch(e){}
-  try{ if(document.getElementById('warehouseDaily') && !document.getElementById('warehouseDaily').classList.contains('hidden')){renderSeparateWarehouseLiveSummary();renderDailyMovementSummary();} }catch(e){}
+  try{ if(document.getElementById('warehouseDaily') && !document.getElementById('warehouseDaily').classList.contains('hidden')){renderSeparateWarehouseLiveSummary();} }catch(e){}
 }
 
 const css=document.createElement('style');
 css.textContent=
   '.jdate-pop{z-index:1000000!important}.jdate-wrap{overflow:visible!important}.report-grid,.card{overflow:visible}'+
-  '#warehouseDaily .warehouse-ledger-bottom{display:none!important}'+
   '.gp-serial-merge-divider{height:1px;background:#e4eaf1;margin:14px 0}'+
   '#inventory>.card{overflow:visible}.gp-move-products{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:4px}.gp-move-products span{display:inline-block;background:#f4f7fb;border:1px solid #e1e8f0;border-radius:7px;padding:3px 6px;font-size:11px}.warehouse-movement-table{min-width:900px}.warehouse-movement-table td{vertical-align:top}'+
   '/* gp-warehouse-summary-compact */#warehouseLedgerSummary{display:grid!important;grid-template-columns:repeat(4,minmax(140px,1fr))!important;gap:6px!important;margin:6px 0!important}#warehouseBtn2{display:none!important}.warehouse-ledger-table td.future-cell{color:#94a3b8;background:#f8fafc}#warehouseLedgerSummary>.card{margin:0!important;padding:8px 11px!important;min-height:0!important;border-radius:12px!important}#warehouseLedgerSummary>.card>.small,#warehouseLedgerSummary>.card .small{margin:0!important;line-height:1.3!important}#warehouseLedgerSummary>.card>b{margin:1px 0!important;line-height:1.25!important}.gp-wh-live-card{padding:8px 10px!important;border:1px solid #dce5ee!important}.gp-wh-live-card.active{border-color:#f58220!important;box-shadow:0 0 0 2px #f5822026!important}.gp-wh-live-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}.gp-wh-live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.gp-wh-live-stats>div{background:#f7f9fc;border:1px solid #e5ebf2;border-radius:8px;padding:5px 6px;text-align:center}.gp-wh-live-stats span{display:block;font-size:10.5px;color:#64748b;margin-bottom:2px;line-height:1.25}.gp-wh-live-stats strong{font-size:16px;line-height:1.15;color:#102a43}'+

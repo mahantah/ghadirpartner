@@ -10,6 +10,8 @@ if(src.includes('جمع هر دو انبار')) throw new Error('combined wareho
 if(!src.includes('future-cell')) throw new Error('future ledger days must stay blank');
 if(!src.includes('gpCartonInventorySerials')) throw new Error('carton inventory serial helper missing');
 if(!src.includes('GP_I90_LEDGER_FAMILY_V5_20261018')) throw new Error('I90 ledger family merge missing');
+if(!src.includes('GP_LEDGER_FULL_CATALOG_AND_HISTORY_V1_20261026')) throw new Error('full catalog ledger rows missing');
+if(src.includes('renderDailyMovementSummary()}catch')) throw new Error('movement history must not be replaced by daily rollup');
 
 function gpWarehouseCurrentQty(state,wid,product){
   const current=state?.current?.[wid]||state?.current?.[String(wid)]||{};
@@ -72,11 +74,11 @@ const famRows=(()=>{
     if(!fam.has(fk)) fam.set(fk,{label:k,keys:new Set(),catalog:false});
     fam.get(fk).keys.add(k);
   });
-  return [...fam.values()].filter(r=>[...r.keys].some(k=>(split.current[1][k]||0)>0));
+  return [...fam.values()].filter(r=>r.catalog||[...r.keys].some(k=>(split.current[1][k]||0)>0));
 })();
 const i90=famRows.find(r=>r.label.includes('I90'));
 if(!i90||gpWarehouseCurrentQtyKeys(split,1,[...i90.keys])!==1605) throw new Error('split I90 product names must sum in one ledger row');
-if(famRows.some(r=>r.label==='Z-990')) throw new Error('zero-stock catalog models must not appear in ledger rows');
+if(!famRows.some(r=>r.label==='Z-990')) throw new Error('zero-stock catalog models must appear in ledger rows');
 
 function hydrate(cartons,inventory){
   const byId=new Map();
