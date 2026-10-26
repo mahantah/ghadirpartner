@@ -1,0 +1,82 @@
+name: Restore Order 137 Lines After Repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Restore I90/I80/M3P serials from repair backup (keep H9 PRO repaired)'
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate
+        run: |
+          set -euo pipefail
+          php -l lib/order-return-exchange.php
+          php -l scripts/order-137-restore-lines-from-repair-backup-once.php
+          php tests/order-return-exchange-scenarios.php
+      - name: Run restore
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp curl jq php-cli
+          python3 scripts/deploy-production-order-exchange-serial-swap-v1.py deploy
+          TOKEN="$(openssl rand -hex 32)"
+          FILE="__gp_order137_restore_${GITHUB_RUN_ID}.php"
+          cp scripts/order-137-restore-lines-from-repair-backup-once.php "/tmp/$FILE"
+          sed -i "s/__RESTORE_TOKEN__/$TOKEN/" "/tmp/$FILE"
+          php -l "/tmp/$FILE"
+          cleanup() {
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          URL="https://ghadirpartner.ir/$FILE"
+          STATUS="$(curl -sS --max-time 60 --output /tmp/gp-o137-r-inspect.json --write-out '%{http_code}' \
+            -X POST -H "X-GP-Restore-Token: $TOKEN" --data 'mode=inspect' "$URL")"
+          [[ "$STATUS" == 200 ]] || { cat /tmp/gp-o137-r-inspect.json; exit 2; }
+          jq -c '{backup,eligible,changed_lines,h9_serials}' /tmp/gp-o137-r-inspect.json
+          REV="$(jq -er '.revision' /tmp/gp-o137-r-inspect.json)"
+          if [[ "$APPLY" == true ]] && [[ "$(jq -r '.eligible' /tmp/gp-o137-r-inspect.json)" == true ]]; then
+            STATUS="$(curl -sS --max-time 90 --output /tmp/gp-o137-r-apply.json --write-out '%{http_code}' \
+              -X POST -H "X-GP-Restore-Token: $TOKEN" \
+              --data 'mode=apply' --data-urlencode "expected_revision=$REV" "$URL")"
+            [[ "$STATUS" == 200 ]] || { cat /tmp/gp-o137-r-apply.json; exit 2; }
+            jq -c '{mode,changed_lines,h9_serials,revision}' /tmp/gp-o137-r-apply.json
+          fi

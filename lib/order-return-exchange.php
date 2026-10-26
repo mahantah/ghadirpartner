@@ -372,9 +372,19 @@ function ghadir_order_repair_exchange_item_serials(array &$order, array $invento
     if (!isset($order['items']) || !is_array($order['items'])) {
         return $changed;
     }
+    $exchangeProducts = [];
+    foreach ($order['exchanges'] ?? [] as $ex) {
+        $p = (string)($ex['product'] ?? '');
+        if ($p !== '') {
+            $exchangeProducts[$p] = true;
+        }
+    }
+    if (!$exchangeProducts) {
+        return $changed;
+    }
     foreach ($order['items'] as $i => $it) {
         $product = (string)($it['product'] ?? '');
-        if ($product === '') {
+        if ($product === '' || empty($exchangeProducts[$product])) {
             continue;
         }
         $qty = (int)($it['qty'] ?? 0);
