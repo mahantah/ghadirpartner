@@ -485,7 +485,30 @@ function gpCartonInventorySerials(c){
 }
 function gpHydrateCartonSerialsFromInventory(){
   if(typeof WH==='undefined'||!WH||!Array.isArray(WH.cartons)) return;
-  WH.cartons.forEach(c=>{ c.serials=gpCartonInventorySerials(c); });
+  const inv=WH.inventory||[];
+  const byCartonId=new Map();
+  const byCode=new Map();
+  inv.forEach(iv=>{
+    const sn=String(iv.serial||'').trim();
+    if(!sn) return;
+    const key=sn.toUpperCase();
+    const cid=Number(iv.carton_id||0);
+    if(cid>0){
+      if(!byCartonId.has(cid)) byCartonId.set(cid,new Map());
+      byCartonId.get(cid).set(key,sn);
+    }
+    const code=String(iv.carton_code||'').trim().toUpperCase();
+    if(code){
+      if(!byCode.has(code)) byCode.set(code,new Map());
+      byCode.get(code).set(key,sn);
+    }
+  });
+  WH.cartons.forEach(c=>{
+    const cid=Number(c.id||0);
+    const code=String(c.code||'').trim().toUpperCase();
+    const bucket=(cid>0&&byCartonId.get(cid))||(code&&byCode.get(code));
+    c.serials=bucket?Array.from(bucket.values()):[];
+  });
 }
 function gpOpenWarehouseSerialsFromInventory(id){
   if(typeof WH==='undefined'||!WH) return;
@@ -558,10 +581,7 @@ function wrapWarehouseRender(){
   if(typeof loadWarehouse==='function' && !loadWarehouse.__gpHydrateSerials){
     const base=loadWarehouse;
     const wrapped=async function(){
-      const r=await base.apply(this,arguments);
-      try{gpHydrateCartonSerialsFromInventory()}catch(e){}
-      try{if(typeof renderWarehouse==='function') renderWarehouse()}catch(e){}
-      return r;
+      return await base.apply(this,arguments);
     };
     wrapped.__gpHydrateSerials=true;
     loadWarehouse=wrapped;
@@ -663,9 +683,11 @@ setTimeout(normalizeUI,250);
 setTimeout(normalizeUI,900);
 
 let queued=false;
-new MutationObserver(()=>{
-  if(queued)return; queued=true;
-  setTimeout(()=>{queued=false;normalizeUI()},100);
+new MutationObserver(muts=>{
+  if(queued)return;
+  if(muts.length&&!muts.some(m=>m.target&&m.target.id!=='warehouseBody'&&!(m.target.closest&&m.target.closest('#warehouseBody')))) return;
+  queued=true;
+  setTimeout(()=>{queued=false;normalizeUI()},180);
 }).observe(document.body,{subtree:true,childList:true});
 
 window.addEventListener('resize',()=>{
