@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Insert /api/order/exchange route into live warehouse PHP when missing."""
+import re
 from pathlib import Path
 
 MARKER = 'GP_ORDER_RETURN_EXCHANGE_V1_20261026'
@@ -24,14 +25,34 @@ def patch_warehouse_php(text: str) -> str:
         "if($p==='/api/warehouse/stock-summary'",
         "if($p==='/api/warehouse/import'",
         "if($p==='/api/warehouse/carton/delete'",
+        "if($p==='/api/users'",
     ):
         at = text.find(next_route, anchor)
         if at > anchor:
             return text[:at] + ROUTE + text[at:]
-    end = text.find('}));}', anchor)
-    if end < 0:
-        raise RuntimeError('STOP: could not locate end of return route block')
-    return text[: end + 5] + '\n' + ROUTE + text[end + 5 :]
+    for pat in (
+        r"if\s*\(\s*\$p\s*===\s*'/api/warehouse/stock-summary'",
+        r"if\s*\(\s*\$p\s*===\s*'/api/warehouse/import'",
+        r"if\s*\(\s*\$p\s*===\s*'/api/warehouse/carton/delete'",
+    ):
+        m = re.search(pat, text[anchor + 20 :])
+        if m:
+            insert_at = anchor + 20 + m.start()
+            return text[:insert_at] + ROUTE + text[insert_at:]
+    tail = text[anchor : anchor + 20000]
+    m = re.search(r"return\s+\$o\s*;\s*\}\)\)\s*;\s*\}", tail)
+    if m:
+        insert_at = anchor + m.end()
+        return text[:insert_at] + '\n' + ROUTE + text[insert_at:]
+    m = re.search(r"\}\)\)\s*;\s*\}", tail)
+    if m:
+        insert_at = anchor + m.end()
+        return text[:insert_at] + '\n' + ROUTE + text[insert_at:]
+    m = re.search(r"if\s*\(\s*\$p\s*===", text[anchor + 40 :])
+    if m:
+        insert_at = anchor + 40 + m.start()
+        return text[:insert_at] + ROUTE + text[insert_at:]
+    raise RuntimeError('STOP: could not locate warehouse insert point for exchange route')
 
 
 def index_php_needs_patch(text: str) -> bool:

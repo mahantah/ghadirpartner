@@ -103,7 +103,15 @@ def deploy() -> None:
         ], temp)
         print(f'BACKUP: remote snapshot {snap_dir}')
 
-        updated = {k: patch_file(k, original[k]) for k in TARGETS}
+        try:
+            updated = {k: patch_file(k, original[k]) for k in TARGETS}
+        except RuntimeError as exc:
+            if 'warehouse' in str(exc).lower():
+                wh = original['warehouse'].decode('utf-8', 'replace')
+                a = wh.find('/api/order/return')
+                if a >= 0:
+                    print('DEBUG warehouse around return:', repr(wh[max(0, a - 80) : a + 900])[:2000])
+            raise
         after = {k: temp / f'{k}-after' for k in TARGETS}
         for k, data in updated.items():
             after[k].write_bytes(data)
