@@ -20,17 +20,28 @@ def patch_warehouse_php(text: str) -> str:
     anchor = text.find("/api/order/return")
     if anchor < 0:
         raise RuntimeError('STOP: /api/order/return anchor missing in warehouse PHP')
-    end = text.find('));}', anchor)
-    if end < 0:
-        end = text.find('}));', anchor)
+    for next_route in (
+        "if($p==='/api/warehouse/stock-summary'",
+        "if($p==='/api/warehouse/import'",
+        "if($p==='/api/warehouse/carton/delete'",
+    ):
+        at = text.find(next_route, anchor)
+        if at > anchor:
+            return text[:at] + ROUTE + text[at:]
+    end = text.find('}));}', anchor)
     if end < 0:
         raise RuntimeError('STOP: could not locate end of return route block')
-    insert_at = end + 4 if text[end:end + 4] == '));}' else end + 3
-    return text[:insert_at] + '\n' + ROUTE + text[insert_at:]
+    return text[: end + 5] + '\n' + ROUTE + text[end + 5 :]
+
+
+def index_php_needs_patch(text: str) -> bool:
+    if MARKER in text or '/api/order/exchange' in text:
+        return False
+    return "if($p==='/api/order/return'" in text
 
 
 def patch_index_php(text: str) -> str:
-    if MARKER in text:
+    if not index_php_needs_patch(text):
         return text
     if '/api/order/exchange' in text and 'order-return-exchange.php' in text:
         return text

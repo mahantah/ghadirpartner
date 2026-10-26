@@ -70,8 +70,10 @@ def patch_file(kind: str, raw: bytes) -> bytes:
         out = patch_app_html(text)
     elif kind == 'warehouse':
         out = patch_warehouse_php(text)
-    else:
+    elif kind == 'index':
         out = patch_index_php(text)
+    else:
+        out = text
     return out.encode('utf-8')
 
 
@@ -105,7 +107,8 @@ def deploy() -> None:
         after = {k: temp / f'{k}-after' for k in TARGETS}
         for k, data in updated.items():
             after[k].write_bytes(data)
-            print(f'patched {k} {sha256(original[k])[:12]} -> {sha256(data)[:12]}')
+            tag = 'unchanged' if data == original[k] else 'patched'
+            print(f'{tag} {k} {sha256(original[k])[:12]} -> {sha256(data)[:12]}')
 
         ftp([f'put {quote(HELPER)} -o {HELPER_REMOTE}'], temp)
         ftp([f'put {quote(JS)} -o {JS_REMOTE}', f'put {quote(CSS)} -o {CSS_REMOTE}'], temp)
