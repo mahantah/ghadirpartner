@@ -1,0 +1,70 @@
+/* GP_ACCOUNT_LOGOUT_ACCESS_V1_20261026
+   Keep the original #logoutbtn / #changePasswordBtn visible when the desktop
+   sidebar is collapsed (header is off-screen). */
+#app > .userbox.gp-account-docked {
+  position: fixed !important;
+  bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
+  left: max(10px, env(safe-area-inset-left, 0px)) !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
+  width: min(292px, calc(100vw - 22px)) !important;
+  max-width: 100% !important;
+  z-index: 225 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 12px 8px 10px !important;
+  background: linear-gradient(180deg, rgba(12, 36, 60, 0.98), rgba(11, 42, 70, 0.99)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 28px rgba(7, 29, 53, 0.42) !important;
+}
+#app > .userbox.gp-account-docked #who {
+  display: block !important;
+  grid-column: 1 / -1 !important;
+  padding: 7px 9px !important;
+  text-align: center !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #e8f3ff !important;
+  font-size: 12px !important;
+  overflow-wrap: anywhere !important;
+}
+#app > .userbox.gp-account-docked #changePasswordBtn,
+#app > .userbox.gp-account-docked #logoutbtn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 7px 6px !important;
+  border-radius: 9px !important;
+  font-size: 11.5px !important;
+  font-weight: 780 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: none !important;
+}
+#app > .userbox.gp-account-docked #logoutbtn {
+  color: #ffc79a !important;
+  border-color: rgba(255, 170, 117, 0.48) !important;
+}
+#app > header .topnav.gp-account-nav-flex {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+}
+#app > header .topnav.gp-account-nav-flex > .gp-sidebar-userbox,
+#app > header .topnav.gp-account-nav-flex > .userbox.gp-sidebar-userbox {
+  margin-top: auto !important;
+  flex: 0 0 auto !important;
+}
