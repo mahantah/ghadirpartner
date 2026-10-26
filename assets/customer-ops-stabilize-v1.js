@@ -165,15 +165,28 @@
     window.pollNotif.__gpStab1 = true;
   }
 
+  function refreshUsesBootstrap(fn) {
+    try {
+      if (typeof window.applyBootstrapData === 'function') return true;
+      return /\/api\/bootstrap/.test(String(fn || ''));
+    } catch (e) {
+      return false;
+    }
+  }
+
   function hardenRefresh() {
     if (typeof window.refresh !== 'function' || window.refresh.__gpStab1) return;
     var base = window.refresh;
+    var bootstrapRefresh = refreshUsesBootstrap(base);
     window.refresh = async function () {
       if (window.__gpLightRefresh || arguments[0] === 'light') {
         return lightRefresh();
       }
       window.__gpBusy = true;
       try {
+        if (bootstrapRefresh) {
+          return await base.apply(this, arguments);
+        }
         var rows = await Promise.allSettled([
           window.req('/api/customers'),
           window.req('/api/orders'),
