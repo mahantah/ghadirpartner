@@ -21,7 +21,9 @@
     return logout && logout.closest('.userbox');
   }
 
-  function sync() {
+  var syncQueued = false;
+
+  function syncNow() {
     var app = document.getElementById('app');
     if (!app || app.classList.contains('hidden')) return;
     var header = app.querySelector(':scope > header');
@@ -48,17 +50,31 @@
     }
   }
 
+  function sync() {
+    if (syncQueued) return;
+    syncQueued = true;
+    requestAnimationFrame(function () {
+      syncQueued = false;
+      syncNow();
+    });
+  }
+
   function init() {
     if (document.documentElement.dataset.gpAccountLogoutAccessV1 === '1') return;
     document.documentElement.dataset.gpAccountLogoutAccessV1 = '1';
     sync();
     var app = document.getElementById('app');
+    var nav = app && app.querySelector(':scope > header .topnav');
     if (app) {
       new MutationObserver(sync).observe(app, {
         attributes: true,
         attributeFilter: ['class'],
-        childList: true,
-        subtree: true,
+      });
+    }
+    if (nav) {
+      new MutationObserver(sync).observe(nav, {
+        attributes: true,
+        attributeFilter: ['class'],
       });
     }
     window.addEventListener('resize', sync, { passive: true });

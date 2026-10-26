@@ -1,0 +1,35 @@
+name: Release Production Account Logout Perf Hotfix V1
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate
+        run: |
+          set -euo pipefail
+          node --check assets/account-logout-access-v1.js
+          grep -Fq syncQueued assets/account-logout-access-v1.js
+          python3 -m py_compile scripts/deploy-production-account-logout-perf-hotfix-v1.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish
+        run: python3 scripts/deploy-production-account-logout-perf-hotfix-v1.py deploy
+      - name: Confirm
+        run: |
+          curl -fsSL --max-time 30 https://ghadirpartner.ir/app.html | grep -Fq 'account-logout-access-v1.js?v=2'
+          curl -fsSL --max-time 30 https://ghadirpartner.ir/assets/account-logout-access-v1.js?v=2 | grep -Fq syncQueued

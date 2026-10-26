@@ -21,7 +21,7 @@ function gp_order137_restore_latest_backup(string $dir): ?string {
     $best = null;
     $bestM = 0;
     foreach (scandir($dir) ?: [] as $name) {
-        if (!str_starts_with($name, 'ghadir-pre-order-137-exchange-repair-') || !str_ends_with($name, '.json')) {
+        if (strncmp($name, 'ghadir-pre-order-137-exchange-repair-', 35) !== 0 || substr($name, -5) !== '.json') {
             continue;
         }
         $path = $dir . '/' . $name;
