@@ -99,7 +99,7 @@ function gpOdShippingHtml(o,c){
     gpOdField('عنوان نشانی انتخاب‌شده',d.title)+gpOdField(snapshot?'نشانی ثبت‌شده سفارش':'نشانی فعلی پرونده مشتری',snapshot||current)+
     gpOdField('کدپستی سفارش',d.postal_code)+gpOdField('روش ارسال',o.shipping_type)+
     gpOdField('وضعیت سفارش',o.status)+gpOdField('زمان ارسال',gpOdDate(ship&&ship.at),true)+
-    gpOdField('کد مرسوله',o.tracking_code)+gpOdField('ثبت در پنل',panels.map(gpOdText).join('، '))
+    gpOdField('کد مرسوله',o.tracking_code)+(o.shipping_type==='پیک'?gpOdField('نام پیک',o.courier_name)+gpOdField('شماره تماس پیک',o.courier_phone):'')+gpOdField('ثبت در پنل',panels.map(gpOdText).join('، '))
   ))+gpOdCard('فرستنده و سایر اطلاعات',gpOdFields(
     gpOdField('فرستنده',o.sender_name)+gpOdField('آدرس فرستنده',o.sender_address)+gpOdField('واترمارک',o.watermark)+
     gpOdField('علت لغو',o.cancel_reason)+gpOdField('توضیح لغو',o.cancel_note)
