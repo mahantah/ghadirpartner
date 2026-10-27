@@ -47,3 +47,5 @@ $s=exitFixture();$s['orders'][0]['shipment_batches']=[['at'=>'2020-02-01','items
 $before=$s['orders'][0]['shipment_batches'];$r=(new LegacyExitMetadata(['I90-098','I90-099']))->reconcile($s);
 if ($r['state']['orders'][0]['shipment_batches']!==$before) throw new RuntimeException('legacy batch rewritten');
 echo "PASS: 15 legacy metadata scenarios, unchanged counts/dates, idempotence and refusal of incomplete evidence\n";
+
+if (preg_match('/function __construct\(\s*(?:private|public|protected) /',file_get_contents(__DIR__.'/../lib/legacy-exit-metadata.php'))) throw new RuntimeException('PHP 8 constructor promotion is incompatible with production PHP 7.4');

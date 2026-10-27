@@ -4,12 +4,15 @@ require_once __DIR__.'/preswitch-carton-integrity.php';
 
 final class LegacyExitMetadata
 {
+    /** @var list<string> Explicit protected cartons for this reconciliation. */
+    private array $codes;
     /**
      * Validate the finite set of protected carton codes before inspecting state.
      * @param list<string> $codes Explicitly authorized protected cartons.
      */
-    public function __construct(private array $codes)
+    public function __construct(array $codes)
     {
+        $this->codes = $codes;
         if (!$codes || count(array_unique($codes)) !== count($codes)) throw new RuntimeException('invalid_target_codes');
         foreach ($codes as $code) if (!preg_match('/^I90-\d{3}$/D', $code)) throw new RuntimeException('invalid_target_codes');
     }
