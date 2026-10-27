@@ -57,9 +57,10 @@ final class LegacyExitMetadata
             if (count($indexes) !== 1) throw new RuntimeException('order_missing_or_duplicate');
             $index = $indexes[0];
             $order = $source['orders'][$index];
-            if (($order['status'] ?? '') !== 'تحویل شد' || !empty($order['deleted']) || !empty($order['partial_exit']) || !empty($order['exit_items'])) throw new RuntimeException('not_missing_complete_legacy_exit');
+            if (($order['status'] ?? '') !== 'تحویل شد' || !empty($order['deleted']) || !empty($order['partial_exit'])) throw new RuntimeException('not_missing_complete_legacy_exit');
             $items = [];
             $matched = [];
+            $products = [];
             foreach ($order['items'] ?? [] as $item) {
                 $serials = $item['serials'] ?? [];
                 if (!$serials) continue;
@@ -72,6 +73,7 @@ final class LegacyExitMetadata
                     if ((int)($row['order_id'] ?? 0) !== $oid || (int)($row['warehouse_id'] ?? -1) !== 0 || gp_integrity_product($row['product'] ?? '') !== gp_integrity_product($item['product'] ?? '')) throw new RuntimeException('serial_not_exited_for_order');
                     if (!empty($row['order_number']) && (string)$row['order_number'] !== (string)($order['number'] ?? '')) throw new RuntimeException('allocation_number_mismatch');
                     $matched[$key] = true;
+                    $products[$key] = gp_integrity_product($item['product'] ?? '');
                 }
                 $items[] = ['product'=>$item['product'],'qty'=>count($serials),'serials'=>$serials];
             }
@@ -79,10 +81,31 @@ final class LegacyExitMetadata
                 if ((int)($row['order_id'] ?? 0) === $oid && (!isset($matched[gp_integrity_key($row['serial'] ?? '')]) || (int)($row['warehouse_id'] ?? -1) !== 0)) throw new RuntimeException('unmatched_order_allocation');
             }
             if (!$matched) throw new RuntimeException('no_verified_exit_serials');
-            $next['orders'][$index]['exit_items'] = $items;
-            $units += count($matched);
+            $recorded = [];
+            foreach ($order['exit_items'] ?? [] as $item) {
+                $serials = $item['serials'] ?? [];
+                if (!$serials || count($serials) !== (int)($item['qty'] ?? 0)) throw new RuntimeException('invalid_existing_exit_metadata');
+                foreach ($serials as $serial) {
+                    $key = gp_integrity_key($serial);
+                    if (!isset($matched[$key]) || isset($recorded[$key]) || $products[$key] !== gp_integrity_product($item['product'] ?? '')) throw new RuntimeException('invalid_existing_exit_metadata');
+                    $recorded[$key] = true;
+                }
+            }
+            $missing = [];
+            $added = 0;
+            foreach ($items as $item) {
+                $serials = array_values(array_filter($item['serials'], static function($serial) use ($recorded): bool {
+                    return !isset($recorded[gp_integrity_key($serial)]);
+                }));
+                if (!$serials) continue;
+                $missing[] = ['product'=>$item['product'],'qty'=>count($serials),'serials'=>$serials];
+                $added += count($serials);
+            }
+            if (!$added) throw new RuntimeException('no_missing_exit_serials');
+            $next['orders'][$index]['exit_items'] = array_merge($order['exit_items'] ?? [], $missing);
+            $units += $added;
             $next['inventory_reconciliations'][] = ['event'=>'legacy_delivered_exit_metadata_reconciled',
-                'at'=>date('Y-m-d H:i:s'),'order_id'=>$oid,'units'=>count($matched),
+                'at'=>date('Y-m-d H:i:s'),'order_id'=>$oid,'units'=>$added,
                 'inventory_unchanged'=>true,'dispatch_date_known'=>false,
                 'evidence'=>'delivered_order_and_exact_outside_inventory_serials',
                 'serial_set_hash'=>hash('sha256', implode("\n", array_keys($matched)))];

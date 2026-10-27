@@ -83,7 +83,7 @@ if (!defined('GP_LEGACY_SHIP_TEST_MODE')) {
         echo json_encode(gp_legacy_ship_handle($mode,(int)($_POST['expected_revision']??0)),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
     } catch (Throwable $e) {
         http_response_code(409);
-        $safe=['invalid_target_codes','invalid_exited_rows','order_missing_or_duplicate','not_missing_complete_legacy_exit','incomplete_order_serials','duplicate_or_missing_serial','serial_not_exited_for_order','allocation_number_mismatch','unmatched_order_allocation','no_verified_exit_serials','unexpected_carton_state','duplicate_carton','carton_missing','invalid_allocated_rows',
+        $safe=['invalid_existing_exit_metadata','no_missing_exit_serials','invalid_target_codes','invalid_exited_rows','order_missing_or_duplicate','not_missing_complete_legacy_exit','incomplete_order_serials','duplicate_or_missing_serial','serial_not_exited_for_order','allocation_number_mismatch','unmatched_order_allocation','no_verified_exit_serials','unexpected_carton_state','duplicate_carton','carton_missing','invalid_allocated_rows',
             'invalid_allocated_count','duplicate_order','order_missing',
             'shipment_already_present_or_not_delivered','order_number_mismatch',
             'reference_date_missing','invalid_order_items','duplicate_order_serial',
