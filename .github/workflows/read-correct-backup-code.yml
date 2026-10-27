@@ -1,0 +1,73 @@
+name: Read Correct Backup Code Only
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/read-correct-backup-code.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Extract only code from the owner supplied host backup
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ARCHIVE: /home/ghadirpartner/backup-10.27.2026_17-46-33_ghadirpartner 2.tar.gz
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp php-cli
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          FILE="__gp_code_only_${GITHUB_RUN_ID}.php"
+          python3 - "$FILE" "$TOKEN" <<'PY'
+          import os,sys
+          from pathlib import Path
+          name, token = sys.argv[1:]
+          source=Path('scripts/read-backup-code-only.php').read_text().replace('__TOKEN__',token).replace('__ARCHIVE__',os.environ['ARCHIVE'])
+          Path('/tmp/'+name).write_text(source)
+          PY
+          php -l "/tmp/$FILE"
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          curl --fail --silent --show-error --max-time 330 -X POST -H "X-GP-Backup-Token: $TOKEN" "https://ghadirpartner.ir/$FILE" -o /tmp/correct-source.tar.gz
+          mkdir /tmp/correct-code
+          tar -xzf /tmp/correct-source.tar.gz -C /tmp/correct-code
+          test -f /tmp/correct-code/app.html
+          test -f /tmp/correct-code/index.php
+          echo 'Code extracted; no live application or database files changed.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: correct-backup-code-only
+          path: /tmp/correct-code/
+          retention-days: 2
