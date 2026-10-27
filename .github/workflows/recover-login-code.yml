@@ -34,29 +34,15 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          cls -1d /storage/Backups/release-snapshots/GP_ORDER_RETURN_EXCHANGE_V1_20261026-* > /tmp/login-snapshots.txt
+          cls -1 / > /tmp/login-root-names.txt
+          cls -1 /assets > /tmp/login-asset-names.txt
           bye
           EOF
-          SNAP="$(sort /tmp/login-snapshots.txt | tail -n1)"
-          SNAP="/storage/Backups/release-snapshots/$(basename "${SNAP%/}")"
-          echo "Selected source snapshot: $SNAP"
-          [[ "$SNAP" == /storage/Backups/release-snapshots/GP_ORDER_RETURN_EXCHANGE_V1_20261026-* ]]
-          lftp <<EOF
-          set cmd:fail-exit yes
-          set ftp:ssl-force true
-          set ftp:ssl-protect-data true
-          set ssl:verify-certificate yes
-          open -p 21 "$FTP_SERVER"
-          user "$FTP_USERNAME" "$FTP_PASSWORD"
-          get "$SNAP/app.html" -o /tmp/login-code/previous/app.html
-          get "$SNAP/index.php" -o /tmp/login-code/previous/index.php
-          get /app.html -o /tmp/login-code/current/app.html
-          get /index.php -o /tmp/login-code/current/index.php
-          bye
-          EOF
-          echo 'Only application source files inspected; no configuration or database files read.'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: login-code-recovery
-          path: /tmp/login-code/
-          retention-days: 1
+          python3 - <<'PYREPORT'
+          from pathlib import Path
+          import re
+          for kind, filename in [('root', '/tmp/login-root-names.txt'), ('assets', '/tmp/login-asset-names.txt')]:
+              names = Path(filename).read_text().splitlines()
+              safe = [name for name in names if re.search(r'login|auth|app[._-]|index[._-]|\.css$', name, re.I)]
+              print(kind + ' code/asset candidates:', safe)
+          PYREPORT
