@@ -51,7 +51,7 @@ def patch_html(raw: bytes) -> bytes:
     js = JS.read_bytes()
     if MARKER not in js:
         raise RuntimeError('STOP: carton select label marker missing in JS')
-    if b'gpWarehouseCartonPrintTools' in js:
+    if b"id='gpWarehouseCartonPrintTools'" in js or b'gpWarehouseCartonPrintTools\' class' in js:
         raise RuntimeError('STOP: bulky print tools bar still present')
     if ANCHOR + '\n' + SCRIPT_TAG.strip() not in text:
         text = text.replace(ANCHOR, ANCHOR + '\n' + SCRIPT_TAG.strip(), 1)
