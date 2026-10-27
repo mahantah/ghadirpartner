@@ -57,3 +57,18 @@ $r=(new LegacyExitMetadata(['I90-098','I90-099']))->reconcile($s);
 if ($r['units']!==20 || $r['state']['orders'][0]['exit_items'][0]!==$existing || count($r['state']['orders'][0]['exit_items'])!==2) throw new RuntimeException('existing legacy evidence must be preserved verbatim');
 if (!gp_preswitch_allocated_carton_integrity($r['state'],'I90-099')['ok']) throw new RuntimeException('remaining carton not reconciled');
 echo "PASS: existing exit evidence retained verbatim; only missing serials appended\n";
+
+$s=exitFixture();
+$complete=$s['orders'][0];$complete['id']=8;$complete['number']='TEST-8';
+$missing=[];$done=[];
+foreach ($s['inventory'] as $i=>&$row) {
+    if ($i%2===0) {$row['order_id']=8;$row['order_number']='TEST-8';$done[]=$row['serial'];}
+    else $missing[]=$row['serial'];
+} unset($row);
+$complete['items'][0]['serials']=$done;$complete['items'][0]['qty']=20;
+$complete['exit_items']=$complete['items'];
+$s['orders'][0]['items'][0]['serials']=$missing;$s['orders'][0]['items'][0]['qty']=20;
+$s['orders'][]=$complete;
+$r=(new LegacyExitMetadata(['I90-098','I90-099']))->reconcile($s);
+if ($r['orders']!==1 || $r['units']!==20 || $r['state']['orders'][1]!==$complete) throw new RuntimeException('mixed carton must leave fully recorded order untouched');
+echo "PASS: mixed cartons preserve already recorded orders and reconcile only missing order evidence\n";
