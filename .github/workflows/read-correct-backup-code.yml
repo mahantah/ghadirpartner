@@ -60,7 +60,20 @@ jobs:
           put "/tmp/$FILE" -o "/$FILE"
           bye
           EOF
-          curl --fail --silent --show-error --max-time 330 -X POST -H "X-GP-Backup-Token: $TOKEN" "https://ghadirpartner.ir/$FILE" -o /tmp/correct-source.tar.gz
+          STATUS="$(curl --silent --show-error --max-time 330 -w '%{http_code}' -X POST --data 'mode=inspect' -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE" -o /tmp/correct-source.tar.gz)"
+          if [[ "$STATUS" != 200 ]]; then
+            echo "Code inspection stopped: HTTP $STATUS"
+            python3 - <<'PYERROR'
+          import json
+          from pathlib import Path
+          try:
+              data=json.loads(Path('/tmp/correct-source.tar.gz').read_text())
+              print({key:data.get(key) for key in ('ok','error','archive_exists','archive_readable')})
+          except (ValueError,UnicodeError):
+              print('Non-JSON access error; no archive bytes displayed')
+          PYERROR
+            exit 2
+          fi
           mkdir /tmp/correct-code
           tar -xzf /tmp/correct-source.tar.gz -C /tmp/correct-code
           test -f /tmp/correct-code/app.html
