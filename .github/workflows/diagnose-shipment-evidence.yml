@@ -1,0 +1,72 @@
+name: Read-only shipment evidence
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-shipment-evidence.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      CARTON: I90-098
+    steps:
+      - uses: actions/checkout@v5
+      - name: Inspect sanitized shipment evidence without changing application state
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp php-cli curl
+          php -l scripts/shipment-evidence-readonly.php
+          php tests/shipment-evidence-readonly.php
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          FILE="__gp_ship_evidence_${GITHUB_RUN_ID}.php"
+          cp scripts/shipment-evidence-readonly.php "/tmp/$FILE"
+          python3 scripts/inline-preswitch-integrity.py "/tmp/$FILE"
+          sed -i "s/__PROBE_TOKEN__/$TOKEN/" "/tmp/$FILE"
+          php -l "/tmp/$FILE"
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+            rm -f "/tmp/$FILE" /tmp/shipment-evidence.json
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          curl --fail --silent --show-error --max-time 60 -X POST \
+            -H "X-GP-Probe-Token: $TOKEN" --data-urlencode "carton=$CARTON" \
+            "https://ghadirpartner.ir/$FILE" > /tmp/shipment-evidence.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('/tmp/shipment-evidence.json').read_text())
+          assert data['ok'] and data['read_only']
+          print('SANITIZED_SHIPMENT_EVIDENCE:', json.dumps(data['evidence'], ensure_ascii=False))
+          PY
