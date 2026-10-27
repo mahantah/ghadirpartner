@@ -3,7 +3,7 @@
 Persian RTL sales, orders, customers, POS serials, cartons and warehouse software.
 
 ## Accurate source of truth
-- Production web is assembled from the pinned V5.3.4.38 ZIP plus the ordered patches in `.github/workflows/deploy-final-v53438.yml`. Root `app.html`, `VERSION.txt` and README may be stale. Inspect only the relevant workflow steps and patch files.
+- The owner supplied backup `/home/ghadirpartner/backup-10.27.2026_17-46-33_ghadirpartner 2.tar.gz` is the authoritative production source. Recovery applies the reviewed operations and hashes in `config/correct-backup-recovery.json` privately on the host using `.github/workflows/recover-correct-source.yml`. Do not publish private backup code to this public repository. The old V5.3.4.38 rebuild workflow is disabled for production and retained only for legacy fixture tests. Root app.html and index.php are stale.
 - Core: `index.php`, `app.html`, `assets/`, `scripts/`; partner portal `partners/`; scanning `mobile.html`; regression `.github/workflows/ci-web.yml` and `tests/`.
 
 ## Mandatory safety

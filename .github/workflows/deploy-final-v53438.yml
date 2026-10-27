@@ -22,6 +22,11 @@ jobs:
     timeout-minutes: 20
     environment: production
     steps:
+      # Deprecated production baseline: retained only for existing build fixture tests.
+      - name: Refuse obsolete baseline deployment
+        run: |
+          echo 'STOP: this source baseline was superseded by the owner supplied backup. Use Recover Owner Correct Code Baseline.'
+          exit 1
       - uses: actions/checkout@v5
 
       - name: Install tools

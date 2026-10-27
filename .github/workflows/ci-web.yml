@@ -996,6 +996,8 @@ jobs:
           php tests/preswitch-carton-integrity.php
           php -l lib/legacy-exit-metadata.php
           php tests/legacy-exit-metadata.php
+          php -l scripts/recover-correct-source-server.php
+          python3 tests/correct-backup-code-only.py
           php -l lib/legacy-shipment-reconciliation.php
           php -l scripts/legacy-shipment-reconcile-once.php
           php tests/legacy-shipment-reconciliation.php
