@@ -161,6 +161,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/patch-login-startup-loader-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-prod-sidebar-controls-v1.py" "$ROOT"
           python3 "$GITHUB_WORKSPACE/scripts/patch-shipping-methods-v1.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/scripts/restore-previous-login-layout.py" "$ROOT/app.html"
           node --check "$ROOT/assets/prod-sidebar-controls-v1.js"
           grep -q 'GHADIR_PROD_SIDEBAR_CONTROLS_V1_20261023' "$ROOT/app.html"
           base64 -d "$GITHUB_WORKSPACE/assets/ghadir-contact-qr.png.b64" > "$ROOT/assets/ghadir-contact-qr.png"

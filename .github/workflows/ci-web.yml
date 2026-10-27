@@ -1053,4 +1053,5 @@ jobs:
           mypy --strict scripts/patch-shipping-methods-v1.py tests/shipping-methods-v1.py
           python3 -m py_compile scripts/patch-shipping-methods-v1.py tests/shipping-methods-v1.py
           python3 tests/shipping-methods-v1.py /tmp/v53438
+          python3 tests/previous-login-layout.py /tmp/v53438/app.html
           echo 'Full release build completed without FTP, database, or server access'

@@ -1,0 +1,78 @@
+name: Restore Previous Login Layout
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/restore-previous-login-layout.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate patch and prepare tools
+        run: |
+          python3 tests/order-details-v2-patch.py
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Restore preserved lobby theme and credential controls
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/login-original.html
+          mkdir -p /storage/Backups/release-snapshots/LOGIN_LAYOUT_${GITHUB_RUN_ID}
+          put /tmp/login-original.html -o /storage/Backups/release-snapshots/LOGIN_LAYOUT_${GITHUB_RUN_ID}/app.html
+          bye
+          EOF
+          cp /tmp/login-original.html /tmp/login-fixed.html
+          python3 scripts/restore-previous-login-layout.py /tmp/login-fixed.html
+          node - <<'JS'
+          const fs=require('fs');const s=fs.readFileSync('/tmp/login-fixed.html','utf8');
+          for(const m of s.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi))new Function(m[1]);
+          if(!s.includes('GP_PREVIOUS_LOGIN_LAYOUT_RESTORED_20261028'))throw new Error('Previous login missing');
+          if(!s.includes('GP_SHIPPING_METHODS_V1_20261027'))throw new Error('Shipping patch missing');
+          if(s.includes('async /* GP_ORDER_DETAILS_V2_'))throw new Error('Orphan async remains');
+          JS
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o /tmp/login-drift-check.html
+          bye
+          EOF
+          cmp /tmp/login-original.html /tmp/login-drift-check.html
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put /tmp/login-fixed.html -o /app.html.login-stage
+          mv /app.html.login-stage /app.html
+          bye
+          EOF
+          curl -fsS --max-time 30 "https://ghadirpartner.ir/app.html?verify=${GITHUB_RUN_ID}" -o /tmp/login-live.html
+          cmp /tmp/login-fixed.html /tmp/login-live.html
+          for asset in production-login-v1.css production-login-v1.js production-login-brand.png production-login-lobby-original-20261023.png; do curl -fsS --max-time 30 "https://ghadirpartner.ir/assets/$asset" -o /dev/null; done
+          curl -fsS --max-time 30 https://ghadirpartner.ir/healthz
