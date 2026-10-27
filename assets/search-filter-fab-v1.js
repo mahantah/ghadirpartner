@@ -1,4 +1,5 @@
 /* GP_SEARCH_FILTER_FAB_V1_20261026 */
+/* GP_SEARCH_FILTER_FAB_WH_CHECKBOX_V3_20261027 — carton code from b.code when select column exists */
 (function () {
   'use strict';
   if (window.__gpSearchFilterFabV1) return;
@@ -276,6 +277,17 @@
     el.addEventListener('change', fn);
   }
 
+  function warehouseCartonCodeFromRow(row) {
+    if (!row) return '';
+    if (typeof window.gpWarehouseRowCartonCode === 'function') {
+      return String(window.gpWarehouseRowCartonCode(row) || '').trim();
+    }
+    var codeEl = row.querySelector('b.code');
+    if (codeEl) return String(codeEl.textContent || '').trim();
+    var td = row.querySelector('td:not(.gp-wh-carton-select-cell)');
+    return td ? String(td.textContent || '').trim() : '';
+  }
+
   function cartonBits(c, items) {
     var serials = (c.serials || []).concat((items || []).map(function (x) { return x && x.serial; }));
     return [
@@ -348,7 +360,7 @@
     var ranked = [];
     var visible = 0;
     rows.forEach(function (row, idx) {
-      var code = ((row.querySelector('td:first-child') || {}).textContent || '').trim();
+      var code = warehouseCartonCodeFromRow(row);
       var c = byCode[code];
       if (!c) {
         row.style.display = cartons.length ? 'none' : '';

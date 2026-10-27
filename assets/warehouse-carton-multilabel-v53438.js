@@ -1,6 +1,6 @@
 /* GhadirPartner V5.3.4.38 — selectable warehouse carton labels */
 /* GHADIR_WAREHOUSE_LABEL_RESTORE_V2_20261017 */
-/* GP_WAREHOUSE_CARTON_SELECT_LABEL_V4_20261027 — never remove table card when dropping selective UI */
+/* GP_WAREHOUSE_CARTON_SELECT_LABEL_V5_20261027 — expose row code helper for warehouse filters */
 (function(){
 'use strict';
 if(window.__GP_WAREHOUSE_CARTON_MULTILABEL_53438__) return;
@@ -9,18 +9,25 @@ window.__GP_WAREHOUSE_CARTON_MULTILABEL_53438__=true;
 const selected=new Set();
 const byId=id=>document.getElementById(id);
 
+function warehouseRowCartonCode(tr){
+  if(!tr) return '';
+  const el=tr.querySelector('b.code');
+  if(el) return String(el.textContent||'').trim();
+  const td=tr.querySelector('td:not(.gp-wh-carton-select-cell)');
+  return String(td?.textContent||'').trim();
+}
 function cartonIdForRow(tr){
   const check=tr.querySelector('.gp-wh-carton-label-check');
   if(check&&check.dataset.cartonId) return Number(check.dataset.cartonId)||0;
   const native=[...tr.querySelectorAll('button')].find(b=>(b.getAttribute('onclick')||'').includes('/print/warehouse-label?id='));
   const match=(native?.getAttribute('onclick')||'').match(/\/print\/warehouse-label\?id=(\d+)/);
   if(match)return Number(match[1]);
-  const codeCell=tr.querySelector('.gp-wh-carton-select-cell')?tr.cells[1]:tr.cells[0];
-  const code=(codeCell?.textContent||'').trim();
+  const code=warehouseRowCartonCode(tr);
   if(!code||typeof WH==='undefined')return 0;
   const carton=(WH.cartons||[]).find(c=>String(c.code||'').trim()===code);
   return carton?Number(carton.id):0;
 }
+window.gpWarehouseRowCartonCode=warehouseRowCartonCode;
 
 function removeBulkySelectiveCard(){
   document.querySelectorAll('#warehouse .card, #warehouse .mutedbox').forEach(card=>{
@@ -116,6 +123,11 @@ function decorate(){
   });
   ensureTopPrintButton();
   sync();
+  try{
+    const filterIds=['gpFabWhQ','gpFabWhStatus','gpFabWhLoc','gpFabWhProduct','gpFabWhColor','gpFabWhSupplier','gpFabWhShelf','gpFabWhStock','gpFabWhFrom','gpFabWhTo'];
+    const fabActive=filterIds.some(id=>{const el=byId(id);return el&&String(el.value||'').trim()});
+    if(!fabActive) body.querySelectorAll('tr').forEach(tr=>{tr.style.display=''});
+  }catch(e){}
 }
 
 async function printSelected(){
