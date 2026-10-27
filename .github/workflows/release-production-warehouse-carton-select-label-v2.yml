@@ -1,0 +1,44 @@
+name: Release Production Warehouse Carton Select Label V2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate
+        run: |
+          set -euo pipefail
+          node --check assets/warehouse-carton-multilabel-v53438.js
+          grep -Fq 'GP_WAREHOUSE_CARTON_SELECT_LABEL_V4_20261027' assets/warehouse-carton-multilabel-v53438.js
+          grep -Fq '#warehouseBody, #whCartonSearch' assets/warehouse-carton-multilabel-v53438.js
+          python3 -m py_compile scripts/deploy-production-warehouse-carton-select-label-v2.py
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Deploy
+        run: python3 scripts/deploy-production-warehouse-carton-select-label-v2.py deploy
+      - name: Verify live
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 60 https://ghadirpartner.ir/app.html -o /tmp/gp-app-wh2.html
+          grep -Fq 'warehouse-carton-multilabel-v53438.js?v=53438whprint6' /tmp/gp-app-wh2.html
+          grep -Fq 'GP_WAREHOUSE_CARTON_SELECT_LABEL_V4_20261027' /tmp/gp-app-wh2.html
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint6' -o /tmp/gp-wh6.js
+          grep -Fq '#warehouseBody, #whCartonSearch' /tmp/gp-wh6.js

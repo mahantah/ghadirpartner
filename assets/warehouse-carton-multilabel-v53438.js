@@ -1,6 +1,6 @@
 /* GhadirPartner V5.3.4.38 — selectable warehouse carton labels */
 /* GHADIR_WAREHOUSE_LABEL_RESTORE_V2_20261017 */
-/* GP_WAREHOUSE_CARTON_SELECT_LABEL_V3_20261027 — row ticks + one top TSC print button */
+/* GP_WAREHOUSE_CARTON_SELECT_LABEL_V4_20261027 — never remove table card when dropping selective UI */
 (function(){
 'use strict';
 if(window.__GP_WAREHOUSE_CARTON_MULTILABEL_53438__) return;
@@ -24,8 +24,11 @@ function cartonIdForRow(tr){
 
 function removeBulkySelectiveCard(){
   document.querySelectorAll('#warehouse .card, #warehouse .mutedbox').forEach(card=>{
-    const title=(card.querySelector('.section-title h3, h3, h4, b')?.textContent||'').replace(/\s+/g,' ').trim();
-    if(title.includes('چاپ انتخابی لیبل')) card.remove();
+    if(card.querySelector('#warehouseBody, #whCartonSearch, tbody#warehouseBody')) return;
+    if(card.querySelector('.tablewrap table tbody#warehouseBody')) return;
+    const title=(card.querySelector('.section-title h3, h3')?.textContent||'').replace(/\s+/g,' ').trim();
+    if(!title.includes('چاپ انتخابی لیبل')) return;
+    card.remove();
   });
   byId('gpWarehouseCartonPrintTools')?.remove();
   byId('gpWhCartonSelectCard')?.remove();
