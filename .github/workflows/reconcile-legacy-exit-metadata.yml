@@ -1,5 +1,5 @@
 name: Reconcile Verified Legacy Exit Metadata
-# Retry approved reconciliation with a bounded serial index and sanitized fatal diagnostics.
+# Retry approved reconciliation using PHP 7.4-compatible constructor syntax.
 
 on:
   workflow_dispatch:
