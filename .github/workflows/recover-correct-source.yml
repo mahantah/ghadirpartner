@@ -1,0 +1,93 @@
+name: Recover Owner Correct Code Baseline
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/recover-correct-source.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate the bounded server-side recovery tool
+        run: |
+          php -l scripts/recover-correct-source-server.php
+          php -l scripts/read-backup-code-only.php
+          python3 tests/correct-backup-code-only.py
+          python3 -m json.tool config/correct-backup-recovery.json > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Recover code privately on the owner host
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ARCHIVE: /home/ghadirpartner/backup-10.27.2026_17-46-33_ghadirpartner 2.tar.gz
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          FILE="__gp_correct_source_${GITHUB_RUN_ID}.php"
+          python3 - "$FILE" "$TOKEN" <<'PY'
+          import os,sys,base64
+          from pathlib import Path
+          name,token=sys.argv[1:]
+          source=Path('scripts/recover-correct-source-server.php').read_text()
+          reader=Path('scripts/read-backup-code-only.php').read_text().removeprefix('<?php\n').split("if(defined('BACKUP_CODE_TEST'))return;",1)[0].removeprefix('declare(strict_types=1);')
+          integrity=Path('lib/preswitch-carton-integrity.php').read_text().removeprefix('<?php\n')
+          manifest=base64.b64encode(Path('config/correct-backup-recovery.json').read_bytes()).decode()
+          for old,new in {'// __READER_CLASS__':reader,'// __INTEGRITY_CLASS__':integrity,'__TOKEN__':token,'__ARCHIVE__':os.environ['ARCHIVE'],'__MANIFEST_B64__':manifest,'__RUN_ID__':os.environ['GITHUB_RUN_ID']}.items(): source=source.replace(old,new)
+          Path('/tmp/'+name).write_text(source)
+          PY
+          php -l "/tmp/$FILE"
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          STATUS="$(curl -sS --max-time 350 -w '%{http_code}' -X POST --data 'mode=apply' -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE" -o /tmp/recovery-result.json)"
+          python3 - "$STATUS" <<'PY'
+          import json,sys
+          from pathlib import Path
+          try: result=json.loads(Path('/tmp/recovery-result.json').read_text())
+          except ValueError: result={'ok':False,'error':'invalid_server_response'}
+          print(result)
+          assert sys.argv[1]=='200' and result.get('ok') and result.get('database_restored') is False
+          PY
+          if ! curl -fsS --max-time 40 https://ghadirpartner.ir/healthz; then
+            curl -fsS --max-time 60 -X POST --data 'mode=rollback' -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE"
+            exit 2
+          fi
+          curl -fsS --max-time 40 "https://ghadirpartner.ir/app.html?recover=${GITHUB_RUN_ID}" -o /tmp/recovered-app.html
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          manifest=json.loads(Path('config/correct-backup-recovery.json').read_text())
+          assert hashlib.sha256(Path('/tmp/recovered-app.html').read_bytes()).hexdigest()==manifest['expected_files']['app.html']
+          print('Correct owner baseline and shipping changes verified; no database restoration.')
+          PY
