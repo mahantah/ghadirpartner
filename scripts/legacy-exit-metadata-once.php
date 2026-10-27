@@ -61,6 +61,13 @@ if (!defined('GP_LEGACY_SHIP_TEST_MODE')) {
     header('Cache-Control:no-store');
     header('X-Content-Type-Options:nosniff');
     @ini_set('display_errors','0');
+    register_shutdown_function(static function(): void {
+        $last=error_get_last();
+        if (!$last || !in_array($last['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true)) return;
+        http_response_code(500);
+        $reason=strpos(strtolower($last['message'] ?? ''),'allowed memory size')!==false?'php_memory_limit':'php_fatal_error';
+        echo json_encode(['ok'=>false,'error'=>$reason]);
+    });
     $token=(string)($_SERVER['HTTP_X_GP_RECONCILE_TOKEN']??'');
     if (($_SERVER['REQUEST_METHOD']??'')!=='POST' ||
         empty($_SERVER['HTTPS']) || $_SERVER['HTTPS']==='off' ||
