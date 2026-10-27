@@ -16,7 +16,7 @@ if mark in source:
         print("Order details v2 already applied")
         raise SystemExit(0)
     raise SystemExit("Refusing an incomplete or different order-details patch")
-pattern = r"function openOrderDetails\(id\)\{.*?\nfunction closeOrderDetails\(\)\{\$\('orderDetailOverlay'\)\.classList\.add\('hidden'\)\}"
+pattern = r"(?:async\s+)?function openOrderDetails\(id\)\{.*?\nfunction closeOrderDetails\(\)\{\$\('orderDetailOverlay'\)\.classList\.add\('hidden'\)\}"
 matches = list(re.finditer(pattern, source, re.S))
 if len(matches)!=1:
     raise SystemExit("Expected one original order-details renderer")
