@@ -1,0 +1,60 @@
+name: Inspect Previous Login Code
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/recover-login-code.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Read only code from the last preserved release snapshot
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+          mkdir -p /tmp/login-code/previous /tmp/login-code/current
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          cls -1d /storage/Backups/release-snapshots/GP_ORDER_RETURN_EXCHANGE_V1_20261026-* > /tmp/login-snapshots.txt
+          bye
+          EOF
+          SNAP="$(sort /tmp/login-snapshots.txt | tail -n1)"
+          [[ "$SNAP" == /storage/Backups/release-snapshots/GP_ORDER_RETURN_EXCHANGE_V1_20261026-* ]]
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get "$SNAP/app.html" -o /tmp/login-code/previous/app.html
+          get "$SNAP/index.php" -o /tmp/login-code/previous/index.php
+          get /app.html -o /tmp/login-code/current/app.html
+          get /index.php -o /tmp/login-code/current/index.php
+          bye
+          EOF
+          echo 'Only application source files inspected; no configuration or database files read.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: login-code-recovery
+          path: /tmp/login-code/
+          retention-days: 1
