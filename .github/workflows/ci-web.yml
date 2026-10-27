@@ -994,6 +994,8 @@ jobs:
           php tests/protected-carton-ops.php
           php -l lib/preswitch-carton-integrity.php
           php tests/preswitch-carton-integrity.php
+          php -l lib/legacy-exit-metadata.php
+          php tests/legacy-exit-metadata.php
           php -l lib/legacy-shipment-reconciliation.php
           php -l scripts/legacy-shipment-reconcile-once.php
           php tests/legacy-shipment-reconciliation.php

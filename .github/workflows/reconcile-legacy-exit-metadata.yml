@@ -1,0 +1,113 @@
+name: Reconcile Verified Legacy Exit Metadata
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/reconcile-legacy-exit-metadata.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      TARGET_CODES: '["I90-097","I90-098","I90-099","I90-100","I90-101","I90-102","I90-103","I90-109","I90-110","I90-111","I90-112","I90-113","I90-114","I90-115","I90-116","I90-123","I90-124","I90-125"]'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify guarded single-carton repair using fabricated fixtures
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-cli lftp curl
+          php -l lib/preswitch-carton-integrity.php
+          php -l lib/legacy-exit-metadata.php
+          php tests/legacy-exit-metadata.php
+
+      - name: Inspect and optionally reconcile live missing shipment metadata
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          APPLY: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          FILE="__gp_verified_legacy_exit_${GITHUB_RUN_ID}.php"
+          cp scripts/legacy-exit-metadata-once.php "/tmp/$FILE"
+          python3 - "/tmp/$FILE" <<'PYINLINE'
+          import json, os, sys
+          from pathlib import Path
+          target = Path(sys.argv[1])
+          source = target.read_text()
+          codes = json.loads(os.environ['TARGET_CODES'])
+          assert isinstance(codes, list) and codes and all(isinstance(code, str) for code in codes)
+          integrity = Path('lib/preswitch-carton-integrity.php').read_text().removeprefix('<?php\n')
+          library = Path('lib/legacy-exit-metadata.php').read_text().removeprefix('<?php\n').replace("require_once __DIR__.'/preswitch-carton-integrity.php';", '')
+          source = source.replace('// __INLINE_RECONCILE_DEPENDENCIES__', integrity + '\n' + library)
+          source = source.replace('__TARGET_CODES__', '[' + ','.join(json.dumps(code) for code in codes) + ']')
+          target.write_text(source)
+          PYINLINE
+          sed -i "s/__RECONCILE_TOKEN__/$TOKEN/" "/tmp/$FILE"
+          php -l "/tmp/$FILE"
+          cleanup() {
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "/tmp/$FILE" -o "/$FILE"
+          bye
+          EOF
+          URL="https://ghadirpartner.ir/$FILE"
+          STATUS="$(curl -sS --max-time 50 --output /tmp/gp-legacy-inspect.json --write-out '%{http_code}' \
+            -X POST -H "X-GP-Reconcile-Token: $TOKEN" --data 'mode=inspect' "$URL")"
+          if [[ "$STATUS" != 200 ]]; then
+            echo "Guarded inspection blocked: HTTP $STATUS"
+            jq -c '{ok,error}' /tmp/gp-legacy-inspect.json || true
+            exit 2
+          fi
+          jq -e '(.ok == true) and (.inventory_unchanged == true) and (.units >= 0) and (.revision > 0)' /tmp/gp-legacy-inspect.json >/dev/null
+          jq -c '{mode,eligible,units,revision,inventory_unchanged}' /tmp/gp-legacy-inspect.json
+          REV="$(jq -er '.revision' /tmp/gp-legacy-inspect.json)"
+          if [[ "$APPLY" == true ]] && [[ "$(jq -r '.eligible' /tmp/gp-legacy-inspect.json)" == true ]]; then
+            STATUS="$(curl -sS --max-time 60 --output /tmp/gp-legacy-applied.json --write-out '%{http_code}' \
+              -X POST -H "X-GP-Reconcile-Token: $TOKEN" \
+              --data 'mode=apply' --data-urlencode "expected_revision=$REV" "$URL")"
+            if [[ "$STATUS" != 200 ]]; then
+              echo "Guarded application blocked: HTTP $STATUS"
+              jq -c '{ok,error}' /tmp/gp-legacy-applied.json || true
+              exit 2
+            fi
+            jq -e '(.ok == true) and (.mode == "applied") and (.inventory_unchanged == true) and (.backup_created == true) and (.units >= 0)' /tmp/gp-legacy-applied.json >/dev/null
+            jq -c '{mode,units,revision,inventory_unchanged,backup_created}' /tmp/gp-legacy-applied.json
+          fi
+          STATUS="$(curl -sS --max-time 50 --output /tmp/gp-legacy-verify.json --write-out '%{http_code}' \
+            -X POST -H "X-GP-Reconcile-Token: $TOKEN" --data 'mode=verify' "$URL")"
+          if [[ "$APPLY" == true ]] || [[ "$(jq -r '.eligible' /tmp/gp-legacy-inspect.json)" == false ]]; then
+            [[ "$STATUS" == 200 ]] || exit 2
+            jq -e '(.ok == true) and (.inventory_unchanged == true) and (.targets == 18)' /tmp/gp-legacy-verify.json >/dev/null
+          fi
+          jq -c '{mode,ok,targets,inventory_unchanged}' /tmp/gp-legacy-verify.json
