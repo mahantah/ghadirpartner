@@ -38,6 +38,8 @@ jobs:
           bye
           EOF
           SNAP="$(sort /tmp/login-snapshots.txt | tail -n1)"
+          SNAP="/storage/Backups/release-snapshots/$(basename "${SNAP%/}")"
+          echo "Selected source snapshot: $SNAP"
           [[ "$SNAP" == /storage/Backups/release-snapshots/GP_ORDER_RETURN_EXCHANGE_V1_20261026-* ]]
           lftp <<EOF
           set cmd:fail-exit yes
