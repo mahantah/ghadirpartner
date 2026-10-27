@@ -37,8 +37,17 @@ final class LegacyExitMetadata
             }
         }
         $units = 0;
+        $required = [];
+        foreach ($source['orders'] ?? [] as $order) {
+            if (!isset($orderIds[(int)($order['id'] ?? 0)])) continue;
+            foreach ($order['items'] ?? [] as $item) foreach ($item['serials'] ?? [] as $serial) $required[gp_integrity_key($serial)] = true;
+        }
         $inventory = [];
-        foreach ($source['inventory'] ?? [] as $row) $inventory[gp_integrity_key($row['serial'] ?? '')][] = $row;
+        // Index only relevant serials while still detecting duplicates anywhere in inventory.
+        foreach ($source['inventory'] ?? [] as $row) {
+            $key = gp_integrity_key($row['serial'] ?? '');
+            if (isset($required[$key])) $inventory[$key][] = $row;
+        }
         foreach (array_keys($orderIds) as $oid) {
             $indexes = [];
             foreach ($source['orders'] ?? [] as $index => $order) if ((int)($order['id'] ?? 0) === $oid) $indexes[] = $index;

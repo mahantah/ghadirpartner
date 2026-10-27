@@ -1,4 +1,5 @@
 name: Reconcile Verified Legacy Exit Metadata
+# Retry approved reconciliation with a bounded serial index and sanitized fatal diagnostics.
 
 on:
   workflow_dispatch:
