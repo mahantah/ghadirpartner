@@ -13,6 +13,7 @@ css=(repo/"assets/order-details-v2.css").read_text().rstrip()
 
 def verify(source):
     assert js in source and css in source
+    assert "async /* GP_ORDER_DETAILS_V2_" not in source, "Async declaration prefix must not become a standalone expression"
     assert source.count("function openOrderDetails(")==1
     assert source.count("function closeOrderDetails(")==1
     assert "data-od2-payment-details" in source
@@ -31,7 +32,7 @@ if len(sys.argv)>1:
     print("PASS: complete canonical build includes details v2 and both financial entry points")
     raise SystemExit(0)
 
-original=(repo/"app.html").read_text()
+original=(repo/"app.html").read_text().replace("function openOrderDetails(id){", "async function openOrderDetails(id){", 1)
 with tempfile.TemporaryDirectory() as d:
     target=Path(d)/"app.html"
     target.write_text(original)
