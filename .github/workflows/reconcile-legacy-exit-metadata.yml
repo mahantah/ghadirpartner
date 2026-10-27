@@ -1,5 +1,5 @@
 name: Reconcile Verified Legacy Exit Metadata
-# Retry approved reconciliation preserving existing valid partial exit evidence.
+# Retry approved reconciliation preserving complete orders within mixed legacy cartons.
 
 on:
   workflow_dispatch:

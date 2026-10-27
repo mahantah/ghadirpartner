@@ -40,6 +40,7 @@ final class LegacyExitMetadata
             }
         }
         $units = 0;
+        $changedOrders = 0;
         $required = [];
         foreach ($source['orders'] ?? [] as $order) {
             if (!isset($orderIds[(int)($order['id'] ?? 0)])) continue;
@@ -101,7 +102,8 @@ final class LegacyExitMetadata
                 $missing[] = ['product'=>$item['product'],'qty'=>count($serials),'serials'=>$serials];
                 $added += count($serials);
             }
-            if (!$added) throw new RuntimeException('no_missing_exit_serials');
+            if (!$added) continue;
+            $changedOrders++;
             $next['orders'][$index]['exit_items'] = array_merge($order['exit_items'] ?? [], $missing);
             $units += $added;
             $next['inventory_reconciliations'][] = ['event'=>'legacy_delivered_exit_metadata_reconciled',
@@ -111,6 +113,6 @@ final class LegacyExitMetadata
                 'serial_set_hash'=>hash('sha256', implode("\n", array_keys($matched)))];
         }
         foreach ($this->codes as $code) if (!gp_preswitch_allocated_carton_integrity($next, $code)['ok']) throw new RuntimeException('post_reconciliation_integrity_failed');
-        return ['state'=>$next,'changed'=>(bool)$orderIds,'units'=>$units,'orders'=>count($orderIds)];
+        return ['state'=>$next,'changed'=>$changedOrders > 0,'units'=>$units,'orders'=>$changedOrders];
     }
 }
