@@ -8,6 +8,7 @@ on:
       - 'tests/**'
       - 'lib/**'
       - 'app.html'
+      - 'config/shipping-methods.yaml'
       - '.github/workflows/**'
   push:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - 'tests/**'
       - 'lib/**'
       - 'app.html'
+      - 'config/shipping-methods.yaml'
       - '.github/workflows/ci-web.yml'
 permissions:
   contents: read
@@ -1043,4 +1045,10 @@ jobs:
           bash -Eeuo pipefail /tmp/release-build-integration.sh
           grep -q 'GHADIR_PROD_SIDEBAR_CONTROLS_V1_20261023' /tmp/v53438/*/app.html 2>/dev/null || grep -q 'GHADIR_PROD_SIDEBAR_CONTROLS_V1_20261023' /tmp/v53438/app.html
           python3 tests/order-details-v2-patch.py /tmp/v53438
+          python3 -m pip install ruff mypy
+          ruff check scripts/patch-shipping-methods-v1.py tests/shipping-methods-v1.py
+          ruff format --check scripts/patch-shipping-methods-v1.py tests/shipping-methods-v1.py
+          mypy --strict scripts/patch-shipping-methods-v1.py tests/shipping-methods-v1.py
+          python3 -m py_compile scripts/patch-shipping-methods-v1.py tests/shipping-methods-v1.py
+          python3 tests/shipping-methods-v1.py /tmp/v53438
           echo 'Full release build completed without FTP, database, or server access'
