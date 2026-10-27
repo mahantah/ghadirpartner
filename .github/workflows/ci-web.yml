@@ -24,6 +24,15 @@ concurrency:
   group: web-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  request-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          node --check assets/warehouse-vault-perf-v1.js
+          node tests/request-cache-v1.test.js
+          python3 tests/request-cache-patch-v1.py
+          python3 -m py_compile scripts/patch-request-cache-v1.py
   order-details-v2:
     runs-on: ubuntu-latest
     timeout-minutes: 10

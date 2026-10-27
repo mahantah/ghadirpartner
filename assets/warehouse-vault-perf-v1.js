@@ -28,18 +28,20 @@
     var base = window.loadWarehouse;
     window.loadWarehouse = async function (force) {
       var now = Date.now();
-      if (force !== true && window.WH && lastFetch && (now - lastFetch) < CACHE_MS) {
+      if (force !== true && typeof WH !== 'undefined' && WH && lastFetch && (now - lastFetch) < CACHE_MS) {
         try { if (typeof renderWarehouse === 'function') renderWarehouse(); } catch (e) {}
         try { if (typeof warehouseCount === 'function') warehouseCount(); } catch (e) {}
         try { if (typeof warehouseLabelCount === 'function') warehouseLabelCount(); } catch (e) {}
-        return window.WH;
+        return WH;
       }
       if (inflight) return inflight;
+      // Retry after failure; a stale object must never count as a successful fetch.
+      var previousState = typeof WH === 'undefined' ? null : WH;
       paintLoading();
       inflight = (async function () {
         try {
           var r = await base.apply(this, arguments);
-          lastFetch = Date.now();
+          if (typeof WH !== 'undefined' && WH && WH !== previousState) lastFetch = Date.now();
           return r;
         } finally {
           inflight = null;
@@ -70,7 +72,7 @@
     var base = window.show;
     window.show = function (t) {
       var out = base.apply(this, arguments);
-      if (t === 'warehouse' && (!window.WH || !lastFetch)) paintLoading();
+      if (t === 'warehouse' && (typeof WH === 'undefined' || !WH || !lastFetch)) paintLoading();
       return out;
     };
     window.show.__gpVaultPerf1 = true;
