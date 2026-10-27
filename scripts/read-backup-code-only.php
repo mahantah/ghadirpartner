@@ -57,10 +57,10 @@ final class BackupCodeReader
 }
 if(defined('BACKUP_CODE_TEST'))return;
 ini_set('display_errors','0');set_time_limit(300);
-if(($_SERVER['REQUEST_METHOD']??'')!=='POST'||!hash_equals('__TOKEN__',(string)($_SERVER['HTTP_X_GP_BACKUP_TOKEN']??''))){http_response_code(403);exit;}
+if(($_SERVER['REQUEST_METHOD']??'')!=='POST'||!hash_equals('__TOKEN__',(string)($_SERVER['HTTP_X_GP_RECONCILE_TOKEN']??''))){http_response_code(403);exit;}
 $temp=tempnam(dirname(__DIR__),'gp-code-only-');
 try{
     (new BackupCodeReader())->copy('__ARCHIVE__',$temp);
     header('Content-Type:application/gzip');header('Cache-Control:no-store');header('Content-Length:'.filesize($temp));readfile($temp);
-}catch(Throwable $error){http_response_code(409);header('Content-Type:application/json');echo '{"ok":false,"error":"code_extraction_failed"}';}
+}catch(Throwable $error){http_response_code(409);header('Content-Type:application/json');$safe=['truncated_archive','archive_unavailable','invalid_long_name','code_path_too_long','code_limit_exceeded','application_code_not_found'];$reason=in_array($error->getMessage(),$safe,true)?$error->getMessage():'code_extraction_failed';echo json_encode(['ok'=>false,'error'=>$reason,'archive_exists'=>is_file('__ARCHIVE__'),'archive_readable'=>is_readable('__ARCHIVE__')]);}
 finally{if(is_string($temp)&&is_file($temp))unlink($temp);}
