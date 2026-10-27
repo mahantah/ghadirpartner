@@ -32,6 +32,9 @@ jobs:
           node --check assets/warehouse-vault-perf-v1.js
           node tests/request-cache-v1.test.js
           python3 tests/request-cache-patch-v1.py
+          python3 tests/storage-cache-revision.py
+          php -l tests/storage-cache-revision.php
+          php tests/storage-cache-revision.php
           python3 -m py_compile scripts/patch-request-cache-v1.py
   order-details-v2:
     runs-on: ubuntu-latest
