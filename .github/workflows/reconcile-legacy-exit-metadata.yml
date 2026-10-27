@@ -1,5 +1,5 @@
 name: Reconcile Verified Legacy Exit Metadata
-# Retry approved reconciliation using PHP 7.4-compatible constructor syntax.
+# Retry approved reconciliation preserving existing valid partial exit evidence.
 
 on:
   workflow_dispatch:

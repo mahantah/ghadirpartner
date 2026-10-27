@@ -49,3 +49,11 @@ if ($r['state']['orders'][0]['shipment_batches']!==$before) throw new RuntimeExc
 echo "PASS: 15 legacy metadata scenarios, unchanged counts/dates, idempotence and refusal of incomplete evidence\n";
 
 if (preg_match('/function __construct\(\s*(?:private|public|protected) /',file_get_contents(__DIR__.'/../lib/legacy-exit-metadata.php'))) throw new RuntimeException('PHP 8 constructor promotion is incompatible with production PHP 7.4');
+
+$s=exitFixture();
+$s['orders'][0]['exit_items']=[['product'=>'I90','qty'=>20,'serials'=>array_slice($s['orders'][0]['items'][0]['serials'],0,20)]];
+$existing=$s['orders'][0]['exit_items'][0];
+$r=(new LegacyExitMetadata(['I90-098','I90-099']))->reconcile($s);
+if ($r['units']!==20 || $r['state']['orders'][0]['exit_items'][0]!==$existing || count($r['state']['orders'][0]['exit_items'])!==2) throw new RuntimeException('existing legacy evidence must be preserved verbatim');
+if (!gp_preswitch_allocated_carton_integrity($r['state'],'I90-099')['ok']) throw new RuntimeException('remaining carton not reconciled');
+echo "PASS: existing exit evidence retained verbatim; only missing serials appended\n";
