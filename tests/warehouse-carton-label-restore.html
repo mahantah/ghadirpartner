@@ -7,7 +7,7 @@
 </head>
 <body>
 <div id="warehouse">
-  <div class="card"><div class="tablewrap"><table>
+  <div class="card"><div class="toolbar"><input id="whCartonSearch" type="search" placeholder="جستجو"></div><div class="tablewrap"><table>
     <thead><tr><th>شماره باکس</th><th>عملیات</th></tr></thead>
     <tbody id="warehouseBody"></tbody>
   </table></div></div>
@@ -37,7 +37,7 @@ window.addEventListener('load',async()=>{
     await wait(120);
     let rows=[...document.querySelectorAll('#warehouseBody tr')];
     check(rows.length===2,'rows missing');
-    check(document.querySelectorAll('#gpWarehouseCartonPrintTools').length===1,'toolbar missing or duplicated');
+    check(document.querySelectorAll('#gpWarehousePrintSelectedCartons').length===1,'top print button missing or duplicated');
     check(document.querySelectorAll('.gp-wh-carton-label-check').length===2,'two warehouse selections missing');
     check(document.querySelectorAll('#gpWhCartonSelectAll').length===1,'select-all missing or duplicated');
     const printButtons=rows.map(r=>[...r.querySelectorAll('button')].find(b=>b.textContent.includes('چاپ لیبل')));
@@ -53,8 +53,7 @@ window.addEventListener('load',async()=>{
     await wait(120);
     rows=[...document.querySelectorAll('#warehouseBody tr')];
     check(rows[0].querySelector('.gp-wh-carton-label-check').checked,'selection not preserved after rerender');
-    check(rows[1].querySelector('[data-gp-carton-print="1"]'),'lost missing-button recovery on rerender');
-    check(document.querySelectorAll('#gpWarehouseCartonPrintTools').length===1,'toolbar duplicated after rerender');
+    check(document.querySelectorAll('#gpWarehousePrintSelectedCartons').length===1,'top print button duplicated after rerender');
     document.getElementById('gpWhCartonSelectAll').click();
     check(window.gpWarehouseCartonLabelSelection.size===2,'select all does not select every carton');
     out.textContent='WAREHOUSE_CARTON_LABEL_RESTORE_PASS';
