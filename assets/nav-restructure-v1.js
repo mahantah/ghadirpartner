@@ -6,6 +6,8 @@
 
   var STYLE_ID = 'gp-nav-restructure-v1-css';
   var APPLYING = false;
+  // Other overlays replace function properties; installation belongs to this module.
+  var installedNavigationHooks = Object.create(null);
 
   function $(id) { return document.getElementById(id); }
 
@@ -105,13 +107,14 @@
       window.TAB_ACCESS.salesAgents = window.TAB_ACCESS.salesAgents || window.TAB_ACCESS.customers || ['sales', 'viewer'];
       window.TAB_ACCESS.salesReps = window.TAB_ACCESS.salesReps || window.TAB_ACCESS.customers || ['sales', 'viewer'];
     }
-    if (typeof window.canViewTab === 'function' && !window.canViewTab.__gpNavV1) {
+    if (typeof window.canViewTab === 'function' && !installedNavigationHooks.canViewTab) {
       var base = window.canViewTab;
       window.canViewTab = function (tab) {
         if (tab === 'stocktake') return base('reports') || base('stocktake');
         if (tab === 'salesAgents' || tab === 'salesReps') return base('customers') || base(tab);
         return base(tab);
       };
+      installedNavigationHooks.canViewTab = true;
       window.canViewTab.__gpNavV1 = true;
     }
   }
@@ -494,7 +497,7 @@
   }
 
   function wrapShow() {
-    if (typeof window.show !== 'function' || window.show.__gpNavV1) return;
+    if (typeof window.show !== 'function' || installedNavigationHooks.show) return;
     var base = window.show;
     window.show = function (t) {
       if (t === 'customers' && !window.GP_CUSTOMER_VIEW) window.GP_CUSTOMER_VIEW = 'kartabl';
@@ -502,6 +505,7 @@
       try { afterShow(t); } catch (e) {}
       return result;
     };
+    installedNavigationHooks.show = true;
     window.show.__gpNavV1 = true;
   }
 
