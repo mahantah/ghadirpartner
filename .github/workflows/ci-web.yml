@@ -1000,6 +1000,7 @@ jobs:
           python3 tests/warehouse-nav-stability.py
           python3 tests/exit-report-only-pdf.py
           python3 tests/exit-report-floating-filters.py
+          python3 tests/serial-prep-stream.py
           php -l scripts/recover-correct-source-server.php
           python3 tests/correct-backup-code-only.py
           php -l lib/legacy-shipment-reconciliation.php

@@ -34,7 +34,7 @@ final class WarehouseUiStability {
     public function apply(): array {
         $this->guard();$staged=[];
         foreach($this->manifest['before_files'] as $file=>$hash){
-            if(!in_array($file,['app.html','assets/ui-v53435-menu2.js','assets/nav-restructure-v1.js','assets/menu-live-v4.js','assets/warehouse-ui-refine-v53438.js','assets/search-filter-fab-v1.js'],true))throw new RuntimeException('invalid_path');
+            if(!in_array($file,['app.html','assets/ui-v53435-menu2.js','assets/nav-restructure-v1.js','assets/menu-live-v4.js','assets/warehouse-ui-refine-v53438.js','assets/search-filter-fab-v1.js','assets/ops-v53434.js','assets/partial-exit-v53422.js'],true))throw new RuntimeException('invalid_path');
             $path=__DIR__.'/'.$file;
             if(!is_file($path)||!hash_equals($hash,hash_file('sha256',$path)))throw new RuntimeException('source_hash_mismatch');
             $staged[$file]=file_get_contents($path);
