@@ -1,0 +1,62 @@
+{
+  "before_files": {
+    "app.html": "c8d459db76c47c2d4b63bc37b5151cf216933895fc8c022b24e2f14c296141fc",
+    "assets/search-filter-fab-v1.js": "2077f5d0e5b339c5b88b71aa257b4b71ee549323e2a118110dd09579551c4bf0"
+  },
+  "operations": [
+    {
+      "file": "app.html",
+      "old": "body:has(#reports:not(.hidden)) #gpSearchFabRoot{display:none!important}\n",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "$('repApply').onclick=renderExitReport;",
+      "new": "$('repApply').onclick=renderExitReport;['repFrom','repTo','repShip'].forEach(id=>['input','change'].forEach(event=>$(id).addEventListener(event,()=>renderExitReport())));",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "  const copy=table.cloneNode(true);",
+      "new": "  const copy=table.cloneNode(true);\n  copy.querySelectorAll('tbody tr').forEach(row=>{if(row.hidden||row.style.display==='none'||row.classList.contains('smart-list-hidden'))row.remove();});",
+      "count": 1
+    },
+    {
+      "file": "assets/search-filter-fab-v1.js",
+      "old": "    if (tabId === 'stocktake' || tabId === 'reports') {\n      ensureStocktakeFields(pane);\n      if (tabId === 'reports') ensureReportsFields(pane);\n    }",
+      "new": "    if (tabId === 'stocktake') ensureStocktakeFields(pane);\n    if (tabId === 'reports') ensureReportsFields(pane);",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/search-filter-fab-v1.js?v=3&whfix=20261028a",
+      "new": "/assets/search-filter-fab-v1.js?v=3&whfix=20261028a&exitfilters=1",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "app.html": "cdf4dfa0520717b835a7bfdb497f1966a6c3001e4a8813bb1c91e7942972d4b9",
+    "assets/search-filter-fab-v1.js": "8bb1adb556e9be7d655f1f13f628bf8acfeb6cd05e245261411a25310b4bc102"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}

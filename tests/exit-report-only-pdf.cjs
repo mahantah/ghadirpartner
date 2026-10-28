@@ -19,7 +19,7 @@ setTimeout(async () => {
     assert.equal(reports.querySelector('.gp-exit-report-sheet').querySelectorAll('input,select,.smart-list-tools').length, 0);
     assert.equal(reports.querySelector('.gp-exit-report-sheet h3').textContent, 'گزارش خروج');
     assert(w.document.getElementById('repBody').textContent.includes('FIXTURE-001'));
-    assert.equal(w.getComputedStyle(w.document.getElementById('gpSearchFabRoot')).display, 'none');
+    assert.notEqual(w.getComputedStyle(w.document.getElementById('gpSearchFabRoot')).display, 'none');
     let printCount = 0, html = '';
     w.open = () => ({document:{write(text){html += text},close(){}},focus(){},print(){printCount++}});
     w.document.getElementById('exitReportPdf').click();
