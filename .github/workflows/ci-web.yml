@@ -998,6 +998,7 @@ jobs:
           php tests/legacy-exit-metadata.php
           php -l scripts/apply-warehouse-ui-stability.php
           python3 tests/warehouse-nav-stability.py
+          python3 tests/exit-report-only-pdf.py
           php -l scripts/recover-correct-source-server.php
           python3 tests/correct-backup-code-only.py
           php -l lib/legacy-shipment-reconciliation.php
