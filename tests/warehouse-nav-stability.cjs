@@ -88,6 +88,10 @@ const dom = new JSDOM(fs.readFileSync(root + "/app.html", "utf8"), {
   pretendToBeVisual: true,
   virtualConsole: vc,
   beforeParse(w) {
+    // Isolate DOM-driven requests from legitimate 30/60-second live refreshes.
+    const originalInterval = w.setInterval.bind(w);
+    w.setInterval = (fn, ms, ...args) =>
+      ms >= 10000 ? 0 : originalInterval(fn, ms, ...args);
     w.fetch = async (url) => {
       requests.push(String(url));
       let p = String(url).split("?")[0];
