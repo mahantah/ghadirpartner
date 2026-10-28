@@ -605,13 +605,19 @@
       "old": "<section id=\"reports\" class=\"tab hidden\">",
       "new": "\n<!-- GP_EXIT_REPORT_ONLY_PDF_20261028 -->\n<style>\n#reports > :not(.gp-exit-report-sheet){display:none!important}\nbody:has(#reports:not(.hidden)) #gpSearchFabRoot{display:none!important}\n#reports .gp-exit-report-sheet > .section-title{margin-bottom:12px}\n</style>\n<section id=\"reports\" class=\"tab hidden\">",
       "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "||w.querySelector('#warehouseBody'))return;w.dataset.smartList",
+      "new": "||w.querySelector('#warehouseBody')||w.querySelector('#repBody'))return;w.dataset.smartList",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
     "index.php": "a0b233b9f7befc0a9f1cb4afc8b51bb6f2b9bdd6141eac17a16e220b8d37c105",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "2847278c4837788e51a2bc964f465746d91543f122ce492ad33c12dc94a58a4a",
+    "app.html": "c8d459db76c47c2d4b63bc37b5151cf216933895fc8c022b24e2f14c296141fc",
     "partners/portal.html": "3d49d00d060e621ce1b5ecfd6cc1e02152129d7b67650eeccf1197a7dd52c88e",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "d59703b3aae6b24977095c62061c667246e2cca0ef8f318aac75d831ea59dcb0",
