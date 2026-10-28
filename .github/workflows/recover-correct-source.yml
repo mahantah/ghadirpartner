@@ -1,9 +1,6 @@
 name: Recover Owner Correct Code Baseline
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/recover-correct-source.yml']
 permissions:
   contents: read
 concurrency:
@@ -37,13 +34,15 @@ jobs:
           echo "::add-mask::$TOKEN"
           FILE="__gp_correct_source_${GITHUB_RUN_ID}.php"
           python3 - "$FILE" "$TOKEN" <<'PY'
-          import os,sys,base64
+          import os,sys,base64,json
           from pathlib import Path
           name,token=sys.argv[1:]
           source=Path('scripts/recover-correct-source-server.php').read_text()
           reader=Path('scripts/read-backup-code-only.php').read_text().removeprefix('<?php\n').split("if(defined('BACKUP_CODE_TEST'))return;",1)[0].removeprefix('declare(strict_types=1);')
           integrity=Path('lib/preswitch-carton-integrity.php').read_text().removeprefix('<?php\n')
-          manifest=base64.b64encode(Path('config/correct-backup-recovery.json').read_bytes()).decode()
+          m=json.loads(Path('config/correct-backup-recovery.json').read_text())
+          m['public_file_contents']={name:base64.b64encode(Path(name).read_bytes()).decode() for name in m.get('public_files',[])}
+          manifest=base64.b64encode(json.dumps(m).encode()).decode()
           for old,new in {'// __READER_CLASS__':reader,'// __INTEGRITY_CLASS__':integrity,'__TOKEN__':token,'__ARCHIVE__':os.environ['ARCHIVE'],'__MANIFEST_B64__':manifest,'__RUN_ID__':os.environ['GITHUB_RUN_ID']}.items(): source=source.replace(old,new)
           Path('/tmp/'+name).write_text(source)
           PY

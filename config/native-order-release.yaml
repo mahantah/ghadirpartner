@@ -1,0 +1,125 @@
+{
+  "before_files": {
+    "index.php": "a0b233b9f7befc0a9f1cb4afc8b51bb6f2b9bdd6141eac17a16e220b8d37c105",
+    "partners/index.php": "ada6594b2b4f55b203606c4cc6a7eb455c281e878f6a89a57c9bfda01c61ed84"
+  },
+  "operations": [
+    {
+      "file": "index.php",
+      "old": "if($p==='/api/orders'&&$m==='GET')",
+      "new": "require_once __DIR__.'/lib/native-order-flow-routes.php';\nif($p==='/api/orders'&&$m==='GET')",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if($p==='/api/orders'&&$m==='GET')",
+      "new": "require_once dirname(__DIR__).'/lib/native-order-flow-routes.php';\nif($p==='/api/orders'&&$m==='GET')",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$paymentLabels=['cash'=>'نقد','check'=>'اعتباری با چک','online'=>'آنلاین'];",
+      "new": "$paymentLabels=['cash'=>'نقد','check'=>'چک','credit'=>'اعتباری','online'=>'آنلاین'];",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "    $requestedPayment=trim((string)($x['requested_payment_method']??''));",
+      "new": "    if($isCustomer){try{$gpCustomerOrderFlow->validateRequest($x);}catch(InvalidArgumentException $error){fail($error->getMessage(),422);}}\n    $requestedPayment=trim((string)($x['requested_payment_method']??''));",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$paymentLabels,$promoInput){",
+      "new": "$paymentLabels,$promoInput,$gpCustomerOrderFlow){",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if(isset($seenItems[$name]))fail('هر مدل را فقط یک‌بار در سفارش ثبت کنید');$seenItems[$name]=true;",
+      "new": "$purchaseIdentity=$isCustomer?$name.\"\\0\".trim((string)($it['price_key']??'')):$name;if(isset($seenItems[$purchaseIdentity]))fail('این مدل با همین نوع خرید قبلاً ثبت شده است');$seenItems[$purchaseIdentity]=true;",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "        $discount=0;$offer=null;",
+      "new": "        $purchaseItems=$items;if($isCustomer)$items=$gpCustomerOrderFlow->fulfillmentItems($purchaseItems);\n        $discount=0;$offer=null;",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "        $o['payment_method']='';$o['payment_method_label']='';$o['payment_details']=[];$o['check_status']='';$o['credit_status']='';$o['installment_status']='';",
+      "new": "        $o['payment_method']='';$o['payment_method_label']='';$o['payment_details']=[];$o['check_status']='';$o['credit_status']='';$o['installment_status']='';\n        if($isCustomer){$o['purchase_items']=$purchaseItems;$o['native_settlement']=array_merge(gp_r54_settlement($x,$u,$o),$gpCustomerOrderFlow->creditCommitment($x));unset($o['settlement_details']);}",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "require_once dirname(__DIR__).'/lib/native-order-flow-routes.php';",
+      "new": "if(in_array($p,['/api/native/credit','/api/native/proof','/api/orders/add'],true))require_once __DIR__.'/native-r54.php';\nrequire_once dirname(__DIR__).'/lib/native-order-flow-routes.php';",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "if(($o['approval_status']??'')==='تأیید شده')fail('سفارش قبلاً تأیید شده است');",
+      "new": "if(($o['approval_status']??'')==='تأیید شده')fail('سفارش قبلاً تأیید شده است');try{$GLOBALS['gpCustomerOrderFlow']->assertPending($o);}catch(InvalidArgumentException $error){fail($error->getMessage(),422);}",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "if(array_key_exists('items',$x)){",
+      "new": "if(array_key_exists('items',$x)){try{$GLOBALS['gpCustomerOrderFlow']->assertEditable($o);}catch(InvalidArgumentException $error){fail($error->getMessage(),422);}",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "$o['items']=$newItems;",
+      "new": "$o['items']=$newItems;if(isset($o['purchase_items']))$o['purchase_items']=$newItems;",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if(($o['approval_status']??'')==='تأیید شده')fail('سفارش قبلاً تأیید شده است');",
+      "new": "if(($o['approval_status']??'')==='تأیید شده')fail('سفارش قبلاً تأیید شده است');try{$GLOBALS['gpCustomerOrderFlow']->assertPending($o);}catch(InvalidArgumentException $error){fail($error->getMessage(),422);}",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if(array_key_exists('items',$x)){",
+      "new": "if(array_key_exists('items',$x)){try{$GLOBALS['gpCustomerOrderFlow']->assertEditable($o);}catch(InvalidArgumentException $error){fail($error->getMessage(),422);}",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$o['items']=$newItems;",
+      "new": "$o['items']=$newItems;if(isset($o['purchase_items']))$o['purchase_items']=$newItems;",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "index.php": "9ec798524bc34ce4ae517a32c398024adffd9f1fcede5ebb81b1295957758cb2",
+    "partners/index.php": "6a455c590062a69ce0853a66eafd0dd83f1f04751411937361f3afe3484a48d4",
+    "lib/native-order-flow.php": "c8b2958a97fa0308ca21ed6d8bf1f415c19b1cf29ca07013fe1ebdb64b77a542",
+    "lib/native-order-flow-routes.php": "0ecd678f8c79e8abe115b51da1c9e170b58396ae5502fbb1ebf3b74518152f2a",
+    "config/native-order-flow.yaml": "855a74739ecc478d2b94a2eeac8b605b7d9b1f0700bc9c988da502c22fc68264"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}
