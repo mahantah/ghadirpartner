@@ -611,13 +611,43 @@
       "old": "||w.querySelector('#warehouseBody'))return;w.dataset.smartList",
       "new": "||w.querySelector('#warehouseBody')||w.querySelector('#repBody'))return;w.dataset.smartList",
       "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "body:has(#reports:not(.hidden)) #gpSearchFabRoot{display:none!important}\n",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "$('repApply').onclick=renderExitReport;",
+      "new": "$('repApply').onclick=renderExitReport;['repFrom','repTo','repShip'].forEach(id=>['input','change'].forEach(event=>$(id).addEventListener(event,()=>renderExitReport())));",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "  const copy=table.cloneNode(true);",
+      "new": "  const copy=table.cloneNode(true);\n  copy.querySelectorAll('tbody tr').forEach(row=>{if(row.hidden||row.style.display==='none'||row.classList.contains('smart-list-hidden'))row.remove();});",
+      "count": 1
+    },
+    {
+      "file": "assets/search-filter-fab-v1.js",
+      "old": "    if (tabId === 'stocktake' || tabId === 'reports') {\n      ensureStocktakeFields(pane);\n      if (tabId === 'reports') ensureReportsFields(pane);\n    }",
+      "new": "    if (tabId === 'stocktake') ensureStocktakeFields(pane);\n    if (tabId === 'reports') ensureReportsFields(pane);",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/search-filter-fab-v1.js?v=3&whfix=20261028a",
+      "new": "/assets/search-filter-fab-v1.js?v=3&whfix=20261028a&exitfilters=1",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
     "index.php": "a0b233b9f7befc0a9f1cb4afc8b51bb6f2b9bdd6141eac17a16e220b8d37c105",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "c8d459db76c47c2d4b63bc37b5151cf216933895fc8c022b24e2f14c296141fc",
+    "app.html": "cdf4dfa0520717b835a7bfdb497f1966a6c3001e4a8813bb1c91e7942972d4b9",
     "partners/portal.html": "3d49d00d060e621ce1b5ecfd6cc1e02152129d7b67650eeccf1197a7dd52c88e",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "d59703b3aae6b24977095c62061c667246e2cca0ef8f318aac75d831ea59dcb0",
@@ -719,7 +749,7 @@
     "assets/sidebar-edge-profile-v2.js": "7af357f377a56213e3442aebfff715c4af6665c8360fe14a9655e8dc4b86df59",
     "assets/production-sidebar-placement-v2.css": "8acfcfe47a1496dcc5cdfba4066972d2b1ea33337aac4b9d8a51d8d8cdc22b15",
     "assets/production-login-v1.js": "3cf3fad63ea82359e495e09a4565690c8ddce7aa5599f3ee4b6db915e45d516f",
-    "assets/search-filter-fab-v1.js": "2077f5d0e5b339c5b88b71aa257b4b71ee549323e2a118110dd09579551c4bf0",
+    "assets/search-filter-fab-v1.js": "8bb1adb556e9be7d655f1f13f628bf8acfeb6cd05e245261411a25310b4bc102",
     "assets/form-card-compact-v1.js": "945bb366ed4a5679deaa646e4235fa2d7e0f5f3a1f991eec1b465e81ae171dec",
     "assets/order-details-v2-approved-20261024.css": "2e321c5a6a28766bf9757b6ee808d42d0017969049bffe05df065cc94705c6f8",
     "assets/portal-orders-polish-v4.js": "77111372f3e88b91cae5020cf5eebcb8246bc0ed7aef23cb79227d29d013e2d5",
