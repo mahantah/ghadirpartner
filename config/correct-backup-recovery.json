@@ -95,13 +95,499 @@
       "old": "gpOdField('کد مرسوله',o.tracking_code)+",
       "new": "gpOdField('کد مرسوله',o.tracking_code)+(o.shipping_type==='پیک'?gpOdField('نام پیک',o.courier_name)+gpOdField('شماره تماس پیک',o.courier_phone):'')+",
       "count": 1
+    },
+    {
+      "file": "assets/ui-v53435-menu2.js",
+      "old": "'دفتر روزانه انبار'",
+      "new": "'تاریخچه و موجودی کالا'",
+      "count": 2
+    },
+    {
+      "file": "assets/ui-v53435-menu2.js",
+      "old": "'مخزن انبار'",
+      "new": "'انبار سریال'",
+      "count": 2
+    },
+    {
+      "file": "assets/nav-restructure-v1.js",
+      "old": "'دفتر روزانه انبار'",
+      "new": "'تاریخچه و موجودی کالا'",
+      "count": 1
+    },
+    {
+      "file": "assets/nav-restructure-v1.js",
+      "old": "'مخزن انبار'",
+      "new": "'انبار سریال'",
+      "count": 1
+    },
+    {
+      "file": "assets/ui-v53435-menu2.js",
+      "old": "nav.querySelector('.sidebar-footer')",
+      "new": "nav.querySelector('.sidebar-footer'),\n      document.querySelector('.userbox')",
+      "count": 1
+    },
+    {
+      "file": "assets/nav-restructure-v1.js",
+      "old": "nav.querySelector('.sidebar-footer')",
+      "new": "nav.querySelector('.sidebar-footer'),\n      document.querySelector('.userbox')",
+      "count": 1
+    },
+    {
+      "file": "assets/menu-live-v4.js",
+      "old": "nav.querySelector('.sidebar-footer')",
+      "new": "nav.querySelector('.sidebar-footer'),\n      document.querySelector('.userbox')",
+      "count": 1
+    },
+    {
+      "file": "assets/ui-v53435-menu2.js",
+      "old": "    let same = parent.children.length === items.length;",
+      "new": "    const current = [...parent.children].filter(el => items.includes(el));\n    let same = current.length === items.length;",
+      "count": 1
+    },
+    {
+      "file": "assets/ui-v53435-menu2.js",
+      "old": "if (parent.children[i] !== items[i])",
+      "new": "if (current[i] !== items[i])",
+      "count": 1
+    },
+    {
+      "file": "assets/menu-live-v4.js",
+      "old": "keep.forEach(function (el) { nav.appendChild(el); });",
+      "new": "var current = [].slice.call(nav.children).filter(function (el) { return keep.indexOf(el) >= 0; });\n    if (current.length !== keep.length || keep.some(function (el, i) { return current[i] !== el; })) {\n      keep.forEach(function (el) { nav.appendChild(el); });\n    }",
+      "count": 1
+    },
+    {
+      "file": "assets/warehouse-ui-refine-v53438.js",
+      "old": "if(span){span.textContent=text;return;}",
+      "new": "if(span){if(span.textContent!==text)span.textContent=text;return;}",
+      "count": 1
+    },
+    {
+      "file": "assets/warehouse-ui-refine-v53438.js",
+      "old": "    btn.textContent=text;",
+      "new": "    if(btn.textContent!==text)btn.textContent=text;",
+      "count": 1
+    },
+    {
+      "file": "assets/warehouse-ui-refine-v53438.js",
+      "old": "  try{ if(document.getElementById('reports') && !document.getElementById('reports').classList.contains('hidden')) loadStocktakeSeparated(); }catch(e){}\n  try{ if(document.getElementById('warehouseDaily') && !document.getElementById('warehouseDaily').classList.contains('hidden')){renderSeparateWarehouseLiveSummary();} }catch(e){}",
+      "new": "  // Data loads belong to navigation/render actions, never to DOM mutation repair.",
+      "count": 1
+    },
+    {
+      "file": "assets/warehouse-ui-refine-v53438.js",
+      "old": "typeof loadStocktake==='function'&&!loadStocktake.__gpSeparateWarehouses",
+      "new": "typeof loadStocktake==='function'&&!loadStocktake.__gpSeparateWarehouses&&!loadStocktake.__gpSeparated",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/ghadir-print-v5349.css?v=5349\"",
+      "new": "\"/ghadir-print-v5349.css?v=5349&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/redesign-v5348.css?v=5348\"",
+      "new": "\"/assets/redesign-v5348.css?v=5348&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/bugfix-v5349.css?v=5349\"",
+      "new": "\"/assets/bugfix-v5349.css?v=5349&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/ui-v53417.css?v=53421\"",
+      "new": "\"/assets/ui-v53417.css?v=53421&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/partial-exit-v53422.css?v=53422\"",
+      "new": "\"/assets/partial-exit-v53422.css?v=53422&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-select-v53423.css?v=53423\"",
+      "new": "\"/assets/warehouse-select-v53423.css?v=53423&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/business-v53437.css?v=53437\"",
+      "new": "\"/assets/business-v53437.css?v=53437&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/ops-v53434.css?v=53434\"",
+      "new": "\"/assets/ops-v53434.css?v=53434&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-v53438.css?v=53438wh1\"",
+      "new": "\"/assets/warehouse-v53438.css?v=53438wh1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/production-login-v1.css?v=20261023bg\"",
+      "new": "\"/assets/production-login-v1.css?v=20261023bg&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/production-sidebar-controls-v1.css?v=1\"",
+      "new": "\"/assets/production-sidebar-controls-v1.css?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/production-sidebar-placement-v2.css?v=3\"",
+      "new": "\"/assets/production-sidebar-placement-v2.css?v=3&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-details-v2-approved-20261024.css?v=1\"",
+      "new": "\"/assets/order-details-v2-approved-20261024.css?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/ghadir-print-v5349.js?v=5349\"",
+      "new": "\"/ghadir-print-v5349.js?v=5349&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/redesign-v5348.js?v=5348\"",
+      "new": "\"/assets/redesign-v5348.js?v=5348&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/bugfix-v5349.js?v=5349\"",
+      "new": "\"/assets/bugfix-v5349.js?v=5349&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/ui-v53435-menu2.js?v=3\"",
+      "new": "\"/assets/ui-v53435-menu2.js?v=3&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/partial-exit-v53422.js?v=53426\"",
+      "new": "\"/assets/partial-exit-v53422.js?v=53426&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-select-v53423.js?v=53426\"",
+      "new": "\"/assets/warehouse-select-v53423.js?v=53426&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/business-v53437.js?v=53437\"",
+      "new": "\"/assets/business-v53437.js?v=53437&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/ops-v53434.js?v=53434\"",
+      "new": "\"/assets/ops-v53434.js?v=53434&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-v53438.js?v=53438wh1\"",
+      "new": "\"/assets/warehouse-v53438.js?v=53438wh1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-multiprint-v53438.js?v=53438mp2\"",
+      "new": "\"/assets/order-multiprint-v53438.js?v=53438mp2&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-ui-refine-v53438.js?v=53438ui7\"",
+      "new": "\"/assets/warehouse-ui-refine-v53438.js?v=53438ui7&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-vault-perf-v1.js?v=2\"",
+      "new": "\"/assets/warehouse-vault-perf-v1.js?v=2&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint7\"",
+      "new": "\"/assets/warehouse-carton-multilabel-v53438.js?v=53438whprint7&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/production-login-v1.js?v=1\"",
+      "new": "\"/assets/production-login-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/production-sidebar-controls-v1.js?v=1\"",
+      "new": "\"/assets/production-sidebar-controls-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/production-sidebar-placement-v2.js?v=2\"",
+      "new": "\"/assets/production-sidebar-placement-v2.js?v=2&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-details-v2-approved-20261024.js?v=1\"",
+      "new": "\"/assets/order-details-v2-approved-20261024.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/production-order-details-bridge-v1.js?v=1\"",
+      "new": "\"/assets/production-order-details-bridge-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/customer-price-access-live-v4.js?v=4\"",
+      "new": "\"/assets/customer-price-access-live-v4.js?v=4&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-ledger-eod-freeze-v1.js?v=1\"",
+      "new": "\"/assets/warehouse-ledger-eod-freeze-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/shamsi-calendar-table-v1.js?v=1\"",
+      "new": "\"/assets/shamsi-calendar-table-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/nav-restructure-v1.js?v=20261027hooks\"",
+      "new": "\"/assets/nav-restructure-v1.js?v=20261027hooks&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/menu-live-v3.js?v=20261027hooks\"",
+      "new": "\"/assets/menu-live-v3.js?v=20261027hooks&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/menu-live-v4.js?v=4\"",
+      "new": "\"/assets/menu-live-v4.js?v=4&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/coop-model-v1.js?v=1\"",
+      "new": "\"/assets/coop-model-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/customer-form-polish-v1.js?v=1\"",
+      "new": "\"/assets/customer-form-polish-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/kartabl-sync-v1.js?v=2\"",
+      "new": "\"/assets/kartabl-sync-v1.js?v=2&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/ops-ui-fix-v1.js?v=1\"",
+      "new": "\"/assets/ops-ui-fix-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/sales-plans-menu-v1.js?v=1\"",
+      "new": "\"/assets/sales-plans-menu-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/customer-ops-stabilize-v1.js?v=3\"",
+      "new": "\"/assets/customer-ops-stabilize-v1.js?v=3&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/plans-icon-agent-lock-v1.js?v=1\"",
+      "new": "\"/assets/plans-icon-agent-lock-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/choice-ui-icons-v1.js?v=1\"",
+      "new": "\"/assets/choice-ui-icons-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/toggle-switch-polish-v1.js?v=1\"",
+      "new": "\"/assets/toggle-switch-polish-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/toggle-switch-cl-v2.js?v=1\"",
+      "new": "\"/assets/toggle-switch-cl-v2.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/form-card-compact-v1.js?v=1\"",
+      "new": "\"/assets/form-card-compact-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/shell-combo-v1.js?v=1\"",
+      "new": "\"/assets/shell-combo-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/nav-tab-guard-v1.js?v=1\"",
+      "new": "\"/assets/nav-tab-guard-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/session-keep-v1.js?v=1\"",
+      "new": "\"/assets/session-keep-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/search-filter-fab-v1.js?v=3\"",
+      "new": "\"/assets/search-filter-fab-v1.js?v=3&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/search-filter-fab-layer-v2.js?v=1\"",
+      "new": "\"/assets/search-filter-fab-layer-v2.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/wh-label-v1.js?v=1\"",
+      "new": "\"/assets/wh-label-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/search-filter-fab-click-v3.js?v=1\"",
+      "new": "\"/assets/search-filter-fab-click-v3.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/od-chrome-v1.js?v=1\"",
+      "new": "\"/assets/od-chrome-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-tab-ops-agent-v1.js?v=1\"",
+      "new": "\"/assets/warehouse-tab-ops-agent-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/warehouse-ops-harden-v2.js?v=1\"",
+      "new": "\"/assets/warehouse-ops-harden-v2.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/ops-coop-strip-v3.js?v=1\"",
+      "new": "\"/assets/ops-coop-strip-v3.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-track-orders-v1.js?v=1\"",
+      "new": "\"/assets/order-track-orders-v1.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-track-scope-v2.js?v=1\"",
+      "new": "\"/assets/order-track-scope-v2.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-track-hide-list-v3.js?v=1\"",
+      "new": "\"/assets/order-track-hide-list-v3.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/portal-orders-polish-v4.js?v=1\"",
+      "new": "\"/assets/portal-orders-polish-v4.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-return-exchange-v1.css?v=1\"",
+      "new": "\"/assets/order-return-exchange-v1.css?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/order-return-exchange-v2.js?v=1\"",
+      "new": "\"/assets/order-return-exchange-v2.js?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/account-logout-access-v1.css?v=1\"",
+      "new": "\"/assets/account-logout-access-v1.css?v=1&whfix=20261028a\"",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "\"/assets/account-logout-access-v1.js?v=2\"",
+      "new": "\"/assets/account-logout-access-v1.js?v=2&whfix=20261028a\"",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
     "index.php": "a0b233b9f7befc0a9f1cb4afc8b51bb6f2b9bdd6141eac17a16e220b8d37c105",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "39c497300dea2e39e75b6ec4861af9accaee0cbc35c640a0e679661709c1e001",
+    "app.html": "3586bd23f2142d766bb5883e4c2a28124020c29a608df51ef9dfaea0c0eedc94",
     "partners/portal.html": "3d49d00d060e621ce1b5ecfd6cc1e02152129d7b67650eeccf1197a7dd52c88e",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "d59703b3aae6b24977095c62061c667246e2cca0ef8f318aac75d831ea59dcb0",
@@ -117,7 +603,7 @@
     "lib/staff-login-otp.php": "fd6bfec62a352256651ba088dec78cd456f284ca780ece8de8b47c85e60ba465",
     "lib/warehouse-v53438.php": "82ac9c260a953fabfb751e6e1d9c9367b7256ce47fc1d5d30d4acaf52c652963",
     "lib/protected-cartons.php": "a7540f84b621c0661dfc321bb86ec91ad5d1a8f0c53a72abadecc04bd3d97f4d",
-    "assets/ui-v53435-menu2.js": "9e4adc5150e8caf48e9c6f071855cb737510d997c82808b25e2b27dac3c98a5c",
+    "assets/ui-v53435-menu2.js": "7b48983bdbfdba415719c1d9174c3ecf2e592dce47de86d6215e5450767a2fa0",
     "assets/nav-morph-v1.js": "10ebc7524e79945860821d2bec32622f509bfa2aa73e007cf8d2fd8a6a170e5f",
     "assets/ops-v53432.css": "89c6e42d4aeb393541f26d26e8f09a3987c3a3c2f8b2302fd54c716217765e87",
     "assets/warehouse-serial-filters-v4.js": "0e4bc4942fbbffeb8417716184f78148079d84e46bbb92abfe12ca58ba020127",
@@ -152,7 +638,7 @@
     "assets/warehouse-serial-filters-v1.css": "b69d281ea567ba19e55629059ad9102a2af172fc18d85404213d1efd3812c18d",
     "assets/search-filter-fab-layer-v2.js": "04015445f47d8aa889f0efd333b2bf9a7e0037ae9d6957fc3223c957ccd404aa",
     "assets/wh-label-v1.js": "f79bd554b8318a6bb473e5f72f9c49f723cd846811fe98adcc94ffb0371c4d75",
-    "assets/nav-restructure-v1.js": "cb495181f0c10ac2ab7e207f9d0e6c2aea10da543be6ccc76c07ccec62353c35",
+    "assets/nav-restructure-v1.js": "a4de44c9901716efbbb3fc5bdedcaf9bde222adbe16f4224328ac0927550c552",
     "assets/warehouse-select-v53423.css": "7d97e79e9950ef54486a5ea3fe1ffef8a64b1cc3f1b8c29e4eaf4ffa55ebf51c",
     "assets/customer-price-access-live-v3.js": "cb2aab4da3423b5b4727f7e8fa83356ca61a655a0f1437015af629a51c12d740",
     "assets/customer-form-polish-v1.js": "e21cdc8c7c802591ae89576403f48bc393fb3b1247844bf7143acbc3e4fed067",
@@ -169,7 +655,7 @@
     "assets/order-track-orders-v1.js": "849150fee3c27fff862b643a542228a2c3365bccd04d744a7a1a94d31cc4609a",
     "assets/order-action-burger-v1.js": "4adae6a4305ff98b5cc0ab28a4651480408fe2a3216c8d22a2b4bceed5954478",
     "assets/sales-plans-menu-v1.js": "da94cb0531a5d68da39896740d5e86be8e67bb01ae8cbc91ee3ecdd3e071920b",
-    "assets/menu-live-v4.js": "662cd6d8e8dd52374ca0061ef5c71590d7135c661bf50f8ac054664d38f8a346",
+    "assets/menu-live-v4.js": "ab92f0f0d3a05e6c6b67715e25883b978711e0b5ac2f6418e0492c19c5227f1b",
     "assets/customer-ops-stabilize-v1.js": "6814a9eb65401f48828a6e51b0a40a85d6827d501e838d5e6af2b92791769898",
     "assets/shell-combo-v1.js": "a71571fc27c401a75b6c4ae6db81d50f3dc9071e1ba8e28dea3a7310537b1b4f",
     "assets/ops-v53432.js": "35ee4feacd61a22f880e8393fd0e09e8cf2b39c6fce765f67cf2d63c6e4babd1",
@@ -181,7 +667,7 @@
     "assets/ops-v53434.css": "89c6e42d4aeb393541f26d26e8f09a3987c3a3c2f8b2302fd54c716217765e87",
     "assets/sidebar-real-edge-v4.js": "85ca215ac17dc132f5202f6914a34f4a08c7260057aec84b8db2074859642bd4",
     "assets/staff-login-otp.css": "af3c3646a0a6f6ebc3346b61f1edde08552a6fb4e9b5035668c0bf06df2b7529",
-    "assets/warehouse-ui-refine-v53438.js": "6253bf7fc50e56c21f3e0f90589e635a24127a48b40b6047aba91924b483d125",
+    "assets/warehouse-ui-refine-v53438.js": "720d56a67a3f86e64502a52f761161d500201305c5fac7dca68ce7450b6d7bb1",
     "assets/redesign-v5348.js": "747ef2e6240c67f087bcafbb230213709a6efd92637e18d7e437fbc20d39538a",
     "assets/search-filter-fab-click-v3.js": "038f090385fa95073c39994e6117d641ca73196af73b4f4da68a75c7bf71d1d0",
     "assets/business-v53427.js": "e75aba9064a27cb43ad1870322db239c2e0f039365ab227eae7ca6d772660081",
