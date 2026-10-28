@@ -49,6 +49,17 @@ final class CorrectSourceRecovery
             }
         }finally{gzclose($input);}
     }
+    /** Stage hash-checked public dependencies absent from the original code archive. */
+    private function stagePublicFiles(string $stage): void {
+        // New public dependencies are not in the owner's original archive.
+        foreach($this->manifest['public_files']??[] as $path){
+            if(!isset($this->manifest['expected_files'][$path])||!isset($this->manifest['public_file_contents'][$path])||strpos($path,'..')!==false||$path[0]==='/')throw new RuntimeException('source_hash_mismatch');
+            $text=base64_decode($this->manifest['public_file_contents'][$path],true);
+            if($text===false||!hash_equals($this->manifest['expected_files'][$path],hash('sha256',$text)))throw new RuntimeException('source_hash_mismatch');
+            $target=$stage.'/'.$path;if(!is_dir(dirname($target)))mkdir(dirname($target),0700,true);
+            if(file_put_contents($target,$text,LOCK_EX)!==strlen($text))throw new RuntimeException('source_hash_mismatch');
+        }
+    }
     /** Restore code from the private pre-recovery checkpoint; never touch runtime data. */
     public function rollback(): array {
         $record=$this->private.'/before.json';
@@ -68,6 +79,7 @@ final class CorrectSourceRecovery
         (new BackupCodeReader())->copy('__ARCHIVE__',$tar);
         $stage=$this->private.'/stage';mkdir($stage,0700,true);
         $this->extract($tar,$stage);
+        $this->stagePublicFiles($stage);
         foreach($this->manifest['operations'] as $operation){
             $path=$stage.'/'.$operation['file'];$text=file_get_contents($path);
             if(substr_count($text,$operation['old'])!==$operation['count'])throw new RuntimeException('patch_anchor_mismatch');

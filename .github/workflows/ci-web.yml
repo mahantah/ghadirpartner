@@ -48,6 +48,8 @@ jobs:
           mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
       - name: Order policy, financial rows, consent and review transitions
         run: |
+          php -l scripts/release-native-order-flow.php
+          php tests/native-order-release.php
           php -l lib/native-order-flow.php
           php -l lib/native-order-flow-routes.php
           php -l tests/native-order-flow.php

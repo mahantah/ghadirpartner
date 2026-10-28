@@ -34,3 +34,11 @@ This PR does not deploy itself. Review the paired Android build first. Before pr
 Policy is JSON-compatible YAML so production PHP 7.4 needs no YAML extension. `GpOrderPolicyRepository` validates its schema before the service uses it. No credentials are included in policy.
 
 Validation uses synthetic fixtures only. Release APK signing and live-account acceptance are separate from these PHP checks. Do not submit test orders, receipts or SMS to production.
+
+## Owner-authorized release
+
+`.github/workflows/release-native-order-flow.yml` installs this finite package after merge. It runs the original 18-carton guard read-only, checks both owner-source hashes and every replacement, saves a private checkpoint outside the web root, installs three dependencies before both entrypoints, verifies five final hashes and health, and rolls back on publication/readback/health failure. No production data is exported or written. The temporary authenticated installer is removed on exit.
+
+Recovery now includes the same operations and three verified public dependencies (128 code files total). The full backup recovery workflow is manual-only so merging its compatibility update cannot trigger a broad restore.
+
+Both Android flavors have been signed locally with a new owner-authorized key and delivered privately. That signature cannot update the published R5.11 installation in place. The source baseline is R5.6; R5.11 source parity remains unverified. Private key/password material is never committed.
