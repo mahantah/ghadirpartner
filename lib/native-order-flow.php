@@ -53,6 +53,12 @@ final class GpCustomerOrderFlow
         if ($method === 'credit' && (($request['settlement_details']['terms_accepted'] ?? false) !== true)) {
             throw new InvalidArgumentException('پذیرش تعهد تسویه اعتباری الزامی است');
         }
+        if ($method === 'credit') {
+            $revision = $request['settlement_details']['commitment_sha256'] ?? '';
+            if (!is_string($revision) || !hash_equals(hash('sha256', $this->policy['credit_commitment']), $revision)) {
+                throw new InvalidArgumentException('متن تعهد تغییر کرده است؛ در نسخه جدید برنامه آن را دوباره تأیید کنید');
+            }
+        }
         $items = $request['items'] ?? [];
         if (!is_array($items) || !$items) throw new InvalidArgumentException('حداقل یک کالا الزامی است');
         $quantities = []; $serialQuantities = []; $seen = [];

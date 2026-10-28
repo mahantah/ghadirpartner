@@ -7,11 +7,13 @@ final class NativeOrderFlowTest
 {
     private int $checks = 0;
     private GpCustomerOrderFlow $service;
+    private array $policy;
 
     /** Use the checked-in public policy, never production config or customer data. */
     public function __construct()
     {
-        $this->service = new GpCustomerOrderFlow((new GpOrderPolicyRepository(__DIR__.'/../config/native-order-flow.yaml'))->load());
+        $this->policy = (new GpOrderPolicyRepository(__DIR__.'/../config/native-order-flow.yaml'))->load();
+        $this->service = new GpCustomerOrderFlow($this->policy);
     }
 
     private function check(bool $condition, string $message): void
@@ -28,7 +30,7 @@ final class NativeOrderFlowTest
 
     private function request(): array
     {
-        return ['invoice_type'=>'رسمی', 'requested_payment_method'=>'credit', 'settlement_details'=>['terms_accepted'=>true],
+        return ['invoice_type'=>'رسمی', 'requested_payment_method'=>'credit', 'settlement_details'=>['terms_accepted'=>true,'commitment_sha256'=>hash('sha256',$this->policy['credit_commitment'])],
             'items'=>[['product'=>'I90','qty'=>2,'price_key'=>'panel_cash'], ['product'=>'I90','qty'=>3,'price_key'=>'serial_1_50']]];
     }
 
@@ -45,6 +47,10 @@ final class NativeOrderFlowTest
             $request=$this->request();$request['settlement_details']['terms_accepted']=$acceptance;
             $this->fails(function () use ($request): void { $this->service->validateRequest($request); }, 'non-boolean consent');
         }
+        $request=$this->request();unset($request['settlement_details']['commitment_sha256']);
+        $this->fails(function () use ($request): void { $this->service->validateRequest($request); }, 'legacy consent cannot claim new wording');
+        $request=$this->request();$request['settlement_details']['commitment_sha256']=hash('sha256','old text');
+        $this->fails(function () use ($request): void { $this->service->validateRequest($request); }, 'stale consent revision');
         $request=$this->request();$request['items'][]=$request['items'][0];
         $this->fails(function () use ($request): void { $this->service->validateRequest($request); }, 'duplicate option');
         $request=$this->request();$request['items'][1]['qty']=51;

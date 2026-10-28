@@ -98,7 +98,7 @@
   "expected_files": {
     "index.php": "9ec798524bc34ce4ae517a32c398024adffd9f1fcede5ebb81b1295957758cb2",
     "partners/index.php": "6a455c590062a69ce0853a66eafd0dd83f1f04751411937361f3afe3484a48d4",
-    "lib/native-order-flow.php": "8c79b2de44407752375b3163c0aacf6092d774ad9e1e6bd5a1f9689c099b133e",
+    "lib/native-order-flow.php": "c8b2958a97fa0308ca21ed6d8bf1f415c19b1cf29ca07013fe1ebdb64b77a542",
     "lib/native-order-flow-routes.php": "0ecd678f8c79e8abe115b51da1c9e170b58396ae5502fbb1ebf3b74518152f2a",
     "config/native-order-flow.yaml": "855a74739ecc478d2b94a2eeac8b605b7d9b1f0700bc9c988da502c22fc68264"
   }

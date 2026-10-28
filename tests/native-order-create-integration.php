@@ -23,7 +23,8 @@ final class NativeCreateFixture
         require_once __DIR__.'/../lib/native-order-flow.php';
         require_once __DIR__.'/../lib/customer-price-access.php';
         $p='';$m='';require $original.'/partners/native-r54.php';
-        $GLOBALS['gpCustomerOrderFlow']=new GpCustomerOrderFlow((new GpOrderPolicyRepository(__DIR__.'/../config/native-order-flow.yaml'))->load());
+        $policy=(new GpOrderPolicyRepository(__DIR__.'/../config/native-order-flow.yaml'))->load();
+        $GLOBALS['gpCustomerOrderFlow']=new GpCustomerOrderFlow($policy);
         $source=file_get_contents($staged.'/partners/index.php');
         $start=strpos($source,"if(\$p==='/api/orders/add'){");
         $end=strpos($source,"if(\$p==='/api/customer-order/approve'",$start);
@@ -34,7 +35,7 @@ final class NativeCreateFixture
             'products'=>[['name'=>'I90','available'=>true,'stock'=>5,'serial_required'=>true,'prices'=>['panel_cash'=>101,'serial_1_50'=>117,'serial_51_200'=>110]]],
             'inventory'=>[['serial'=>'FIXTURE-ONLY','order_id'=>0]],'cartons'=>[['code'=>'FIXTURE-ONLY']]];
         $before=self::$state;
-        self::$request=['customer_id'=>999,'invoice_type'=>'رسمی','requested_payment_method'=>'credit','settlement_details'=>['terms_accepted'=>true],
+        self::$request=['customer_id'=>999,'invoice_type'=>'رسمی','requested_payment_method'=>'credit','settlement_details'=>['terms_accepted'=>true,'commitment_sha256'=>hash('sha256',$policy['credit_commitment'])],
             'items'=>[['product'=>'I90','qty'=>2,'price_key'=>'panel_cash'],['product'=>'I90','qty'=>3,'price_key'=>'serial_1_50']]];
         $order=self::create();
         self::check($order['customer_id']===7,'authenticated customer ownership');

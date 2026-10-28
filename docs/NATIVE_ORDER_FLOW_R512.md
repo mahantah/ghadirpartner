@@ -5,7 +5,7 @@ This package patches the current private owner source; root `index.php` and `par
 
 ## Behavior
 
-- Customers choose an invoice type explicitly. Credit requires boolean consent and stores the exact server-owned commitment text/hash in `native_settlement`.
+- Customers choose an invoice type explicitly. Credit requires boolean consent and requires the matching `commitment_sha256` revision and stores the exact server-owned commitment text/hash in `native_settlement`. A legacy app consent cannot be misattributed to the new wording; old credit clients must update before submitting.
 - Each model may have multiple purchase price options. Each submitted option is priced by the existing authorized catalog logic; stock checks add every quantity for the model. Duplicate identical options and serial-tier splitting are rejected.
 - `purchase_items` holds exact integer unit prices, quantities and line totals for financial documents. `items` retains one physical row per model so existing allocation, partial exit, serial locks and warehouse reports continue to identify the same model unambiguously. Each warehouse row has `purchase_lines`; its unit price is a display-only weighted average and its integer `line_total` remains exact. Android details/PDF consume `purchase_items`.
 - Customer creation stays `approval_status=در انتظار تأیید`, `status=در انتظار تأیید سفارش`. It allocates no stock and does not approve settlement.
