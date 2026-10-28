@@ -16,6 +16,7 @@ setTimeout(async () => {
     assert.equal(visibleChildren.length, 1);
     assert(visibleChildren[0].classList.contains('gp-exit-report-sheet'));
     assert.equal(reports.querySelectorAll('details').length, 0);
+    assert.equal(reports.querySelector('.gp-exit-report-sheet').querySelectorAll('input,select,.smart-list-tools').length, 0);
     assert.equal(reports.querySelector('.gp-exit-report-sheet h3').textContent, 'گزارش خروج');
     assert(w.document.getElementById('repBody').textContent.includes('FIXTURE-001'));
     assert.equal(w.getComputedStyle(w.document.getElementById('gpSearchFabRoot')).display, 'none');
