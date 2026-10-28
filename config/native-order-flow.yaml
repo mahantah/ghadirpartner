@@ -1,0 +1,6 @@
+{
+  "maximum_quantity": 999,
+  "serial_tier_threshold": 50,
+  "rejection_reason_limit": 1000,
+  "credit_commitment": "متعهد می‌شوم مبلغ فاکتور بر اساس اعتبار تأییدشده از سمت شرکت می‌باشد و در زمان تعیین‌شده توسط شرکت تسویه می‌نمایم."
+}

@@ -9,6 +9,7 @@ on:
       - 'lib/**'
       - 'app.html'
       - 'config/shipping-methods.yaml'
+      - 'config/native-order-flow*'
       - '.github/workflows/**'
   push:
     branches: [main]
@@ -19,6 +20,7 @@ on:
       - 'lib/**'
       - 'app.html'
       - 'config/shipping-methods.yaml'
+      - 'config/native-order-flow*'
       - '.github/workflows/ci-web.yml'
 permissions:
   contents: read
@@ -26,6 +28,34 @@ concurrency:
   group: web-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  native-order-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Strict Python checks for the bounded patch
+        run: |
+          python3 -m pip install ruff mypy
+          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
+          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
+          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
+      - name: Order policy, financial rows, consent and review transitions
+        run: |
+          php -l lib/native-order-flow.php
+          php -l lib/native-order-flow-routes.php
+          php -l tests/native-order-flow.php
+          php -l tests/native-order-create-integration.php
+          php tests/native-order-flow.php
+          php tests/native-order-review-routes.php
+          python3 -m py_compile scripts/patch-native-order-flow.py
+          python3 tests/native-order-flow-patch.py
   order-details-v2:
     runs-on: ubuntu-latest
     timeout-minutes: 10
