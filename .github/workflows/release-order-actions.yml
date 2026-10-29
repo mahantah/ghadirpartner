@@ -1,3 +1,4 @@
+# Remove the duplicate legacy cancellation cross; preserve the SVG icon.
 name: Release Approved Order Actions Menu
 on:
   workflow_dispatch:
