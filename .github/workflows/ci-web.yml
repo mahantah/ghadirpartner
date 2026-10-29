@@ -10,6 +10,7 @@ on:
       - 'app.html'
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
+      - 'config/partial-dispatch*'
       - '.github/workflows/**'
   push:
     branches: [main]
@@ -21,6 +22,7 @@ on:
       - 'app.html'
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
+      - 'config/partial-dispatch*'
       - '.github/workflows/ci-web.yml'
 permissions:
   contents: read
@@ -48,6 +50,11 @@ jobs:
           mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
       - name: Order policy, financial rows, consent and review transitions
         run: |
+          php -l scripts/release-partial-dispatch.php
+          php -l lib/partial-dispatch.php
+          php -l lib/partial-dispatch-routes.php
+          php tests/partial-dispatch.php
+          php tests/partial-dispatch-release.php
           php -l scripts/release-native-order-flow.php
           php tests/native-order-release.php
           php -l lib/native-order-flow.php
