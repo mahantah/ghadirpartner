@@ -1,0 +1,130 @@
+.gp-partial-dialog {
+  box-sizing: border-box;
+  width: min(720px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  border: 1px solid #dbe4ed;
+  border-radius: 18px;
+  padding: 20px;
+  color: #102a43;
+  background: #fff;
+  font: inherit;
+  overflow: auto;
+  text-align: right;
+}
+.gp-partial-dialog::backdrop {
+  background: #102a4399;
+}
+.gp-partial-dialog *,
+.gp-partial-dialog *::before,
+.gp-partial-dialog *::after {
+  box-sizing: border-box;
+}
+.gp-partial-dialog [hidden] {
+  display: none !important;
+}
+.gp-partial-dialog header,
+.gp-partial-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.gp-partial-dialog h3,
+.gp-partial-dialog h4 {
+  margin: 0 0 8px;
+}
+.gp-partial-dialog p {
+  margin: 8px 0 14px;
+  overflow-wrap: anywhere;
+}
+.gp-partial-dialog header button {
+  min-width: 44px;
+}
+.gp-partial-dialog button {
+  min-height: 44px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #dbe4ed;
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+.gp-partial-dialog button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.gp-partial-dialog .btn2 {
+  background: #f58220;
+  color: #fff;
+  border-color: #f58220;
+}
+.gp-partial-dialog .btnlight {
+  background: #f2f6fa;
+  color: #102a43;
+}
+.gp-partial-dialog input,
+.gp-partial-dialog select,
+.gp-partial-dialog textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 44px;
+  margin: 6px 0 12px;
+  padding: 10px;
+  border: 1px solid #b9c9d8;
+  border-radius: 10px;
+  font: inherit;
+}
+.gp-partial-dialog label {
+  display: block;
+  font-weight: 600;
+}
+.gp-partial-lines,
+.gp-partial-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.gp-partial-lines section,
+#gp-partial-review section {
+  border: 1px solid #dbe4ed;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #f8fafc;
+}
+.gp-partial-notice {
+  padding: 12px;
+  border-radius: 10px;
+  background: #eef5fc;
+}
+.gp-partial-error {
+  color: #9b1c1c;
+  background: #fff1f0;
+  border: 1px solid #f4c7c4;
+  padding: 10px;
+  border-radius: 10px;
+}
+.gp-partial-serials {
+  white-space: pre-wrap;
+  text-align: left;
+  max-height: 180px;
+  overflow: auto;
+}
+.gp-partial-dialog :focus-visible {
+  outline: 3px solid #f58220;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .gp-partial-dialog {
+    padding: 14px;
+  }
+  .gp-partial-lines,
+  .gp-partial-fields {
+    grid-template-columns: 1fr;
+  }
+  .gp-partial-dialog footer button {
+    flex: 1 1 auto;
+  }
+}

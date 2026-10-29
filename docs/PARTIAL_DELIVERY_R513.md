@@ -1,5 +1,7 @@
 # Management partial delivery without completing payment
 
+The web automation now exposes this operation directly; no automation Android app is needed. See [WEB_PARTIAL_DELIVERY.md](WEB_PARTIAL_DELIVERY.md) for the current website flow.
+
 Automation R5.13 adds a management-only form for an approved order in preparation, ready, or partially dispatched state. It accepts exact per-model quantities, a reason and carrier details, shows the exact serials to be moved, and requires a final physical-exit confirmation. One-third selection rounds each model's remaining quantity down and is editable.
 
 `POST /api/orders/partial-dispatch` independently requires admin authorization. It validates the entire request, checks selected serials against current ready/unshipped physical order rows, verifies each serial's model, real order owner and positive warehouse location, then calls the original `ghadir_warehouse_exit_items` ledger in the existing transaction. No serial substitution is allowed if the reviewed selection became stale. A stable request identity plus normalized fingerprint makes an identical retry a no-op and rejects identity reuse with different data.

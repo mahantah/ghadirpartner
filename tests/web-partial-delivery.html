@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>آزمون تحویل بخشی</title>
+    <link rel="stylesheet" href="../assets/partial-delivery-web.css" />
+    <style>
+      body {
+        font: 16px sans-serif;
+        margin: 24px;
+        background: #edf2f7;
+      }
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+      output {
+        display: block;
+        padding: 16px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>سفارش آزمایشی</h1>
+    <input id="osearch" aria-label="جستجوی سفارش" /><output id="result"
+      >RUNNING</output
+    >
+    <script>
+      "use strict";
+      const fixture = {
+        id: 91,
+        number: "TEST-91",
+        customer_name: "مشتری مصنوعی <script>",
+        approval_status: "تأیید شده",
+        status: "آماده ارسال",
+        payment_status: "بیعانه",
+        items: [
+          {
+            product: "I90",
+            qty: 6,
+            serials: ["I90-1", "I90-2", "I90-3", "I90-4", "I90-5", "I90-6"],
+          },
+          { product: "I80", qty: 3, serials: ["I80-1", "I80-2", "I80-3"] },
+        ],
+        exit_items: [],
+      };
+      let ORD = [structuredClone(fixture)],
+        manager = false,
+        refreshed = 0;
+      const reads = [],
+        writes = [],
+        notices = [];
+      function has(role) {
+        return manager && role === "admin";
+      }
+      function toast(value) {
+        notices.push(value);
+      }
+      async function refresh() {
+        refreshed++;
+      }
+      async function req(path, options) {
+        if (!options) {
+          if (path !== "/api/orders/partial-dispatch-view?id=91")
+            throw Error("Unexpected GET");
+          reads.push(path);
+          return structuredClone(fixture);
+        }
+        if (
+          path !== "/api/orders/partial-dispatch" ||
+          options.method !== "POST"
+        )
+          throw Error("Unexpected write");
+        writes.push(JSON.parse(options.body));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (writes.length === 1)
+          throw Error("خطای ارتباط آزمایشی؛ همان درخواست را دوباره ثبت کنید");
+        return { ...fixture, status: "ارسال شد", partial_exit: true };
+      }
+    </script>
+    <script src="../assets/partial-delivery-web.js"></script>
+    <script>
+      "use strict";
+      (async () => {
+        const check = (value, message) => {
+          if (!value) throw Error(message);
+        };
+        const settle = async () => {
+          for (let i = 0; i < 4; i++)
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        };
+        const field = (name) => document.querySelector(`[name="${name}"]`);
+        const action = (name) =>
+          document.querySelector(`[data-action="${name}"]`);
+        check(
+          !window.gpPartialDelivery.canOpen(91),
+          "Non-admin action visible",
+        );
+        await window.gpPartialDelivery.open(91);
+        check(
+          reads.length === 0 && !document.querySelector("dialog"),
+          "Non-admin could read/open",
+        );
+        manager = true;
+        ORD[0].status = "لغو شد";
+        check(
+          !window.gpPartialDelivery.canOpen(91),
+          "Cancelled action visible",
+        );
+        ORD[0].status = "آماده ارسال";
+        check(
+          window.gpPartialDelivery.canOpen(91),
+          "Approved ready order hidden",
+        );
+        await window.gpPartialDelivery.open(91);
+        check(reads.length === 1, "One fresh selected-order read required");
+        const dialog = document.querySelector("dialog");
+        check(
+          dialog.open &&
+            dialog.getAttribute("aria-labelledby") === "gp-partial-title",
+          "Accessible dialog missing",
+        );
+        check(
+          dialog.textContent.includes("<script>") &&
+            !dialog.querySelector("script"),
+          "Customer text must be escaped",
+        );
+        field("quantity-0").value = "7";
+        document.querySelector("form").requestSubmit();
+        check(
+          !document.querySelector("#gp-partial-error").hidden &&
+            writes.length === 0,
+          "Excess quantity sent",
+        );
+        field("quantity-0").value = "-1";
+        document.querySelector("form").requestSubmit();
+        check(writes.length === 0, "Negative count sent");
+        action("third").click();
+        check(
+          field("quantity-0").value === "2" &&
+            field("quantity-1").value === "1",
+          "One-third did not select 2+1",
+        );
+        field("reason").value = "تحویل یک سوم بدون تغییر تسویه";
+        field("carrier").value = "پیک";
+        field("carrier").dispatchEvent(new Event("change", { bubbles: true }));
+        check(
+          !document.querySelector("[data-courier]").hidden,
+          "Courier details hidden",
+        );
+        document.querySelector("form").requestSubmit();
+        check(writes.length === 0, "Missing courier details sent");
+        field("carrier").value = "ماهکس";
+        field("carrier").dispatchEvent(new Event("change", { bubbles: true }));
+        check(
+          !document.querySelector("[data-tracking]").hidden,
+          "Mahax tracking hidden",
+        );
+        document.querySelector("form").requestSubmit();
+        check(writes.length === 0, "Missing tracking sent");
+        field("carrier").value = "حضوری";
+        field("carrier").dispatchEvent(new Event("change", { bubbles: true }));
+        document.querySelector("form").requestSubmit();
+        check(
+          writes.length === 0 &&
+            !document.querySelector("#gp-partial-review").hidden,
+          "Preview must precede POST",
+        );
+        const review = document.querySelector("#gp-partial-review");
+        check(
+          review.textContent.includes("I90-1") &&
+            review.textContent.includes("I90-2") &&
+            review.textContent.includes("I80-1") &&
+            !review.textContent.includes("I90-3"),
+          "Preview changed serial subset",
+        );
+        action("confirm").click();
+        const cancel = new Event("cancel", { cancelable: true });
+        dialog.dispatchEvent(cancel);
+        check(
+          cancel.defaultPrevented && dialog.open,
+          "Dialog closed while stock request in flight",
+        );
+        await settle();
+        check(
+          writes.length === 1 &&
+            refreshed === 0 &&
+            !document.querySelector("#gp-partial-error").hidden,
+          "HTTP failure presented as success",
+        );
+        check(
+          action("back").disabled,
+          "Unknown commit allowed editing and another delivery identity",
+        );
+        action("confirm").click();
+        action("confirm").click();
+        await settle();
+        check(
+          writes.length === 2 && refreshed === 1,
+          "Retry duplicated request or failed refresh",
+        );
+        check(
+          JSON.stringify(writes[0]) === JSON.stringify(writes[1]),
+          "Retry changed identity or reviewed serials",
+        );
+        check(
+          writes[1].items.reduce((sum, row) => sum + row.qty, 0) === 3,
+          "Wrong batch size",
+        );
+        check(
+          writes[1].items[0].serials.join(",") === "I90-1,I90-2" &&
+            writes[1].items[1].serials.join(",") === "I80-1",
+          "Exact serials not sent",
+        );
+        check(
+          !("payment_status" in writes[1]) && !("approved_total" in writes[1]),
+          "Payment/invoice changes leaked into partial delivery",
+        );
+        check(
+          !document.querySelector("dialog") &&
+            document.activeElement.id === "osearch",
+          "Dialog/focus did not close cleanly",
+        );
+        check(
+          document.documentElement.scrollWidth <= innerWidth,
+          "Mobile horizontal overflow",
+        );
+        document.getElementById("result").textContent =
+          "WEB_PARTIAL_DELIVERY_PASS";
+      })().catch((error) => {
+        document.getElementById("result").textContent =
+          "WEB_PARTIAL_DELIVERY_FAIL: " + error.message;
+        console.error(error);
+      });
+    </script>
+  </body>
+</html>

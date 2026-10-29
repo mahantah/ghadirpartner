@@ -797,13 +797,43 @@
       "old": "if($new==='تحویل شد'&&!order_serial_complete($o))",
       "new": "if($new==='تحویل شد'&&(!order_serial_complete($o)||!empty($o['partial_exit'])))",
       "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "require_once __DIR__.'/lib/partial-dispatch-routes.php';",
+      "new": "require_once __DIR__.'/lib/partial-delivery-web-routes.php';\nrequire_once __DIR__.'/lib/partial-dispatch-routes.php';",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "if(has('prep'))primary.push(`",
+      "new": "if(window.gpPartialDelivery?.canOpen(id))primary.push(`<button onclick=\"closeOrderMenus();window.gpPartialDelivery.open(${id})\">تحویل بخشی با مجوز مدیر</button>`);if(has('prep'))primary.push(`",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/order-details-v2-approved-20261024.js?v=1&whfix=20261028a",
+      "new": "/assets/order-details-v2-approved-20261024.js?v=1&whfix=20261029partial",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "<!-- GP_SHIPPING_METHODS_V1_20261027 -->\n</body></html>",
+      "new": "<!-- GP_SHIPPING_METHODS_V1_20261027 -->\n<link rel=\"stylesheet\" href=\"/assets/partial-delivery-web.css?v=20261029a\"><script src=\"/assets/partial-delivery-web.js?v=20261029a\" defer></script>\n</body></html>",
+      "count": 1
+    },
+    {
+      "file": "assets/order-details-v2-approved-20261024.js",
+      "old": "<div class=\"od2-header-actions\"><a class=\"btn2\"",
+      "new": "<div class=\"od2-header-actions\">'+(window.gpPartialDelivery?.canOpen(Number(o.id))?'<button type=\"button\" class=\"btn2\" onclick=\"closeOrderDetails();window.gpPartialDelivery.open('+Number(o.id)+')\">تحویل بخشی با مجوز مدیر</button>':'')+'<a class=\"btn2\"",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
-    "index.php": "3c72047c59a623930f1e906dfb20e9b7cda77d6634124dfe89abebcc7650a905",
+    "index.php": "a919d5f8c57be7a59fc3b790ca79e6f346ee96373dee83f2e9fa5f13a5a69d68",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "cb4c85694baaf0240a0e2c4982b694843c4e9fa48db94f050c9c80e372d00746",
+    "app.html": "6540515a47283887f4bdd6d46d3cca026b45dba9dea18c73bafff0274bb83796",
     "partners/portal.html": "3d49d00d060e621ce1b5ecfd6cc1e02152129d7b67650eeccf1197a7dd52c88e",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "d59703b3aae6b24977095c62061c667246e2cca0ef8f318aac75d831ea59dcb0",
@@ -918,7 +948,7 @@
     "assets/ops-v53430.css": "e0f49743e093a918bac06b8bad4bc9e5754667f325190186528044c497405d8e",
     "assets/bugfix-v5349.css": "05740800a1dbef37341ca3f2e7614622dbe1db0f8745f743c9c3a9ee0210f93e",
     "assets/production-login-v1.css": "f981ff9782770fddb6cb40c3465f3c0c45ff390ee64053f732d86dd2e09301a3",
-    "assets/order-details-v2-approved-20261024.js": "c802660c75c0d8300e08d99c46e88ff8bd6cd8da79da69d1cd4ca7c54962ac59",
+    "assets/order-details-v2-approved-20261024.js": "fcf4874e9887f8a07918248073366ba97f50193facc22fb12b50131e192ca3cb",
     "assets/partial-exit-v53422.css": "5112af714a37e8e76e846398dc8808dfcdeaae9d4a04f767a994cb5dd28463df",
     "assets/od-chrome-v1.js": "28ccee4bd85c45bb6e1c97373d59faa5a0a01a49e59a913b97d66f01e8cd7777",
     "assets/warehouse-select-v53423.js": "b47ea70c924eae1525c1c78c55a520949164db4e27cb08f14dac0942e636692b",
@@ -930,7 +960,11 @@
     "config/native-order-flow.yaml": "855a74739ecc478d2b94a2eeac8b605b7d9b1f0700bc9c988da502c22fc68264",
     "lib/partial-dispatch.php": "7920ae8f666a6b28f3d3958ebfc1c1f59f76570b0cec95d4c8159fc7aa21dbce",
     "lib/partial-dispatch-routes.php": "39803031d1909d382217697906189cbe84e1fc20ba12df07088009b579c4c7f7",
-    "config/partial-dispatch.yaml": "a1e1de8ab41a68383d68b259dee2937d88e57f1a06d830fbd715495e02ec74c4"
+    "config/partial-dispatch.yaml": "a1e1de8ab41a68383d68b259dee2937d88e57f1a06d830fbd715495e02ec74c4",
+    "lib/partial-delivery-web.php": "61ef67b32e8b35db3c78e46170c3051cb5807287b8ff77177d1f0f8ca7cf70a4",
+    "lib/partial-delivery-web-routes.php": "a254793240fa37ccd03df94cad1143bd3792fd6b2fa3995b9aa0e9810d31e872",
+    "assets/partial-delivery-web.js": "86f8c9ec9d772e651128374d8c73f889fd9f7cf7a4fc780545fe26e18e5f1c4c",
+    "assets/partial-delivery-web.css": "38ebed29c865ef195831d43d121b5360a5dfebf787628fcb75eedfc856ba53ea"
   },
   "protected_cartons": [
     "I90-097",
@@ -958,6 +992,10 @@
     "config/native-order-flow.yaml",
     "lib/partial-dispatch.php",
     "lib/partial-dispatch-routes.php",
-    "config/partial-dispatch.yaml"
+    "config/partial-dispatch.yaml",
+    "lib/partial-delivery-web.php",
+    "lib/partial-delivery-web-routes.php",
+    "assets/partial-delivery-web.js",
+    "assets/partial-delivery-web.css"
   ]
 }
