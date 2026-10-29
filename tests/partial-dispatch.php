@@ -35,6 +35,11 @@ final class PartialDispatchFixture
         $badRequests[]=array_merge($request,['items'=>[['product'=>'I90','qty'=>2,'serials'=>['I90-1','I90-1']]]]);
         foreach($badRequests as $bad)self::check(self::call($bad)['status']===422,'invalid release rejected');
         self::check(self::$state===$before,'no mutation before validated authorization');
+        foreach(['پرداخت نشده','در انتظار تأیید','چک','اعتباری','تسویه کامل'] as $payment){
+            self::$state=$before;self::$state['orders'][0]['payment_status']=$payment;
+            self::check(self::call($request)['status']===200&&self::$state['orders'][0]['payment_status']===$payment,'payment remains unchanged for every method');
+        }
+        self::$state=$before;
         self::$state['inventory'][0]['order_id']=999;self::check(self::call($request)['status']===409,'wrong owner');self::check(self::$state['warehouse_movements']===[],'no movements on wrong owner');self::$state=$before;
         $response=self::call($request);self::check($response['status']===200,'release succeeded');$order=$response['order'];
         self::check($order['exit_device_qty']===3&&$order['partial_exit']===true&&$order['status']==='ارسال شد','partial with all serials ready');
@@ -42,7 +47,8 @@ final class PartialDispatchFixture
         self::check(array_column(array_filter(self::$state['inventory'],static fn(array $row): bool=>$row['warehouse_id']===0),'serial')===['I90-1','I90-2','I80-1'],'exact selected serials leave');
         self::check(count(array_filter(self::$state['inventory'],static fn(array $row): bool=>$row['warehouse_id']===1))===6,'six units still in warehouse');
         self::check($order['items']===$before['orders'][0]['items']&&self::$state['cartons']===$before['cartons']&&self::$state['payment_transactions']===$before['payment_transactions']&&self::$state['sms_outbox']===[],'allocations cartons payment and SMS preserved');
-        $after=self::$state;self::check(self::call($request)['status']===200&&self::$state===$after,'identical retry has no second movement');
+        $after=self::$state;self::check(self::call(array_merge($request,['request_id'=>'fixture-stale-00001']))['status']===422&&self::$state===$after,'stale reviewed serials are not replaced silently');
+        self::check(self::call($request)['status']===200&&self::$state===$after,'identical retry has no second movement');
         self::check(self::call(array_merge($request,['reason'=>'changed']))['status']===409&&self::$state===$after,'idempotency identity cannot change meaning');
         $second=array_merge($request,['request_id'=>'fixture-request-0002','items'=>[['product'=>'I90','qty'=>1,'serials'=>['I90-3']]]]);
         self::check(self::call($second)['status']===200&&self::$state['orders'][0]['exit_device_qty']===4,'second release skips shipped serials');

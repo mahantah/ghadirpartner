@@ -61,7 +61,7 @@ final class PartialDispatchPolicy
         $clean['fingerprint']=hash('sha256',json_encode($clean,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
         return $clean;
     }
-    /** Select first ready serials per model, requiring a real unshipped remainder afterward. */
+    /** Select only reviewed ready serials, requiring a real unshipped remainder afterward. */
     public function plan(array $order,array $ready,array $shipped,array $request): array {
         if(($order['approval_status']??'')!=='تأیید شده'||!in_array($order['status']??'',$this->config['ready_statuses'],true)||!empty($order['deleted']))throw new InvalidArgumentException('سفارش باید تأیید شده و در مرحله آماده‌سازی یا ارسال بخشی باشد');
         $previous=[];$allSerials=[];$shippedByProduct=[];

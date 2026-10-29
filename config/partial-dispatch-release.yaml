@@ -18,7 +18,7 @@
   ],
   "expected_files": {
     "index.php": "3c72047c59a623930f1e906dfb20e9b7cda77d6634124dfe89abebcc7650a905",
-    "lib/partial-dispatch.php": "a1bd36ac151192d2acdc81d78d18fceec04eb1e4e3d9a185e24584c3b357e7f0",
+    "lib/partial-dispatch.php": "7920ae8f666a6b28f3d3958ebfc1c1f59f76570b0cec95d4c8159fc7aa21dbce",
     "lib/partial-dispatch-routes.php": "39803031d1909d382217697906189cbe84e1fc20ba12df07088009b579c4c7f7",
     "config/partial-dispatch.yaml": "a1e1de8ab41a68383d68b259dee2937d88e57f1a06d830fbd715495e02ec74c4"
   },
