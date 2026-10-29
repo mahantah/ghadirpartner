@@ -869,13 +869,19 @@
       "old": "<link rel=\"stylesheet\" href=\"/assets/partial-delivery-web.css?v=20261029a\">",
       "new": "<link rel=\"stylesheet\" href=\"/assets/order-action-burger-v1.css?v=20261029navy\"><script src=\"/assets/order-action-burger-v1.js?v=20261029navy\" data-menu-only defer></script>\n<link rel=\"stylesheet\" href=\"/assets/partial-delivery-web.css?v=20261029a\">",
       "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": ">✕ لغو سفارش توسط ادمین</button>",
+      "new": ">لغو سفارش توسط ادمین</button>",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
     "index.php": "a919d5f8c57be7a59fc3b790ca79e6f346ee96373dee83f2e9fa5f13a5a69d68",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "9b46a52a788759cc13f89808620be62cd56bb0f05b7b82681ae9748185f1f233",
+    "app.html": "29d4f878bab0be17ab71f77827be4e261c511fe41c5bbf1c3df7bf06e4a417fa",
     "partners/portal.html": "3d49d00d060e621ce1b5ecfd6cc1e02152129d7b67650eeccf1197a7dd52c88e",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "d59703b3aae6b24977095c62061c667246e2cca0ef8f318aac75d831ea59dcb0",
