@@ -1,0 +1,543 @@
+interface WebPartialDeliveryFacade {
+  canOpen(id: number): boolean;
+  open(id: number): Promise<void>;
+}
+interface Window {
+  gpPartialDelivery?: WebPartialDeliveryFacade;
+}
+declare const GP_WEB_PARTIAL_POLICY: unknown;
+declare const ORD: readonly unknown[];
+declare function has(role: string): boolean;
+declare function req(path: string, options?: RequestInit): Promise<unknown>;
+declare function refresh(): Promise<void>;
+declare function toast(message: string): void;
+
+(() => {
+  type Row = Record<string, unknown>;
+  type Selection = { product: string; qty: number; serials: string[] };
+  type DeliveryRequest = {
+    id: number;
+    request_id: string;
+    reason: string;
+    items: Selection[];
+    shipping_type: string;
+    tracking_code: string;
+    courier_name: string;
+    courier_phone: string;
+  };
+  type PlannedDelivery = {
+    body: DeliveryRequest;
+    total: number;
+    remaining: number;
+  };
+
+  /** Decode only explicitly supported JSON fields at the old application's boundary. */
+  class JsonReader {
+    /** Reject non-object transport data instead of interpreting it as an order. */
+    static record(value: unknown): Row {
+      if (typeof value !== "object" || value === null || Array.isArray(value))
+        throw new Error("اطلاعات سفارش معتبر نیست");
+      return value as Row;
+    }
+    /** Keep optional arrays safe without introducing untyped values. */
+    static list(value: unknown): unknown[] {
+      return Array.isArray(value) ? (value as unknown[]) : [];
+    }
+    /** Read display strings without rendering arbitrary objects. */
+    static text(value: unknown): string {
+      return typeof value === "string" ? value : "";
+    }
+    /** Accept only safe integer counts, not coercible user text. */
+    static integer(value: unknown): number {
+      if (typeof value !== "number" || !Number.isSafeInteger(value))
+        throw new Error("تعداد سفارش معتبر نیست");
+      return value;
+    }
+    /** Normalize serial identity once for preview and request matching. */
+    static serials(value: unknown): string[] {
+      return this.list(value)
+        .map((v) => this.text(v).trim().toUpperCase())
+        .filter(Boolean);
+    }
+  }
+
+  /** One physical model with its shipped units and explicitly available unshipped serials. */
+  class DeliveryLine {
+    readonly remaining: number;
+    /** Preserve physical order totals independently from invoice purchase lines. */
+    constructor(
+      readonly product: string,
+      readonly quantity: number,
+      readonly sent: number,
+      readonly ready: readonly string[],
+    ) {
+      this.remaining = quantity - sent;
+      if (
+        !product ||
+        quantity < 1 ||
+        this.remaining < 0 ||
+        ready.length > this.remaining
+      )
+        throw new Error("مقدار آماده یا خروج قبلی سفارش معتبر نیست");
+    }
+  }
+
+  /** Pure snapshot of physical delivery; financial values are never recalculated here. */
+  class DeliveryOrder {
+    readonly id: number;
+    readonly number: string;
+    readonly customer: string;
+    readonly payment: string;
+    readonly lines: readonly DeliveryLine[];
+    /** Deduplicate shipped serials across recorded exit groups and derive ready quantities. */
+    constructor(readonly raw: Row) {
+      this.id = JsonReader.integer(raw.id);
+      this.number = JsonReader.text(raw.number);
+      this.customer = JsonReader.text(raw.customer_name);
+      this.payment = JsonReader.text(raw.payment_status);
+      const shipped = new Map<string, Set<string>>();
+      for (const value of JsonReader.list(raw.exit_items)) {
+        const row = JsonReader.record(value),
+          product = JsonReader.text(row.product);
+        const sent = shipped.get(product) ?? new Set<string>();
+        for (const serial of JsonReader.serials(row.serials)) sent.add(serial);
+        shipped.set(product, sent);
+      }
+      const products = new Set<string>();
+      this.lines = JsonReader.list(raw.items).map((value) => {
+        const row = JsonReader.record(value),
+          product = JsonReader.text(row.product);
+        if (products.has(product)) throw new Error("ردیف فیزیکی تکراری است");
+        products.add(product);
+        const sent = shipped.get(product) ?? new Set<string>();
+        const ready = [...new Set(JsonReader.serials(row.serials))].filter(
+          (serial) => !sent.has(serial),
+        );
+        return new DeliveryLine(
+          product,
+          JsonReader.integer(row.qty),
+          sent.size,
+          ready,
+        );
+      });
+    }
+  }
+
+  /** Shared, validated YAML policy is embedded at build time; no duplicated business tunables. */
+  class DeliveryPolicy {
+    readonly maximum: number;
+    readonly reasonBytes: number;
+    readonly carriers: readonly string[];
+    readonly trackingCarriers: readonly string[];
+    readonly stages: readonly string[];
+    /** Validate the public policy before exposing any management action. */
+    constructor(value: unknown) {
+      const raw = JsonReader.record(value);
+      this.maximum = JsonReader.integer(raw.maximum_quantity);
+      this.reasonBytes = JsonReader.integer(raw.maximum_reason_bytes);
+      this.carriers = this.strings(raw.carriers);
+      this.trackingCarriers = this.strings(raw.tracking_carriers);
+      this.stages = this.strings(raw.ready_statuses);
+      if (
+        Object.keys(raw).length !== 5 ||
+        this.maximum < 1 ||
+        this.maximum > 10000 ||
+        this.reasonBytes < 1 ||
+        this.reasonBytes > 10000 ||
+        this.trackingCarriers.some((v) => !this.carriers.includes(v))
+      )
+        throw new Error("تنظیمات تحویل بخشی معتبر نیست");
+    }
+    private strings(value: unknown): string[] {
+      const values = JsonReader.list(value);
+      if (
+        !values.length ||
+        values.some((v) => typeof v !== "string" || !v.trim())
+      )
+        throw new Error("تنظیمات تحویل بخشی معتبر نیست");
+      return values.map((v) => JsonReader.text(v));
+    }
+    /** Mirror visibility rules only; the server independently enforces management authorization. */
+    permits(order: Row, manager: boolean): boolean {
+      return (
+        manager &&
+        order.approval_status === "تأیید شده" &&
+        this.stages.includes(JsonReader.text(order.status)) &&
+        order.deleted !== true
+      );
+    }
+    /** Parse Persian/Arabic digits without silently converting negatives or fractions. */
+    quantity(value: string): number {
+      const ascii = value
+        .trim()
+        .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 1776))
+        .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 1632));
+      if (!ascii) return 0;
+      if (!/^\d+$/.test(ascii))
+        throw new Error("تعداد تحویل باید عدد صحیح و نامنفی باشد");
+      const quantity = Number(ascii);
+      if (!Number.isSafeInteger(quantity) || quantity > this.maximum)
+        throw new Error("تعداد تحویل بیش از حد مجاز است");
+      return quantity;
+    }
+    /** Create a reviewable exact serial subset; require a remaining order after delivery. */
+    plan(
+      order: DeliveryOrder,
+      form: HTMLFormElement,
+      identity: string,
+    ): PlannedDelivery {
+      const text = (name: string): string => {
+        const field = form.elements.namedItem(name);
+        if (
+          !(
+            field instanceof HTMLInputElement ||
+            field instanceof HTMLSelectElement ||
+            field instanceof HTMLTextAreaElement
+          )
+        )
+          throw new Error("فرم تحویل کامل نیست");
+        return field.value.trim();
+      };
+      const items: Selection[] = [];
+      order.lines.forEach((line, index) => {
+        const quantity = this.quantity(text(`quantity-${index}`));
+        if (quantity > Math.min(line.ready.length, line.remaining))
+          throw new Error(`تعداد تحویل «${line.product}» بیش از بار آماده است`);
+        if (quantity)
+          items.push({
+            product: line.product,
+            qty: quantity,
+            serials: line.ready.slice(0, quantity),
+          });
+      });
+      const total = items.reduce((sum, item) => sum + item.qty, 0);
+      const remaining =
+        order.lines.reduce((sum, line) => sum + line.remaining, 0) - total;
+      if (!total) throw new Error("تعداد تحویل حداقل یک مدل را مشخص کنید");
+      if (remaining < 1)
+        throw new Error(
+          "این مجوز فقط برای بخشی از بار است؛ تحویل کل مانده از مسیر تسویه انجام می‌شود",
+        );
+      const reason = text("reason"),
+        carrier = text("carrier"),
+        tracking = text("tracking"),
+        courierName = text("courier-name"),
+        courierPhone = text("courier-phone");
+      if (!reason || new TextEncoder().encode(reason).length > this.reasonBytes)
+        throw new Error("علت مجوز تحویل بخشی را به‌صورت معتبر وارد کنید");
+      if (!this.carriers.includes(carrier))
+        throw new Error("نوع تحویل را انتخاب کنید");
+      if (this.trackingCarriers.includes(carrier) && !tracking)
+        throw new Error("کد پیگیری الزامی است");
+      if (carrier === "پیک" && (!courierName || !courierPhone))
+        throw new Error("نام و شماره تماس پیک الزامی است");
+      return {
+        body: {
+          id: order.id,
+          request_id: identity,
+          reason,
+          items,
+          shipping_type: carrier,
+          tracking_code: tracking,
+          courier_name: carrier === "پیک" ? courierName : "",
+          courier_phone: carrier === "پیک" ? courierPhone : "",
+        },
+        total,
+        remaining,
+      };
+    }
+  }
+
+  /** Existing authenticated transport remains the sole HTTP boundary. */
+  class DeliveryClient {
+    /** Read one fresh order without downloading all orders or touching inventory. */
+    async read(id: number): Promise<DeliveryOrder> {
+      return new DeliveryOrder(
+        JsonReader.record(
+          await req(
+            `/api/orders/partial-dispatch-view?id=${encodeURIComponent(id)}`,
+          ),
+        ),
+      );
+    }
+    /** Submit the exact frozen preview; retries keep the same identity and serials. */
+    async dispatch(plan: PlannedDelivery): Promise<void> {
+      await req("/api/orders/partial-dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(plan.body),
+      });
+    }
+  }
+
+  /** Encapsulate dialog markup, keyboard behavior and form state; all order data is escaped. */
+  class DeliveryView {
+    readonly dialog = document.createElement("dialog");
+    private readonly previous: HTMLElement | null;
+    /** Render an accessible native modal independent of existing order drawer layers. */
+    constructor(
+      private readonly order: DeliveryOrder,
+      private readonly policy: DeliveryPolicy,
+    ) {
+      this.previous =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      this.dialog.className = "gp-partial-dialog";
+      this.dialog.id = "gp-partial-dialog";
+      this.dialog.dir = "rtl";
+      this.dialog.setAttribute("aria-labelledby", "gp-partial-title");
+      this.dialog.innerHTML = `<header><div><h3 id="gp-partial-title">تحویل بخشی با مجوز مدیر</h3><p>${this.escape(order.number)} • ${this.escape(order.customer)}</p></div><button type="button" data-action="close" aria-label="بستن تحویل بخشی">×</button></header>
+        <p class="gp-partial-notice">فقط تعداد انتخاب‌شده از بار آماده خارج می‌شود؛ وضعیت پرداخت، مبلغ فاکتور و بدهی مشتری تغییر نمی‌کند.</p>
+        <p>وضعیت تسویه: <strong>${this.escape(order.payment)}</strong></p><p id="gp-partial-error" class="gp-partial-error" role="alert" tabindex="-1" hidden></p>
+        <form novalidate><button type="button" class="btnlight" data-action="third">انتخاب یک‌سوم ماندهٔ هر مدل</button><div class="gp-partial-lines">${order.lines.map((line, index) => `<section><h4>${this.escape(line.product)}</h4><p>خروج‌شده: ${this.fa(line.sent)} • مانده: ${this.fa(line.remaining)} • آماده: ${this.fa(line.ready.length)}</p><label for="gp-partial-quantity-${index}">تعداد تحویل ${this.escape(line.product)}</label><input id="gp-partial-quantity-${index}" name="quantity-${index}" inputmode="numeric" value="0" ${line.ready.length ? "" : "disabled"}></section>`).join("")}</div>
+        <label for="gp-partial-reason">علت مجوز تحویل بخشی</label><textarea id="gp-partial-reason" name="reason" maxlength="${policy.reasonBytes}" rows="2"></textarea>
+        <div class="gp-partial-fields"><div><label for="gp-partial-carrier">نوع تحویل</label><select id="gp-partial-carrier" name="carrier"><option value="">انتخاب کنید</option>${policy.carriers.map((carrier) => `<option>${this.escape(carrier)}</option>`).join("")}</select></div><div data-tracking hidden><label for="gp-partial-tracking">کد پیگیری</label><input id="gp-partial-tracking" name="tracking" maxlength="400"></div></div>
+        <div class="gp-partial-fields" data-courier hidden><div><label for="gp-partial-courier-name">نام پیک</label><input id="gp-partial-courier-name" name="courier-name" maxlength="120"></div><div><label for="gp-partial-courier-phone">شماره تماس پیک</label><input id="gp-partial-courier-phone" name="courier-phone" type="tel" maxlength="32"></div></div>
+        <p id="gp-partial-total" aria-live="polite"></p><footer><button type="submit" class="btn2">بررسی سریال‌ها و ادامه</button><button type="button" class="btnlight" data-action="close">بستن</button></footer></form>
+        <section id="gp-partial-review" hidden tabindex="-1"></section>`;
+    }
+    private escape(value: string): string {
+      return value.replace(
+        /[&<>"']/g,
+        (character) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[character] ?? character,
+      );
+    }
+    private fa(value: number): string {
+      return value.toLocaleString("fa-IR");
+    }
+    /** Require an element rather than relying on non-null DOM assertions. */
+    element<T extends Element>(selector: string): T {
+      const element = this.dialog.querySelector<T>(selector);
+      if (!element) throw new Error("فرم تحویل کامل نیست");
+      return element;
+    }
+    /** Display only after the fresh physical snapshot has been validated. */
+    show(): void {
+      document.body.appendChild(this.dialog);
+      this.dialog.showModal();
+      this.dialog
+        .querySelector<HTMLInputElement>("input:not([disabled])")
+        ?.focus();
+      this.totals();
+    }
+    /** Update carrier-specific fields without losing typed values. */
+    carrier(): void {
+      const value = this.element<HTMLSelectElement>("[name=carrier]").value;
+      this.element<HTMLElement>("[data-tracking]").hidden =
+        !this.policy.trackingCarriers.includes(value);
+      this.element<HTMLElement>("[data-courier]").hidden = value !== "پیک";
+    }
+    /** Fill one third rounded down per model; quantities remain editable. */
+    third(): void {
+      this.order.lines.forEach((line, index) => {
+        this.element<HTMLInputElement>(`[name=quantity-${index}]`).value =
+          String(
+            Math.min(
+              this.policy.maximum,
+              Math.floor(line.remaining / 3),
+              line.ready.length,
+            ),
+          );
+      });
+      this.totals();
+    }
+    /** Summarize counts without treating invalid text as an authorized request. */
+    totals(): void {
+      try {
+        const total = this.order.lines.reduce(
+          (sum, _line, index) =>
+            sum +
+            this.policy.quantity(
+              this.element<HTMLInputElement>(`[name=quantity-${index}]`).value,
+            ),
+          0,
+        );
+        const remaining =
+          this.order.lines.reduce((sum, line) => sum + line.remaining, 0) -
+          total;
+        this.element<HTMLElement>("#gp-partial-total").textContent =
+          `خروج انتخاب‌شده: ${this.fa(total)} دستگاه • مانده پس از خروج: ${this.fa(Math.max(0, remaining))} دستگاه`;
+      } catch {
+        this.element<HTMLElement>("#gp-partial-total").textContent =
+          "تعدادها را بررسی کنید";
+      }
+    }
+    /** Show exact serials and a final stock-effect confirmation before any POST. */
+    review(plan: PlannedDelivery): void {
+      this.element<HTMLElement>("#gp-partial-error").hidden = true;
+      this.element<HTMLFormElement>("form").hidden = true;
+      const review = this.element<HTMLElement>("#gp-partial-review");
+      review.hidden = false;
+      review.innerHTML = `<h4>تأیید خروج ${this.fa(plan.total)} دستگاه</h4><p>فقط سریال‌های زیر خارج می‌شوند. ${this.fa(plan.remaining)} دستگاه از بار باقی می‌ماند و تسویه تغییری نمی‌کند.</p>${plan.body.items.map((item) => `<section><h4>${this.escape(item.product)} • ${this.fa(item.qty)} دستگاه</h4><p class="gp-partial-serials" dir="ltr">${item.serials.map((serial) => this.escape(serial)).join("، ")}</p></section>`).join("")}<footer><button class="btn2" type="button" data-action="confirm">تأیید و ثبت خروج</button><button class="btnlight" type="button" data-action="back">ویرایش تعدادها</button></footer>`;
+      review.focus();
+    }
+    /** Restore editing only before an attempt could have committed on the server. */
+    edit(): void {
+      this.element<HTMLElement>("#gp-partial-review").hidden = true;
+      this.element<HTMLFormElement>("form").hidden = false;
+      this.element<HTMLInputElement>("input:not([disabled])").focus();
+    }
+    /** Keep confirmation and closure disabled while a stock write is in flight. */
+    busy(value: boolean, attempted: boolean): void {
+      this.dialog.setAttribute("aria-busy", String(value));
+      this.dialog
+        .querySelectorAll<HTMLButtonElement>("button")
+        .forEach((button) => {
+          button.disabled =
+            value || (attempted && button.dataset.action === "back");
+        });
+    }
+    /** Render server errors as text, never HTML or a successful stock confirmation. */
+    error(error: unknown): void {
+      const box = this.element<HTMLElement>("#gp-partial-error");
+      box.hidden = false;
+      box.textContent =
+        error instanceof Error
+          ? error.message
+          : "ثبت تحویل بخشی ناموفق بود؛ سفارش را تازه‌سازی کنید";
+      box.focus();
+    }
+    /** Close the native focus trap and restore a useful position in the orders screen. */
+    close(): void {
+      this.dialog.close();
+      this.dialog.remove();
+      if (this.previous?.isConnected && this.previous !== document.body)
+        this.previous.focus();
+      else document.getElementById("osearch")?.focus();
+    }
+  }
+
+  /** The only public facade: permissions, a fresh read, a frozen preview and one idempotent submit. */
+  class PartialDeliveryFacade implements WebPartialDeliveryFacade {
+    private active: DeliveryView | null = null;
+    private opening = false;
+    /** Inject pure policy and authenticated transport separately. */
+    constructor(
+      private readonly policy: DeliveryPolicy,
+      private readonly client: DeliveryClient,
+    ) {}
+    /** Expose the management action only for an eligible physical order. */
+    canOpen(id: number): boolean {
+      const raw = ORD.find((value) => {
+        try {
+          return JsonReader.record(value).id === id;
+        } catch {
+          return false;
+        }
+      });
+      return (
+        raw !== undefined &&
+        this.policy.permits(JsonReader.record(raw), has("admin"))
+      );
+    }
+    /** Load a current, minimal order snapshot before creating any delivery plan. */
+    async open(id: number): Promise<void> {
+      if (this.opening || this.active) return;
+      if (!this.canOpen(id)) {
+        toast("مجوز تحویل بخشی برای این سفارش ندارید");
+        return;
+      }
+      this.opening = true;
+      try {
+        const order = await this.client.read(id);
+        if (order.id !== id || !this.policy.permits(order.raw, has("admin")))
+          throw new Error("سفارش دیگر در مرحلهٔ مجاز تحویل بخشی نیست");
+        const view = new DeliveryView(order, this.policy);
+        this.active = view;
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        const identity = Array.from(bytes, (value) =>
+          value.toString(16).padStart(2, "0"),
+        ).join("");
+        let pending: PlannedDelivery | null = null,
+          saving = false,
+          attempted = false;
+        const close = (): void => {
+          if (!saving) {
+            view.close();
+            this.active = null;
+          }
+        };
+        view.dialog.addEventListener("cancel", (event) => {
+          event.preventDefault();
+          close();
+        });
+        view.dialog.addEventListener("input", () => view.totals());
+        view.dialog.addEventListener("change", () => view.carrier());
+        view
+          .element<HTMLFormElement>("form")
+          .addEventListener("submit", (event) => {
+            event.preventDefault();
+            try {
+              pending = this.policy.plan(
+                order,
+                view.element<HTMLFormElement>("form"),
+                identity,
+              );
+              view.review(pending);
+            } catch (error: unknown) {
+              view.error(error);
+            }
+          });
+        view.dialog.addEventListener("click", (event) => {
+          if (!(event.target instanceof Element)) return;
+          const action =
+            event.target.closest<HTMLButtonElement>("[data-action]")?.dataset
+              .action;
+          if (action === "close") close();
+          if (saving) return;
+          if (action === "third") view.third();
+          if (action === "back" && !attempted) {
+            pending = null;
+            view.edit();
+          }
+          if (action === "confirm" && pending) {
+            const plan = pending;
+            saving = true;
+            attempted = true;
+            view.busy(true, attempted);
+            void this.client
+              .dispatch(plan)
+              .then(async () => {
+                saving = false;
+                close();
+                toast(
+                  `خروج ${plan.total.toLocaleString("fa-IR")} دستگاه ثبت شد؛ ماندهٔ بار و تسویه محفوظ است`,
+                );
+                try {
+                  await refresh();
+                } catch {
+                  toast("خروج ثبت شد؛ فهرست سفارش‌ها را دوباره تازه‌سازی کنید");
+                }
+              })
+              .catch((error: unknown) => {
+                saving = false;
+                view.busy(false, attempted);
+                view.error(error);
+              });
+          }
+        });
+        view.show();
+      } catch (error: unknown) {
+        this.active?.close();
+        this.active = null;
+        toast(
+          error instanceof Error ? error.message : "دریافت سفارش ناموفق بود",
+        );
+      } finally {
+        this.opening = false;
+      }
+    }
+  }
+  window.gpPartialDelivery = new PartialDeliveryFacade(
+    new DeliveryPolicy(GP_WEB_PARTIAL_POLICY),
+    new DeliveryClient(),
+  );
+})();

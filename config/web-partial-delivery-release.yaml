@@ -1,0 +1,68 @@
+{
+  "before_files": {
+    "index.php": "3c72047c59a623930f1e906dfb20e9b7cda77d6634124dfe89abebcc7650a905",
+    "assets/order-details-v2-approved-20261024.js": "c802660c75c0d8300e08d99c46e88ff8bd6cd8da79da69d1cd4ca7c54962ac59",
+    "app.html": "cb4c85694baaf0240a0e2c4982b694843c4e9fa48db94f050c9c80e372d00746"
+  },
+  "operations": [
+    {
+      "file": "index.php",
+      "old": "require_once __DIR__.'/lib/partial-dispatch-routes.php';",
+      "new": "require_once __DIR__.'/lib/partial-delivery-web-routes.php';\nrequire_once __DIR__.'/lib/partial-dispatch-routes.php';",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "if(has('prep'))primary.push(`",
+      "new": "if(window.gpPartialDelivery?.canOpen(id))primary.push(`<button onclick=\"closeOrderMenus();window.gpPartialDelivery.open(${id})\">تحویل بخشی با مجوز مدیر</button>`);if(has('prep'))primary.push(`",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/order-details-v2-approved-20261024.js?v=1&whfix=20261028a",
+      "new": "/assets/order-details-v2-approved-20261024.js?v=1&whfix=20261029partial",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "<!-- GP_SHIPPING_METHODS_V1_20261027 -->\n</body></html>",
+      "new": "<!-- GP_SHIPPING_METHODS_V1_20261027 -->\n<link rel=\"stylesheet\" href=\"/assets/partial-delivery-web.css?v=20261029a\"><script src=\"/assets/partial-delivery-web.js?v=20261029a\" defer></script>\n</body></html>",
+      "count": 1
+    },
+    {
+      "file": "assets/order-details-v2-approved-20261024.js",
+      "old": "<div class=\"od2-header-actions\"><a class=\"btn2\"",
+      "new": "<div class=\"od2-header-actions\">'+(window.gpPartialDelivery?.canOpen(Number(o.id))?'<button type=\"button\" class=\"btn2\" onclick=\"closeOrderDetails();window.gpPartialDelivery.open('+Number(o.id)+')\">تحویل بخشی با مجوز مدیر</button>':'')+'<a class=\"btn2\"",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "index.php": "a919d5f8c57be7a59fc3b790ca79e6f346ee96373dee83f2e9fa5f13a5a69d68",
+    "assets/order-details-v2-approved-20261024.js": "fcf4874e9887f8a07918248073366ba97f50193facc22fb12b50131e192ca3cb",
+    "app.html": "6540515a47283887f4bdd6d46d3cca026b45dba9dea18c73bafff0274bb83796",
+    "lib/partial-delivery-web.php": "61ef67b32e8b35db3c78e46170c3051cb5807287b8ff77177d1f0f8ca7cf70a4",
+    "lib/partial-delivery-web-routes.php": "a254793240fa37ccd03df94cad1143bd3792fd6b2fa3995b9aa0e9810d31e872",
+    "assets/partial-delivery-web.js": "86f8c9ec9d772e651128374d8c73f889fd9f7cf7a4fc780545fe26e18e5f1c4c",
+    "assets/partial-delivery-web.css": "38ebed29c865ef195831d43d121b5360a5dfebf787628fcb75eedfc856ba53ea"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}

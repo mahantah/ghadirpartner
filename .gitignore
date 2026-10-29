@@ -26,3 +26,5 @@ backup-*
 Thumbs.db
 .vscode/
 .idea/
+
+tooling/partial-delivery-web/node_modules/

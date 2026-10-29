@@ -11,6 +11,8 @@ on:
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
       - 'config/partial-dispatch*'
+      - 'config/*partial-delivery*'
+      - 'tooling/partial-delivery-web/**'
       - '.github/workflows/**'
   push:
     branches: [main]
@@ -23,6 +25,8 @@ on:
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
       - 'config/partial-dispatch*'
+      - 'config/*partial-delivery*'
+      - 'tooling/partial-delivery-web/**'
       - '.github/workflows/ci-web.yml'
 permissions:
   contents: read
@@ -30,6 +34,42 @@ concurrency:
   group: web-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  web-partial-delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Strict typed web checks and reproducible policy build
+        run: |
+          npm ci --prefix tooling/partial-delivery-web --ignore-scripts --no-audit --no-fund
+          npm --prefix tooling/partial-delivery-web run check
+          python3 scripts/build-web-partial-delivery.py --check
+          php -l lib/partial-delivery-web.php
+          php -l lib/partial-delivery-web-routes.php
+          php -l scripts/release-web-partial-delivery.php
+          php tests/web-partial-delivery-view.php
+          php tests/web-partial-delivery-release.php
+      - name: Mobile and desktop management delivery interactions
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          for viewport in '390,844' '1440,1000'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --allow-file-access-from-files --no-first-run --window-size="$viewport" --virtual-time-budget=5000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/web-partial-delivery.html" \
+              > /tmp/web-partial-delivery.html 2>/tmp/web-partial-delivery-chrome.log
+            if ! grep -Fq 'WEB_PARTIAL_DELIVERY_PASS</output>' /tmp/web-partial-delivery.html; then
+              grep -o 'WEB_PARTIAL_DELIVERY_FAIL[^<]*' /tmp/web-partial-delivery.html || true
+              exit 1
+            fi
+          done
   native-order-flow:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -45,9 +85,9 @@ jobs:
       - name: Strict Python checks for the bounded patch
         run: |
           python3 -m pip install ruff mypy
-          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
-          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
-          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py
+          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py
+          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py
+          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py
       - name: Order policy, financial rows, consent and review transitions
         run: |
           php -l scripts/release-partial-dispatch.php
