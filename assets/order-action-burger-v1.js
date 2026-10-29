@@ -6,6 +6,7 @@
 */
 (function(){
   'use strict';
+  var menuOnly=!!document.currentScript?.hasAttribute('data-menu-only');
   var nextId=0;
   var installed=false;
   var refreshing=false;
@@ -15,6 +16,10 @@
 
   // Icons are local SVGs so they work without external icon fonts or CDNs.
   var icons={
+    partial:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5ZM3 8v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5"/></svg>',
+    cancel:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 8 8 8M16 8l-8 8"/></svg>',
+    approve:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>',
+    exchange:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h17l-4-4M21 17H4l4 4M20 7l-4 4M4 17l4-4"/></svg>',
     details:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 11v5M12 8h.01"/></svg>',
     status:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h11M4 8h11M4 11h7M11 19l2.1-.4L20 11.7 17.3 9l-6.9 6.9L10 19z"/></svg>',
     payment:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M15 15h4"/></svg>',
@@ -23,17 +28,22 @@
     label:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v4H7zM7 17h10v4H7zM6 10h12a3 3 0 0 1 3 3v4h-4M7 17H3v-4a3 3 0 0 1 3-3zM17 13h.01"/></svg>'
   };
   function iconKey(text){
+    if(/تحویل جزئی/.test(text))return 'partial';
+    if(/لغو سفارش/.test(text))return 'cancel';
+    if(/تعویض دستگاه/.test(text))return 'exchange';
+    if(/تأیید|درخواست ارسال|خروج ناقص/.test(text))return 'approve';
     if(/جزئیات سفارش/.test(text))return 'details';
     if(/تغییر وضعیت/.test(text))return 'status';
     if(/نحوه تسویه|تسویه/.test(text))return 'payment';
     if(/ویرایش سفارش/.test(text))return 'edit';
     if(/تاریخچه/.test(text))return 'history';
-    return '';
+    return 'details';
   }
   function orderIdFromButton(button){
-    var match=(button.getAttribute('onclick')||'').match(/toggleOrderMenu\\(event\\s*,\\s*(\\d+)\\)/);
+    var match=(button.getAttribute('onclick')||'').match(/toggleOrderMenu\(event\s*,\s*(\d+)\)/);
     return match?Number(match[1]):0;
   }
+  /** Add local SVG icons without replacing authorized buttons or their handlers. */
   function decorateOrderMenu(menu,orderId){
     if(!menu)return;
     menu.querySelectorAll('button').forEach(function(button){
@@ -131,6 +141,19 @@
     var root=document.getElementById('orders');
     if(!root)return;
     installed=true;
+    if(menuOnly){
+      // The owner site keeps its native trigger; only decorate the completed popover.
+      var original=window.toggleOrderMenu;
+      if(typeof original==='function')window.toggleOrderMenu=function(ev,id){
+        original(ev,id);
+        var menu=orderMenus()[0];
+        if(menu)decorateOrderMenu(menu,Number(id));
+      };
+      document.addEventListener('keydown',function(ev){
+        if(ev.key==='Escape'&&orderMenus().length&&typeof closeOrderMenus==='function')closeOrderMenus();
+      });
+      return;
+    }
     render();
     // renderOrders() replaces table rows during paging, searching and
     // status changes, so decorate only newly inserted native buttons.

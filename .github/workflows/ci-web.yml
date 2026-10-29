@@ -8,6 +8,7 @@ on:
       - 'tests/**'
       - 'lib/**'
       - 'app.html'
+      - 'config/order-actions*'
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
       - 'config/partial-dispatch*'
@@ -22,6 +23,7 @@ on:
       - 'tests/**'
       - 'lib/**'
       - 'app.html'
+      - 'config/order-actions*'
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
       - 'config/partial-dispatch*'
@@ -53,6 +55,9 @@ jobs:
           python3 scripts/build-web-partial-delivery.py --check
           php -l lib/partial-delivery-web.php
           php -l lib/partial-delivery-web-routes.php
+          python3 scripts/build-order-actions-theme.py --check
+          php -l scripts/release-order-actions.php
+          php tests/order-actions-release.php
           php -l scripts/release-web-partial-delivery.php
           php tests/web-partial-delivery-view.php
           php tests/web-partial-delivery-release.php
@@ -85,9 +90,9 @@ jobs:
       - name: Strict Python checks for the bounded patch
         run: |
           python3 -m pip install ruff mypy
-          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py
-          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py
-          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py
+          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py
+          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py
+          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py
       - name: Order policy, financial rows, consent and review transitions
         run: |
           php -l scripts/release-partial-dispatch.php
@@ -509,6 +514,13 @@ jobs:
             if ! grep -Fq 'ORDER_ACTION_BURGER_PASS' /tmp/order-burger-result.html; then
               grep -o 'ORDER_ACTION_BURGER_FAIL[^<]*' /tmp/order-burger-result.html || true
               tail -c 1700 /tmp/order-burger-result.html
+              exit 1
+            fi
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$viewport" --virtual-time-budget=1500 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/order-actions-appearance.html" > /tmp/order-appearance-result.html 2>/tmp/chrome.log
+            if ! grep -Fq 'ORDER_ACTIONS_APPEARANCE_PASS</output>' /tmp/order-appearance-result.html; then
+              grep -o 'ORDER_ACTIONS_APPEARANCE_FAIL[^<]*' /tmp/order-appearance-result.html || true
               exit 1
             fi
             echo "Original order actions + burger-to-X animation, close and paging passed at $viewport"
