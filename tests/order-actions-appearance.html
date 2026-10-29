@@ -16,6 +16,7 @@ window.addEventListener('load',async()=>{
   check(menu.getBoundingClientRect().width<=214,'menu too wide');
   check([...menu.querySelectorAll('button')].every(button=>button.querySelectorAll('svg').length===1),'icons missing or duplicated');
   check(menu.querySelector('[data-action="1"]').textContent==='تحویل جزئی','partial label changed');
+  menu.querySelectorAll('button').forEach(button=>button.style.setProperty('transition','none','important'));
   const action=menu.querySelector('[data-action="1"]');action.focus();await new Promise(resolve=>setTimeout(resolve,350));
   check(getComputedStyle(action).backgroundColor==='rgb(245, 130, 32)','focused action not orange');
   check(getComputedStyle(menu.querySelector('[data-action="0"]')).filter==='blur(1px)','siblings not blurred');

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build finite order-menu design tokens from validated JSON-compatible YAML."""
 
 import argparse
