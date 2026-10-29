@@ -92,13 +92,13 @@ const GP_WEB_PARTIAL_POLICY = {"carriers": ["پیک", "تیپاکس", "چاپا�
                 this.reasonBytes < 1 ||
                 this.reasonBytes > 10000 ||
                 this.trackingCarriers.some((v) => !this.carriers.includes(v)))
-                throw new Error("تنظیمات تحویل بخشی معتبر نیست");
+                throw new Error("تنظیمات تحویل جزئی معتبر نیست");
         }
         strings(value) {
             const values = JsonReader.list(value);
             if (!values.length ||
                 values.some((v) => typeof v !== "string" || !v.trim()))
-                throw new Error("تنظیمات تحویل بخشی معتبر نیست");
+                throw new Error("تنظیمات تحویل جزئی معتبر نیست");
             return values.map((v) => JsonReader.text(v));
         }
         /** Mirror visibility rules only; the server independently enforces management authorization. */
@@ -153,7 +153,7 @@ const GP_WEB_PARTIAL_POLICY = {"carriers": ["پیک", "تیپاکس", "چاپا�
                 throw new Error("این مجوز فقط برای بخشی از بار است؛ تحویل کل مانده از مسیر تسویه انجام می‌شود");
             const reason = text("reason"), carrier = text("carrier"), tracking = text("tracking"), courierName = text("courier-name"), courierPhone = text("courier-phone");
             if (!reason || new TextEncoder().encode(reason).length > this.reasonBytes)
-                throw new Error("علت مجوز تحویل بخشی را به‌صورت معتبر وارد کنید");
+                throw new Error("علت مجوز تحویل جزئی را به‌صورت معتبر وارد کنید");
             if (!this.carriers.includes(carrier))
                 throw new Error("نوع تحویل را انتخاب کنید");
             if (this.trackingCarriers.includes(carrier) && !tracking)
@@ -206,11 +206,11 @@ const GP_WEB_PARTIAL_POLICY = {"carriers": ["پیک", "تیپاکس", "چاپا�
             this.dialog.id = "gp-partial-dialog";
             this.dialog.dir = "rtl";
             this.dialog.setAttribute("aria-labelledby", "gp-partial-title");
-            this.dialog.innerHTML = `<header><div><h3 id="gp-partial-title">تحویل بخشی با مجوز مدیر</h3><p>${this.escape(order.number)} • ${this.escape(order.customer)}</p></div><button type="button" data-action="close" aria-label="بستن تحویل بخشی">×</button></header>
+            this.dialog.innerHTML = `<header><div><h3 id="gp-partial-title">تحویل جزئی</h3><p>${this.escape(order.number)} • ${this.escape(order.customer)}</p></div><button type="button" data-action="close" aria-label="بستن تحویل جزئی">×</button></header>
         <p class="gp-partial-notice">فقط تعداد انتخاب‌شده از بار آماده خارج می‌شود؛ وضعیت پرداخت، مبلغ فاکتور و بدهی مشتری تغییر نمی‌کند.</p>
         <p>وضعیت تسویه: <strong>${this.escape(order.payment)}</strong></p><p id="gp-partial-error" class="gp-partial-error" role="alert" tabindex="-1" hidden></p>
         <form novalidate><button type="button" class="btnlight" data-action="third">انتخاب یک‌سوم ماندهٔ هر مدل</button><div class="gp-partial-lines">${order.lines.map((line, index) => `<section><h4>${this.escape(line.product)}</h4><p>خروج‌شده: ${this.fa(line.sent)} • مانده: ${this.fa(line.remaining)} • آماده: ${this.fa(line.ready.length)}</p><label for="gp-partial-quantity-${index}">تعداد تحویل ${this.escape(line.product)}</label><input id="gp-partial-quantity-${index}" name="quantity-${index}" inputmode="numeric" value="0" ${line.ready.length ? "" : "disabled"}></section>`).join("")}</div>
-        <label for="gp-partial-reason">علت مجوز تحویل بخشی</label><textarea id="gp-partial-reason" name="reason" maxlength="${policy.reasonBytes}" rows="2"></textarea>
+        <label for="gp-partial-reason">علت مجوز تحویل جزئی</label><textarea id="gp-partial-reason" name="reason" maxlength="${policy.reasonBytes}" rows="2"></textarea>
         <div class="gp-partial-fields"><div><label for="gp-partial-carrier">نوع تحویل</label><select id="gp-partial-carrier" name="carrier"><option value="">انتخاب کنید</option>${policy.carriers.map((carrier) => `<option>${this.escape(carrier)}</option>`).join("")}</select></div><div data-tracking hidden><label for="gp-partial-tracking">کد پیگیری</label><input id="gp-partial-tracking" name="tracking" maxlength="400"></div></div>
         <div class="gp-partial-fields" data-courier hidden><div><label for="gp-partial-courier-name">نام پیک</label><input id="gp-partial-courier-name" name="courier-name" maxlength="120"></div><div><label for="gp-partial-courier-phone">شماره تماس پیک</label><input id="gp-partial-courier-phone" name="courier-phone" type="tel" maxlength="32"></div></div>
         <p id="gp-partial-total" aria-live="polite"></p><footer><button type="submit" class="btn2">بررسی سریال‌ها و ادامه</button><button type="button" class="btnlight" data-action="close">بستن</button></footer></form>
@@ -306,7 +306,7 @@ const GP_WEB_PARTIAL_POLICY = {"carriers": ["پیک", "تیپاکس", "چاپا�
             box.textContent =
                 error instanceof Error
                     ? error.message
-                    : "ثبت تحویل بخشی ناموفق بود؛ سفارش را تازه‌سازی کنید";
+                    : "ثبت تحویل جزئی ناموفق بود؛ سفارش را تازه‌سازی کنید";
             box.focus();
         }
         /** Close the native focus trap and restore a useful position in the orders screen. */
@@ -346,14 +346,14 @@ const GP_WEB_PARTIAL_POLICY = {"carriers": ["پیک", "تیپاکس", "چاپا�
             if (this.opening || this.active)
                 return;
             if (!this.canOpen(id)) {
-                toast("مجوز تحویل بخشی برای این سفارش ندارید");
+                toast("مجوز تحویل جزئی برای این سفارش ندارید");
                 return;
             }
             this.opening = true;
             try {
                 const order = await this.client.read(id);
                 if (order.id !== id || !this.policy.permits(order.raw, has("admin")))
-                    throw new Error("سفارش دیگر در مرحلهٔ مجاز تحویل بخشی نیست");
+                    throw new Error("سفارش دیگر در مرحلهٔ مجاز تحویل جزئی نیست");
                 const view = new DeliveryView(order, this.policy);
                 this.active = view;
                 const bytes = crypto.getRandomValues(new Uint8Array(16));

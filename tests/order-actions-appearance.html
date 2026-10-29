@@ -1,0 +1,30 @@
+<!doctype html><html lang="fa" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../assets/order-action-burger-v1.css"><style>body{font:14px Arial}.order-menu{position:fixed;left:10px;top:70px}#customers{background:white}</style><div id="orders"><button id="trigger" onclick="toggleOrderMenu(event,42)">عملیات</button></div><div id="customers"><button id="customer">مشتریان</button></div><output id="result">PENDING</output><script>
+window.actionCount=0;
+function closeOrderMenus(){document.querySelectorAll('.order-menu').forEach(menu=>menu.remove())}
+function toggleOrderMenu(ev,id){
+ ev.stopPropagation();closeOrderMenus();const menu=document.createElement('div');menu.className='order-menu open';menu.innerHTML='<div class="order-menu-head"><b>سفارش نمونه '+id+'</b></div><div class="order-menu-label">عملیات اصلی</div>'+['جزئیات سفارش','تحویل جزئی','تغییر وضعیت','نحوه تسویه','ویرایش سفارش','تاریخچه','تعویض دستگاه مرجوعی','لغو سفارش توسط ادمین'].map((label,index)=>'<button data-action="'+index+'" onclick="window.actionCount++;closeOrderMenus()">'+label+'</button>').join('')+'<button disabled>خروج ناقص: ۳ دستگاه</button>';document.body.appendChild(menu)
+}
+document.addEventListener('click',closeOrderMenus);
+</script><script src="../assets/order-action-burger-v1.js" data-menu-only></script><script>
+window.addEventListener('load',async()=>{
+ const output=document.getElementById('result');
+ const check=(value,message)=>{if(!value)throw Error(message)};
+ try{
+  document.getElementById('trigger').click();const menu=document.querySelector('.order-menu');
+  check(!document.querySelector('.gp-order-burger-wrap'),'native trigger replaced');
+  check(getComputedStyle(menu).backgroundColor==='rgb(16, 42, 67)','navy background missing');
+  check(menu.getBoundingClientRect().width<=214,'menu too wide');
+  check([...menu.querySelectorAll('button')].every(button=>button.querySelectorAll('svg').length===1),'icons missing or duplicated');
+  check(menu.querySelector('[data-action="1"]').textContent==='تحویل جزئی','partial label changed');
+  const action=menu.querySelector('[data-action="1"]');action.focus();await new Promise(resolve=>setTimeout(resolve,350));
+  check(getComputedStyle(action).backgroundColor==='rgb(245, 130, 32)','focused action not orange');
+  check(getComputedStyle(menu.querySelector('[data-action="0"]')).filter==='blur(1px)','siblings not blurred');
+  check(getComputedStyle(document.getElementById('customer')).filter==='none','customer menu affected');
+  action.click();check(window.actionCount===1&&!document.querySelector('.order-menu'),'native action changed');
+  document.getElementById('trigger').click();check(document.querySelectorAll('.order-menu').length===1,'reopening duplicates menus');
+  check([...document.querySelectorAll('.order-menu button')].every(button=>button.querySelectorAll('svg').length===1),'reopening duplicates icons');
+  document.getElementById('customer').click();check(!document.querySelector('.order-menu'),'outside close failed');
+  output.textContent='ORDER_ACTIONS_APPEARANCE_PASS';
+ }catch(error){output.textContent='ORDER_ACTIONS_APPEARANCE_FAIL '+error.message}
+});
+</script></html>

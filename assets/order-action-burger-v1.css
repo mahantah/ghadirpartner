@@ -1,3 +1,5 @@
+/* Generated tokens: scripts/build-order-actions-theme.py */
+body > .order-menu.open:not(.customer-menu){--gp-action-navy:#102a43;--gp-action-orange:#f58220;--gp-action-width:212px;--gp-action-blur:1px;--gp-action-duration:300ms;}
 /* GHADIR_ORDER_ACTION_BURGER_V1_20261017
    Adapted from Uiverse.io by JaydipPrajapati1910.
    Scoped EXCLUSIVELY to per-order action buttons: #orders.
@@ -101,18 +103,49 @@
   #orders .gp-order-burger-wrap .burger span{transition:none!important}
 }
 
-/* SVG action icons and restored single-order label button. */
-body > .order-menu.open:not(.customer-menu) button.gp-order-icon-action{
-  display:flex!important;align-items:center!important;gap:10px!important;
-  text-align:right!important;direction:rtl!important;width:100%;
+/* ORDER_ACTION_THEME: generated tokens above; adapted from Uiverse.io by HetPatel69.
+   Only order popovers use this treatment; customers and navigation retain their styles. */
+body > .order-menu.open:not(.customer-menu){
+ width:var(--gp-action-width)!important;min-width:0!important;max-width:calc(100vw - 16px)!important;
+ background:var(--gp-action-navy)!important;color:white!important;border:0!important;
+ border-radius:6px!important;padding:6px!important;box-sizing:border-box;
+ max-height:calc(100dvh - 16px);overflow-y:auto;overflow-x:hidden;
+ box-shadow:0 12px 28px #102a4330!important;direction:rtl;
 }
-body > .order-menu.open:not(.customer-menu) .gp-order-icon-action > svg{
-  display:block;flex:none;width:19px;height:19px;fill:none;
-  stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;
+body > .order-menu.open:not(.customer-menu) .order-menu-head{
+ padding:8px 9px!important;margin:0 0 4px!important;background:transparent!important;
+ color:#c7d5e3!important;border-bottom:1px solid #29435c!important;font-size:11px!important;
 }
-body > .order-menu.open:not(.customer-menu) .gp-order-label-action{
-  color:#102a43!important;
+body > .order-menu.open:not(.customer-menu) .order-menu-head span,
+body > .order-menu.open:not(.customer-menu) .order-menu-label{display:none!important}
+body > .order-menu.open:not(.customer-menu) .order-menu-sep{
+ height:1px!important;margin:4px 7px!important;background:#29435c!important;
 }
-body > .order-menu.open:not(.customer-menu) .gp-order-label-action:hover{
-  background:#e8f1f8!important;
+body > .order-menu.open:not(.customer-menu) button{
+ display:flex!important;align-items:center!important;gap:7px!important;
+ position:relative;direction:rtl!important;text-align:right!important;width:100%!important;
+ min-height:38px!important;padding:9px!important;box-sizing:border-box;
+ background:transparent!important;border:0!important;border-radius:4px!important;
+ color:white!important;font-size:11px!important;font-weight:400!important;line-height:1.6!important;
+ cursor:pointer;transition:filter var(--gp-action-duration),transform var(--gp-action-duration);
 }
+body > .order-menu.open:not(.customer-menu) button > svg{
+ display:block;flex:none;width:15px;height:15px;fill:none;
+ stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;
+}
+body > .order-menu.open:not(.customer-menu) button:not(:disabled):is(:hover,:focus,:active){
+ background:var(--gp-action-orange)!important;color:white!important;outline:2px solid transparent;
+ filter:none!important;transform:none!important;opacity:1!important;
+}
+body > .order-menu.open:not(.customer-menu) button:disabled{opacity:.55;cursor:default}
+/* Only hover-capable pointers blur siblings; touch users keep every action readable. */
+@media(hover:hover) and (pointer:fine){
+ body > .order-menu.open:not(.customer-menu):has(>button:not(:disabled):hover) > button:not(:hover){
+  filter:blur(var(--gp-action-blur))!important;transform:scale(.95)!important;background:transparent!important;
+ }
+}
+body > .order-menu.open:not(.customer-menu):has(>button:focus) > button:not(:focus):not(:hover){
+ filter:blur(var(--gp-action-blur));transform:scale(.95);
+}
+@media(pointer:coarse){body > .order-menu.open:not(.customer-menu) button{min-height:44px!important}}
+@media(prefers-reduced-motion:reduce){body > .order-menu.open:not(.customer-menu) button{transition:none}}
