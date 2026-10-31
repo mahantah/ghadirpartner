@@ -66,6 +66,13 @@ jobs:
           tooling/partial-delivery-web/node_modules/.bin/tsc -p config/offer-plan-code.tsconfig.json --noEmit false --outFile /tmp/offer-plan-code.js
           cmp assets/offer-plan-code.js /tmp/offer-plan-code.js
           node tests/live-offer-code.cjs
+          node tests/offer-product-scope.cjs
+          node tests/offer-scope-layout.cjs
+          php -l lib/offer-product-scope.php
+          php tests/offer-product-scope.php
+          php -l scripts/release-offer-product-scope.php
+          php tests/offer-product-scope-release.php
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check assets/offer-plan-code.css
           php -l scripts/release-live-offer-code.php
           php tests/live-offer-code-release.php
           php -l lib/customer-credit.php
