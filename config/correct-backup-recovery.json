@@ -1125,7 +1125,7 @@
     "assets/ghadir-ui/theme.css": "e6c3fd7107226c53c53bb93a8f188e6760340f3a67288141554c237c99ed3bf3",
     "lib/native-order-flow.php": "c8b2958a97fa0308ca21ed6d8bf1f415c19b1cf29ca07013fe1ebdb64b77a542",
     "lib/native-order-flow-routes.php": "0ecd678f8c79e8abe115b51da1c9e170b58396ae5502fbb1ebf3b74518152f2a",
-    "config/native-order-flow.yaml": "855a74739ecc478d2b94a2eeac8b605b7d9b1f0700bc9c988da502c22fc68264",
+    "config/native-order-flow.yaml": "b9b2633d64ef60fb64ef82dcb89c3fbf65bed63e6cf46357c449fa7cf23b9ab8",
     "lib/partial-dispatch.php": "7920ae8f666a6b28f3d3958ebfc1c1f59f76570b0cec95d4c8159fc7aa21dbce",
     "lib/partial-dispatch-routes.php": "39803031d1909d382217697906189cbe84e1fc20ba12df07088009b579c4c7f7",
     "config/partial-dispatch.yaml": "a1e1de8ab41a68383d68b259dee2937d88e57f1a06d830fbd715495e02ec74c4",
