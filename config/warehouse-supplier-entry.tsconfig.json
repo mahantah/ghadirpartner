@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["node"],
+    "typeRoots": ["../tooling/partial-delivery-web/node_modules/@types"]
+  },
+  "files": ["../tests/warehouse-supplier-entry.ts"]
+}

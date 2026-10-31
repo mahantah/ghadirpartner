@@ -1,0 +1,33 @@
+{
+  "marker": "GP_WAREHOUSE_SUPPLIER_ENTRY_V1_20261031",
+  "rules": [
+    {
+      "start": "window.saveWarehouseCarton=",
+      "sha256": "78b84117a8c5f673c8b92d06dc3825981b4c0e52a5ccfced7852a0e5cba21154",
+      "edits": [
+        {
+          "old": "color:$('whColor').value.trim(),capacity:",
+          "new": "color:$('whColor').value.trim(),supplier:$('whSupplier').value.trim(),capacity:"
+        },
+        {
+          "old": "});$('whColor').value='';",
+          "new": "});$('whSupplier').value='';$('whColor').value='';"
+        }
+      ]
+    },
+    {
+      "start": "window.saveWarehouseFile=",
+      "sha256": "7d89eacece7286ab241395879a4bcb89bc65e31c57af86dc6ed9b0c41478b419",
+      "edits": [
+        {
+          "old": "fd.append('color',$('whColor').value.trim());",
+          "new": "fd.append('color',$('whColor').value.trim());fd.append('supplier',$('whSupplier').value.trim());"
+        },
+        {
+          "old": "});$('whFile').value='';",
+          "new": "});$('whSupplier').value='';$('whFile').value='';"
+        }
+      ]
+    }
+  ]
+}

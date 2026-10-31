@@ -1,0 +1,53 @@
+name: Warehouse supplier entry checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/patch-warehouse-supplier-entry.py'
+      - 'config/warehouse-supplier-entry*'
+      - 'tests/warehouse-supplier-entry*'
+      - '.github/workflows/check-warehouse-supplier-entry.yml'
+permissions:
+  contents: read
+jobs:
+  supplier-entry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install check tools
+        run: |
+          npm ci --prefix tooling/partial-delivery-web --ignore-scripts --no-audit --no-fund
+          python3 -m pip install ruff mypy
+      - name: Project, type, lint and format checks
+        run: |
+          npm --prefix tooling/partial-delivery-web run check
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/warehouse-supplier-entry.tsconfig.json --outDir /tmp/supplier-entry-tests
+          tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs tests/warehouse-supplier-entry.ts --max-warnings 0
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check tests/warehouse-supplier-entry.ts config/warehouse-supplier-entry.tsconfig.json
+          python3 -m ruff check scripts/patch-warehouse-supplier-entry.py tests/warehouse-supplier-entry.py
+          python3 -m ruff format --check scripts/patch-warehouse-supplier-entry.py tests/warehouse-supplier-entry.py
+          python3 -m mypy --strict scripts/patch-warehouse-supplier-entry.py tests/warehouse-supplier-entry.py
+      - name: Reproduce lost supplier and validate the staged active handlers privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          private="$(mktemp -d)"
+          chmod 700 "$private"
+          trap 'rm -rf "$private"' EXIT
+          curl --fail --silent --show-error --max-time 40 https://ghadirpartner.ir/assets/warehouse-v53438.js -o "$private/warehouse.js"
+          if node /tmp/supplier-entry-tests/warehouse-supplier-entry.js "$private/warehouse.js" > "$private/baseline.log" 2>&1; then
+            echo 'STOP: active entry handlers no longer reproduce the reported bug'
+            exit 1
+          fi
+          grep -Fq 'supplier omitted' "$private/baseline.log"
+          python3 scripts/patch-warehouse-supplier-entry.py "$private/warehouse.js" "$private/staged.js"
+          python3 tests/warehouse-supplier-entry.py "$private/warehouse.js"
+          node --check "$private/staged.js"
+          node /tmp/supplier-entry-tests/warehouse-supplier-entry.js "$private/staged.js"
+          echo 'Manual and file imports verified with synthetic data. No server or database writes.'
