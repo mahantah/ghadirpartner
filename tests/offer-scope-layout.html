@@ -20,6 +20,7 @@ body{font-family:Tahoma,Arial,sans-serif;margin:16px;background:#fff8f2;color:#1
  const columns=getComputedStyle(document.querySelector('.gp-offer-row')).gridTemplateColumns.trim().split(/\s+/).length;
  if(columns!==(innerWidth<=700?1:2))throw Error('responsive columns');
  const payload=editor.read('layout');if(payload.products.length!==2||payload.promo_code!=='MULTI10')throw Error('scope retention');
+ document.getElementById('layoutAllProducts').click();if(editor.read('layout').products.length!==0)throw Error('all-products action');
  document.getElementById('result').textContent='SCOPE_LAYOUT_PASS';
 }catch(error){document.getElementById('result').textContent='SCOPE_LAYOUT_FAIL '+error.message}})();
 </script></body></html>

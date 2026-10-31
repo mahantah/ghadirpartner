@@ -30,7 +30,7 @@ declare function req(path: string): Promise<unknown>;
     ) {}
     /** Prefixes distinguish the page from the customer-operation modal. */
     markup(prefix: string): string {
-      return `<div class="gp-offer-editor"><div class="gp-offer-row"><label>نوع تخفیف<select id="${prefix}DiscountType"><option value="none">بدون تخفیف مبلغی</option><option value="percent">درصد تخفیف</option><option value="amount">مبلغ تخفیف (تومان)</option></select></label><label>مقدار تخفیف<input id="${prefix}Discount" inputmode="numeric" placeholder="درصد یا مبلغ به تومان"></label></div><label>کد تخفیف<input id="${prefix}PromoCode" dir="ltr" placeholder="مثال GHADIR10" autocomplete="off"><span class="small">برای تخفیف درصدی یا مبلغی، کد دلخواه و غیرتکراری وارد کنید.</span></label><label>کالاهای مشمول تخفیف<select id="${prefix}Products" multiple aria-describedby="${prefix}ProductHint" disabled></select><span id="${prefix}ProductHint" class="small">بدون انتخاب = همه کالاها. برای چند انتخاب در کامپیوتر Ctrl را نگه دارید.</span></label><div id="${prefix}CatalogStatus" role="status">در حال دریافت کالاها…</div><button type="button" id="${prefix}CatalogRetry">دریافت دوباره کالاها</button></div>`;
+      return `<div class="gp-offer-editor"><div class="gp-offer-row"><label>نوع تخفیف<select id="${prefix}DiscountType"><option value="none">بدون تخفیف مبلغی</option><option value="percent">درصد تخفیف</option><option value="amount">مبلغ تخفیف (تومان)</option></select></label><label>مقدار تخفیف<input id="${prefix}Discount" inputmode="numeric" placeholder="درصد یا مبلغ به تومان"></label></div><label>کد تخفیف<input id="${prefix}PromoCode" dir="ltr" placeholder="مثال GHADIR10" autocomplete="off"><span class="small">برای تخفیف درصدی یا مبلغی، کد دلخواه و غیرتکراری وارد کنید.</span></label><label>کالاهای مشمول تخفیف<select id="${prefix}Products" multiple aria-describedby="${prefix}ProductHint" disabled></select><span id="${prefix}ProductHint" class="small">بدون انتخاب = همه کالاها. برای چند انتخاب در کامپیوتر Ctrl را نگه دارید.</span></label><button type="button" id="${prefix}AllProducts">همه کالاها</button><div id="${prefix}CatalogStatus" role="status">در حال دریافت کالاها…</div><button type="button" id="${prefix}CatalogRetry">دریافت دوباره کالاها</button></div>`;
     }
     /** Restore existing financial fields so changing the audience cannot erase them. */
     fill(prefix: string, source: OfferSource = {}): void {
@@ -49,6 +49,12 @@ declare function req(path: string): Promise<unknown>;
       const select = this.productField(prefix);
       const status = this.doc.getElementById(prefix + "CatalogStatus");
       const retry = this.doc.getElementById(prefix + "CatalogRetry");
+      const allProducts = this.doc.getElementById(prefix + "AllProducts");
+      if (allProducts)
+        allProducts.onclick = () => {
+          this.scopes.set(prefix, []);
+          this.selectNames(prefix, []);
+        };
       if (retry)
         retry.onclick = () => {
           void this.mount(prefix);
