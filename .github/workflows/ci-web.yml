@@ -65,6 +65,9 @@ jobs:
           php -l scripts/release-customer-credit.php
           php tests/customer-credit.php
           php tests/customer-credit-release.php
+          php -l scripts/release-credit-menu.php
+          php tests/credit-menu-release.php
+          python3 tests/credit-menu-renderer.py
           php -l lib/partial-delivery-web.php
           php -l lib/partial-delivery-web-routes.php
           python3 scripts/build-order-actions-theme.py --check
@@ -102,9 +105,9 @@ jobs:
       - name: Strict Python checks for the bounded patch
         run: |
           python3 -m pip install ruff mypy
-          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py
-          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py
-          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py
+          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py
+          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py
+          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py
       - name: Order policy, financial rows, consent and review transitions
         run: |
           php -l scripts/release-partial-dispatch.php
