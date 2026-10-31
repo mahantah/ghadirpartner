@@ -70,7 +70,7 @@ class WarehouseSupplierEntryPatch:
                     raise ValueError("invalid_supplier_entry_edit")
                 replacements.append((old, new))
             self._rules.append((start, digest, replacements))
-        if len(self._rules) != 2 or len({rule[0] for rule in self._rules}) != 2:
+        if len(self._rules) != 3 or len({rule[0] for rule in self._rules}) != 3:
             raise ValueError("invalid_supplier_entry_handlers")
 
     def render(self, original: str) -> str:

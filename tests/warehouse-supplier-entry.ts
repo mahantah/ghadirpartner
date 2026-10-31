@@ -21,7 +21,7 @@ class SupplierEntryRegression {
   private readonly handlers: [keyof EntryWindow, string][];
 
   /** Load only the two active entry handlers from the supplied staged asset. */
-  constructor(source: string) {
+  constructor(private readonly source: string) {
     this.handlers = (["saveWarehouseCarton", "saveWarehouseFile"] as const).map(
       (name) => {
         const start = source.indexOf(`window.${name}=`);
@@ -143,9 +143,49 @@ class SupplierEntryRegression {
         assert.equal(loads.length, fail ? 0 : 2);
       }
     }
+    this.checkRenderer();
     console.log(
       "SUPPLIER_ENTRY_PASS: manual/file requests and failure retention",
     );
+  }
+
+  /** Verify the existing edit and print actions keep the correct carton identity. */
+  private checkRenderer(): void {
+    const start = this.source.indexOf("window.renderWarehouse=function(){");
+    assert.ok(start >= 0);
+    const end = this.source.indexOf("\n};", start);
+    assert.ok(end > start);
+    const body = { innerHTML: "" };
+    const shelf = { innerHTML: "" };
+    const entryWindow: { renderWarehouse?: () => void } = {};
+    const context = vm.createContext({
+      window: entryWindow,
+      WH: {
+        cartons: [
+          {
+            id: 8,
+            code: "FIXTURE-BOX",
+            product: "fixture-model",
+            serials: [],
+            capacity: 20,
+          },
+        ],
+        inventory: [],
+        connected: false,
+      },
+      $: (id: string) => {
+        assert.ok(id === "warehouseBody" || id === "shelfSummary");
+        return id === "warehouseBody" ? body : shelf;
+      },
+      esc: (value: unknown) => String(value ?? ""),
+      whBadge: () => "fixture-warehouse",
+    });
+    vm.runInContext(this.source.slice(start, end + 4), context);
+    assert.ok(entryWindow.renderWarehouse);
+    entryWindow.renderWarehouse();
+    assert.ok(body.innerHTML.includes('onclick="editWarehouseSupplier(8)"'));
+    assert.ok(body.innerHTML.includes("/print/warehouse-label?id=8"));
+    assert.ok(body.innerHTML.includes('onclick="openWarehouseSerials(8)"'));
   }
 }
 

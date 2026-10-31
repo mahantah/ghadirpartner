@@ -1,0 +1,141 @@
+name: Release Warehouse Supplier Entry
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-warehouse-supplier-entry.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check bounded release and rollback
+        run: |
+          npm ci --prefix tooling/partial-delivery-web --ignore-scripts --no-audit --no-fund
+          npm --prefix tooling/partial-delivery-web run check
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/warehouse-supplier-entry.tsconfig.json --outDir /tmp/supplier-entry-tests
+          php -l scripts/release-warehouse-supplier-entry.php
+          php tests/warehouse-supplier-entry-release.php
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Publish the owner-approved supplier entry with integrity and rollback
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          private="$(mktemp -d)"
+          chmod 700 "$private"
+          TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TOKEN"
+          FILE="__gp_supplier_entry_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}.php"
+          cleanup(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          rm "/$FILE"
+          bye
+          EOF
+            rm -rf "$private"
+          }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o "$private/app.html"
+          get /assets/warehouse-v53438.js -o "$private/warehouse.js"
+          bye
+          EOF
+          python3 scripts/patch-warehouse-supplier-entry.py "$private/warehouse.js" "$private/staged.js"
+          python3 scripts/patch-warehouse-supplier-entry.py --entrypoint "$private/app.html" "$private/staged.html"
+          python3 tests/warehouse-supplier-entry.py "$private/warehouse.js"
+          node --check "$private/staged.js"
+          node /tmp/supplier-entry-tests/warehouse-supplier-entry.js "$private/staged.js"
+          python3 - "$private" "$FILE" "$TOKEN" <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          private, name, token = sys.argv[1:]
+          root = Path(private)
+          protected = json.loads(Path('config/warehouse-supplier-column-release.yaml').read_text())
+          assert len(protected['protected_cartons']) == 18
+          pairs = [('assets/warehouse-v53438.js', 'warehouse.js', 'staged.js'), ('app.html', 'app.html', 'staged.html')]
+          manifest = {'before_files': {}, 'expected_files': {}, 'operations': [], 'protected_cartons': protected['protected_cartons']}
+          for target, before_name, after_name in pairs:
+              original = (root / before_name).read_text()
+              staged = (root / after_name).read_text()
+              manifest['before_files'][target] = hashlib.sha256(original.encode()).hexdigest()
+              manifest['expected_files'][target] = hashlib.sha256(staged.encode()).hexdigest()
+              manifest['operations'].append({'file': target, 'old': original, 'new': staged, 'count': 1})
+          source = Path('scripts/release-warehouse-supplier-entry.php').read_text()
+          integrity = Path('lib/preswitch-carton-integrity.php').read_text().removeprefix('<?php\n')
+          values = {
+              '// __INTEGRITY_CLASS__': integrity,
+              '__TOKEN__': token,
+              '__MANIFEST_B64__': base64.b64encode(json.dumps(manifest).encode()).decode(),
+              '__DEPENDENCIES_B64__': base64.b64encode(b'{}').decode(),
+              '__RUN_ID__': os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'],
+          }
+          for old, new in values.items():
+              source = source.replace(old, new)
+          endpoint = root / name
+          endpoint.write_text(source)
+          endpoint.chmod(0o600)
+          PY
+          php -l "$private/$FILE"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$private/$FILE" -o "/$FILE"
+          bye
+          EOF
+          STATUS="$(curl -sS --max-time 350 -w '%{http_code}' -X POST --data 'mode=apply' -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE" -o "$private/apply.json")"
+          python3 - "$STATUS" "$private/apply.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          result = json.loads(Path(sys.argv[2]).read_text())
+          print(result)
+          assert sys.argv[1] == '200' and result.get('ok') and result.get('files') == 2 and result.get('protected_cartons') == 18 and result.get('database_changed') is False
+          PY
+          if ! curl -fsS --max-time 40 https://ghadirpartner.ir/healthz; then
+            curl -fsS --max-time 120 -X POST --data 'mode=rollback' -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE"
+            exit 2
+          fi
+          STATUS="$(curl -sS --max-time 120 -w '%{http_code}' -X POST --data 'mode=verify' -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE" -o "$private/verify.json")"
+          if ! python3 - "$STATUS" "$private/verify.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          result = json.loads(Path(sys.argv[2]).read_text())
+          print(result)
+          assert sys.argv[1] == '200' and result.get('ok') and result.get('files') == 2 and result.get('protected_cartons') == 18 and result.get('database_changed') is False
+          PY
+          then
+            curl -fsS --max-time 120 -X POST --data 'mode=rollback' -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE"
+            exit 3
+          fi

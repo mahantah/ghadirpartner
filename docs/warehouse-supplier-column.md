@@ -37,7 +37,9 @@ therefore cannot display a name that was never submitted.
 
 `scripts/patch-warehouse-supplier-entry.py` stages a bounded correction against
 the reviewed private asset. It includes the trimmed supplier in both requests
-and clears the input only after a successful response. Warehouse selection,
+and clears the input only after a successful response. The active row also
+restores the existing supplier-edit action so an explicitly approved missing
+name can be entered through the normal authenticated application route. Warehouse selection,
 serials, capacity, partial-carton reason, shelf and refresh behavior are retained.
 The same facade's `--entrypoint` mode versions the single active script URL to
 invalidate browser caches; publish both the staged asset and staged HTML.
@@ -48,8 +50,10 @@ The entry CI downloads only the public JavaScript asset into a private temporary
 directory, reproduces the missing supplier with synthetic input, then executes
 both staged handlers. It also checks request failures retain the supplier and
 rejects unreviewed source changes. Private application code and real inventory
-data are never committed or logged. This patch is prepared for review and has
-not been deployed; existing missing names require a separately approved,
+data are never committed or logged. The approved release stages exactly the active JavaScript asset and HTML,
+checkpoints both, enforces the existing protected-carton guard, validates
+readback and health, and restores the checkpoint on failure. Until that release
+succeeds, no publication is assumed; existing missing names require a separately approved,
 explicit carton correction through the application's supplier route.
 
 Validation: project `npm run check`, strict TypeScript, ESLint with zero warnings,

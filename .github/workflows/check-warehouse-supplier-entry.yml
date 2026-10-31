@@ -3,9 +3,11 @@ on:
   pull_request:
     paths:
       - 'scripts/patch-warehouse-supplier-entry.py'
+      - 'scripts/release-warehouse-supplier-entry.php'
       - 'config/warehouse-supplier-entry*'
       - 'tests/warehouse-supplier-entry*'
       - '.github/workflows/check-warehouse-supplier-entry.yml'
+      - '.github/workflows/release-warehouse-supplier-entry.yml'
 permissions:
   contents: read
 jobs:
@@ -20,12 +22,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
       - name: Install check tools
         run: |
           npm ci --prefix tooling/partial-delivery-web --ignore-scripts --no-audit --no-fund
           python3 -m pip install ruff mypy
       - name: Project, type, lint and format checks
         run: |
+          php -l scripts/release-warehouse-supplier-entry.php
+          php tests/warehouse-supplier-entry-release.php
           npm --prefix tooling/partial-delivery-web run check
           tooling/partial-delivery-web/node_modules/.bin/tsc -p config/warehouse-supplier-entry.tsconfig.json --outDir /tmp/supplier-entry-tests
           tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs tests/warehouse-supplier-entry.ts --max-warnings 0
