@@ -123,6 +123,8 @@ jobs:
           php -l lib/native-order-flow-routes.php
           php -l tests/native-order-flow.php
           php -l tests/native-order-create-integration.php
+          php -l scripts/release-portal-quantity.php
+          php tests/portal-quantity-release.php
           php tests/native-order-flow.php
           php tests/native-order-review-routes.php
           python3 -m py_compile scripts/patch-native-order-flow.py

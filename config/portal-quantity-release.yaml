@@ -1,0 +1,36 @@
+{
+  "before_files": {
+    "config/native-order-flow.yaml": "855a74739ecc478d2b94a2eeac8b605b7d9b1f0700bc9c988da502c22fc68264"
+  },
+  "operations": [
+    {
+      "file": "config/native-order-flow.yaml",
+      "old": "\"maximum_quantity\": 999",
+      "new": "\"maximum_quantity\": 2147483647",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "config/native-order-flow.yaml": "b9b2633d64ef60fb64ef82dcb89c3fbf65bed63e6cf46357c449fa7cf23b9ab8"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}
