@@ -56,7 +56,11 @@ final class NativeOrderFlowTest
         $request=$this->request();$request['items'][1]['qty']=51;
         $this->fails(function () use ($request): void { $this->service->validateRequest($request); }, 'wrong serial tier');
         $request['items'][1]['price_key']='serial_51_200';$this->service->validateRequest($request);
-        $request['items'][0]['qty']=999;
+        $request['items'][0]['qty']=1000;
+        $this->service->validateRequest($request);$this->checks++;
+        $request['items'][0]['qty']=$this->policy['maximum_quantity']-51;
+        $this->service->validateRequest($request);$this->checks++;
+        $request['items'][0]['qty']++;
         $this->fails(function () use ($request): void { $this->service->validateRequest($request); }, 'split quantity limit');
         $purchase=[['product'=>'I90','qty'=>2,'price_key'=>'panel_cash','price_label'=>'پنل','unit_price'=>101,'line_total'=>202,'serials'=>[]],
             ['product'=>'I90','qty'=>3,'price_key'=>'serial_1_50','price_label'=>'آزاد','unit_price'=>117,'line_total'=>351,'serials'=>[]]];
