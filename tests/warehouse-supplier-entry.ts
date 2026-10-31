@@ -155,4 +155,3 @@ new SupplierEntryRegression(fs.readFileSync(process.argv[2] ?? "", "utf8"))
     console.error(error.message);
     process.exitCode = 1;
   });
-
