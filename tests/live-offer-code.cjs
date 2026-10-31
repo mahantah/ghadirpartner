@@ -10,17 +10,22 @@ class Field {
   scrollIntoView(){}
   addEventListener(){}
 }
-class Select extends Field {}
+class Select extends Field {
+  constructor(){super();this.options=[];}
+  replaceChildren(){this.options=[];}
+  append(option){this.options.push(option);}
+  get selectedOptions(){return this.options.filter(option=>option.selected);}
+}
 class Fixture {
   constructor(){
     this.fields=new Map();this.requests=[];this.errors=[];this.html='';
     const self=this;
     this.context={HTMLInputElement:Field,HTMLSelectElement:Select,console,esc:String,
-      document:{getElementById:id=>self.field(id),querySelector:()=>({value:'all'}),querySelectorAll:()=>[]},
+      document:{getElementById:id=>self.field(id),createElement:()=>({value:"",selected:false,textContent:""}),querySelector:()=>({value:'all'}),querySelectorAll:()=>[]},
       parseMoneyInput:value=>Number(String(value).replace(/[۰-۹]/g,c=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[,٬\s]/g,'')),
       $:id=>self.field(id), selectedIds:()=>[7], ensureOffers:async()=>[],
       modal:html=>{self.html=html;},closeModal:()=>{},toast:()=>{},alert:m=>self.errors.push(m),
-      req:async(path,request)=>{self.requests.push({path,body:JSON.parse(request.body)});return {};},
+      req:async(path,request)=>{if(path==='/api/catalog')return [{name:'I90'},{name:'M3P'},{name:'V77'}];self.requests.push({path,body:JSON.parse(request.body)});return {};},
       loadPortalOffers:()=>{},loadOffers:async()=>{},fillOfferSelect:()=>{},paintTable:()=>{},gpClearPlanPage:()=>{},
       PORTAL_OFFERS:[{id:9,title:'FIXTURE',discount_type:'amount',discount_value:1000,promo_code:'KEEP9',one_time_per_customer:true}],
     };
@@ -31,9 +36,10 @@ class Fixture {
       if(op.new.includes('window.gpSavePlanApply =')||op.new.trim().startsWith('window.gpSavePlanPage ='))vm.runInContext(op.new,this.context);
     }
   }
-  field(id){if(!this.fields.has(id))this.fields.set(id,new Field());return this.fields.get(id);}
+  field(id){if(!this.fields.has(id))this.fields.set(id,id.endsWith("Products")?new Select():new Field());return this.fields.get(id);}
   /** Validate each UI entry point through its real save method. */
   async run(prefix,method){
+    await this.context.gpOfferPlanEditor.mount(prefix);
     this.field(prefix+'Existing').value='';this.field(prefix+'Title').value='FIXTURE';this.field(prefix+'Ids').value='7';
     this.field(prefix+'DiscountType').value='percent';this.field(prefix+'Discount').value='۱۵';this.field(prefix+'PromoCode').value=' gh adir10 ';
     await this.context[method]();

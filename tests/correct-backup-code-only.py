@@ -44,13 +44,13 @@ $public=new ReflectionMethod($service,'stagePublicFiles');$public->setAccessible
     assert not (root / "stage/config.php").exists()
     assert (root / "stage/config/native-order-flow.yaml").read_text() == "{}"
 manifest = json.loads((repo / "config/correct-backup-recovery.json").read_text())
-assert len(manifest["expected_files"]) == 140
+assert len(manifest["expected_files"]) == 142
 assert manifest["public_files"] == [
     "lib/native-order-flow.php", "lib/native-order-flow-routes.php", "config/native-order-flow.yaml",
     "lib/partial-dispatch.php", "lib/partial-dispatch-routes.php", "config/partial-dispatch.yaml",
     "lib/partial-delivery-web.php", "lib/partial-delivery-web-routes.php", "assets/partial-delivery-web.js", "assets/partial-delivery-web.css",
     "lib/customer-credit.php", "lib/customer-credit-routes.php", "config/customer-credit.yaml", "assets/customer-credit.js",
-    "assets/offer-plan-code.js"
+    "assets/offer-plan-code.js", "assets/offer-plan-code.css", "lib/offer-product-scope.php"
 ]
 assert all(
     "config" not in Path(path).name.lower()

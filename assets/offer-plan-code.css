@@ -1,0 +1,56 @@
+/* Shared layout for the active sales-plan page and customer-operation dialog. */
+.grid:has(> .gp-offer-editor) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+.grid:has(> .gp-offer-editor) > label,
+.gp-offer-editor label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-weight: 600;
+  color: #102a43;
+}
+.gp-offer-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #dce6f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.gp-offer-editor .gp-offer-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.gp-offer-editor input,
+.gp-offer-editor select,
+.grid:has(> .gp-offer-editor) > label > :is(input, select) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  min-height: 44px;
+}
+.gp-offer-editor select[multiple] {
+  min-height: 148px;
+}
+.gp-offer-editor .small {
+  font-weight: 400;
+  line-height: 1.8;
+}
+.gp-offer-editor [role="status"] {
+  color: #526777;
+}
+.gp-offer-editor button {
+  justify-self: start;
+}
+@media (max-width: 700px) {
+  .grid:has(> .gp-offer-editor),
+  .gp-offer-editor .gp-offer-row {
+    grid-template-columns: 1fr;
+  }
+}

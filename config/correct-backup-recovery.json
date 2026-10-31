@@ -1067,19 +1067,169 @@
       "old": "/assets/sales-plans-menu-v1.js?v=1&whfix=20261028a",
       "new": "/assets/sales-plans-menu-v1.js?v=1&whfix=20261028a&offerfix=20261031forms",
       "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "'<label>مقدار تخفیف<input id=\"gpPlanApplyDiscount\" placeholder=\"درصد یا مبلغ به تومان\" inputmode=\"numeric\"></label>' + window.gpOfferPlanEditor.markup('gpPlanApply') +",
+      "new": "window.gpOfferPlanEditor.markup('gpPlanApply') +",
+      "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "'<select id=\"gpPlanApplyExisting\"><option value=\"\">طرح تازه بساز</option>'",
+      "new": "'<label>انتخاب طرح' + '<select id=\"gpPlanApplyExisting\"><option value=\"\">طرح تازه بساز</option>' + '</label>'",
+      "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "'<input id=\"gpPlanApplyTitle\" placeholder=\"عنوان طرح یا تخفیف\">'",
+      "new": "'<label>عنوان طرح' + '<input id=\"gpPlanApplyTitle\" placeholder=\"عنوان طرح یا تخفیف\">' + '</label>'",
+      "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "'<input id=\"gpPlanApplyBadge\" placeholder=\"برچسب، مثال: فروش ویژه\">'",
+      "new": "'<label>برچسب' + '<input id=\"gpPlanApplyBadge\" placeholder=\"برچسب، مثال: فروش ویژه\">' + '</label>'",
+      "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "          product: src && src.product || '',",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "    $('gpPlanApplyExisting').addEventListener('change', function () {",
+      "new": "    void window.gpOfferPlanEditor.mount('gpPlanApply');\n    $('gpPlanApplyExisting').addEventListener('change', function () {",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "'<label>مقدار تخفیف<input id=\"gpPlanDiscount\" placeholder=\"درصد یا مبلغ به تومان\" inputmode=\"numeric\"></label>' + window.gpOfferPlanEditor.markup('gpPlan') +",
+      "new": "window.gpOfferPlanEditor.markup('gpPlan') +",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "'<select id=\"gpPlanExisting\"><option value=\"\">طرح تازه بساز</option></select>'",
+      "new": "'<label>انتخاب طرح' + '<select id=\"gpPlanExisting\"><option value=\"\">طرح تازه بساز</option></select>' + '</label>'",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "'<input id=\"gpPlanTitle\" placeholder=\"عنوان طرح یا تخفیف\">'",
+      "new": "'<label>عنوان طرح' + '<input id=\"gpPlanTitle\" placeholder=\"عنوان طرح یا تخفیف\">' + '</label>'",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "'<input id=\"gpPlanBadge\" placeholder=\"برچسب، مثال: فروش ویژه\">'",
+      "new": "'<label>برچسب' + '<input id=\"gpPlanBadge\" placeholder=\"برچسب، مثال: فروش ویژه\">' + '</label>'",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "          product: src && src.product || '',",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "    if ($('gpPlanCustSearch')) $('gpPlanCustSearch').addEventListener('input', paintPickList);",
+      "new": "    void window.gpOfferPlanEditor.mount('gpPlan');\n    if ($('gpPlanCustSearch')) $('gpPlanCustSearch').addEventListener('input', paintPickList);",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "function offer_discount_for_items($offer,$items,$subtotal){$eligible=0;$product=trim((string)($offer['product']??''));foreach($items as $it){if($product!==''&&($it['product']??'')!==$product)continue;$eligible+=(int)($it['line_total']??0);}if($eligible<=0)return 0;$type=(string)($offer['discount_type']??'none');$value=max(0,(int)($offer['discount_value']??0));if($type==='percent')return min($eligible,(int)floor($eligible*min(100,$value)/100));if($type==='amount')return min($eligible,$value);return 0;}",
+      "new": "function offer_discount_for_items($offer,$items,$subtotal){require_once __DIR__.'/lib/offer-product-scope.php';return GpOfferProductScope::discount($offer,$items);}",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "if($p==='/api/offers/save'&&$m==='POST'){",
+      "new": "if($p==='/api/offers/save'&&$m==='POST'){require_once __DIR__.'/lib/offer-product-scope.php';",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "        $item=['title'=>$title,'description'=>trim((string)($x['description']??'')),'badge'=>trim((string)($x['badge']??'پیشنهاد ویژه')),'product'=>trim((string)($x['product']??'')),'start_date'=>trim((string)($x['start_date']??'')),'end_date'=>trim((string)($x['end_date']??'')),'active'=>!empty($x['active']),'audience'=>$audience,'customer_ids'=>$audience==='selected'?$customerIds:[],'discount_type'=>$discountType,'discount_value'=>$discountValue,'promo_code'=>$promo,'one_time_per_customer'=>!empty($x['one_time_per_customer']),'updated_at'=>now()];",
+      "new": "        try{$gpOfferProducts=GpOfferProductScope::normalize($x,$s['products']??[]);}catch(InvalidArgumentException $error){fail($error->getMessage(),422);}\n        $item=['title'=>$title,'description'=>trim((string)($x['description']??'')),'badge'=>trim((string)($x['badge']??'پیشنهاد ویژه')),'product'=>trim((string)($x['product']??'')),'start_date'=>trim((string)($x['start_date']??'')),'end_date'=>trim((string)($x['end_date']??'')),'active'=>!empty($x['active']),'audience'=>$audience,'customer_ids'=>$audience==='selected'?$customerIds:[],'discount_type'=>$discountType,'discount_value'=>$discountValue,'promo_code'=>$promo,'one_time_per_customer'=>!empty($x['one_time_per_customer']),'updated_at'=>now()];\n        $item['products']=$gpOfferProducts;$item['product']=count($gpOfferProducts)===1?$gpOfferProducts[0]:'';",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "if($p==='/api/offers'&&$m==='GET'){",
+      "new": "if($p==='/api/offers'&&$m==='GET'){require_once __DIR__.'/lib/offer-product-scope.php';",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "foreach($rows as &$o)$o['used_by_customer']=",
+      "new": "$rows=GpOfferProductScope::visibleToClient($rows,$_SERVER);foreach($rows as &$o)$o['used_by_customer']=",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "function offer_discount_for_items($offer,$items,$subtotal){$eligible=0;$product=trim((string)($offer['product']??''));foreach($items as $it){if($product!==''&&($it['product']??'')!==$product)continue;$eligible+=(int)($it['line_total']??0);}if($eligible<=0)return 0;$type=(string)($offer['discount_type']??'none');$value=max(0,(int)($offer['discount_value']??0));if($type==='percent')return min($eligible,(int)floor($eligible*min(100,$value)/100));if($type==='amount')return min($eligible,$value);return 0;}",
+      "new": "function offer_discount_for_items($offer,$items,$subtotal){require_once dirname(__DIR__).'/lib/offer-product-scope.php';return GpOfferProductScope::discount($offer,$items);}",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if($p==='/api/offers/save'&&$m==='POST'){",
+      "new": "if($p==='/api/offers/save'&&$m==='POST'){require_once dirname(__DIR__).'/lib/offer-product-scope.php';",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "        $item=['title'=>$title,'description'=>trim((string)($x['description']??'')),'badge'=>trim((string)($x['badge']??'پیشنهاد ویژه')),'product'=>trim((string)($x['product']??'')),'start_date'=>trim((string)($x['start_date']??'')),'end_date'=>trim((string)($x['end_date']??'')),'active'=>!empty($x['active']),'audience'=>$audience,'customer_ids'=>$audience==='selected'?$customerIds:[],'discount_type'=>$discountType,'discount_value'=>$discountValue,'promo_code'=>$promo,'one_time_per_customer'=>!empty($x['one_time_per_customer']),'updated_at'=>now()];",
+      "new": "        try{$gpOfferProducts=GpOfferProductScope::normalize($x,$s['products']??[]);}catch(InvalidArgumentException $error){fail($error->getMessage(),422);}\n        $item=['title'=>$title,'description'=>trim((string)($x['description']??'')),'badge'=>trim((string)($x['badge']??'پیشنهاد ویژه')),'product'=>trim((string)($x['product']??'')),'start_date'=>trim((string)($x['start_date']??'')),'end_date'=>trim((string)($x['end_date']??'')),'active'=>!empty($x['active']),'audience'=>$audience,'customer_ids'=>$audience==='selected'?$customerIds:[],'discount_type'=>$discountType,'discount_value'=>$discountValue,'promo_code'=>$promo,'one_time_per_customer'=>!empty($x['one_time_per_customer']),'updated_at'=>now()];\n        $item['products']=$gpOfferProducts;$item['product']=count($gpOfferProducts)===1?$gpOfferProducts[0]:'';",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if($p==='/api/offers'&&$m==='GET'){",
+      "new": "if($p==='/api/offers'&&$m==='GET'){require_once dirname(__DIR__).'/lib/offer-product-scope.php';",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "foreach($rows as &$o)$o['used_by_customer']=",
+      "new": "$rows=GpOfferProductScope::visibleToClient($rows,$_SERVER);foreach($rows as &$o)$o['used_by_customer']=",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "<script src=\"/assets/offer-plan-code.js?v=20261031activeforms\"></script>",
+      "new": "<link rel=\"stylesheet\" href=\"/assets/offer-plan-code.css?v=20261031scope\">\n<script src=\"/assets/offer-plan-code.js?v=20261031scope\"></script>",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons&offerfix=20261031forms",
+      "new": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons&offerfix=20261031forms&scope=20261031multi",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/sales-plans-menu-v1.js?v=1&whfix=20261028a&offerfix=20261031forms",
+      "new": "/assets/sales-plans-menu-v1.js?v=1&whfix=20261028a&offerfix=20261031forms&scope=20261031multi",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
-    "index.php": "97feb8d5f62fa615cc59cb33f51fc3b7bd76b78e4022d86b2ad53212d2cbf4aa",
+    "index.php": "31423a9c91bbc0817faa9666d0090f1ea3cf00542024c03f66c3ff127dda688b",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "f5fac4efa1f94f3afeecb9bf59ae4c69f6d30bac7651d2486df11be0be7879e1",
+    "app.html": "f02c7d1ed0fbcb18e831f3fb7fe6fa1d2d479b9b7e8df1d6bcd0921d8d255c6b",
     "partners/portal.html": "a957c020c9f46533b796857af00d266a51ca4e72e9ebb22b90acc856f3e76311",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "6c1fd2b2f82ce15afc24aff31160c96cab0896b7b3beb15b6f4307d50bd79d4b",
     "partners/sw.js": "c5dafe05a818ad90521e4c1762b46aaba61cf75712a5858f9c184412c8696362",
     "partners/figma-android.js": "21af423c67247f6fbee60453f31f971cffbb8df0efc5aca6cf828212ec1f3b91",
-    "partners/index.php": "85ffca20d24023a55b6cc516baaf3e1f107cbab4d5b85a77beb7109f624269a2",
+    "partners/index.php": "d0749cb82092650271b6ba90daed44c5d8a61bb32d614ebf310babf4f63a1a37",
     "partners/figma-android.css": "75d5a5c999ff39ac3e80007c9d4d692e912db7d6bd27e01bc64dce2d8d5cab1d",
     "partners/native-r51-inbox.php": "438fe08cc7b0d0cd2851d6761536aef94b270c632ac5f34ca20edcc790a9ec3a",
     "lib/customer-price-access.php": "5230b62245be0b3b98ed7e10e2494aaa7a8fb1cd36ee5eb71856eaffff254a16",
@@ -1140,7 +1290,7 @@
     "assets/business-v53437.css": "14960222d3a903c220c025b2245358055a635b0fc1d0f3d337dceb111205a807",
     "assets/order-track-orders-v1.js": "849150fee3c27fff862b643a542228a2c3365bccd04d744a7a1a94d31cc4609a",
     "assets/order-action-burger-v1.js": "a76230b12bc9d273a9c682ff4717fc0e059556e47bb207a201e69cc1dde14cf9",
-    "assets/sales-plans-menu-v1.js": "3b030b741987c1ce77941e107bcaae713c53678854c492b1743cc81cc77716a1",
+    "assets/sales-plans-menu-v1.js": "0780d8f053909e7f9d02f80a4d6acf9b3d83115932e9ffac029703d0d376ff3f",
     "assets/menu-live-v4.js": "ab92f0f0d3a05e6c6b67715e25883b978711e0b5ac2f6418e0492c19c5227f1b",
     "assets/customer-ops-stabilize-v1.js": "6814a9eb65401f48828a6e51b0a40a85d6827d501e838d5e6af2b92791769898",
     "assets/shell-combo-v1.js": "a71571fc27c401a75b6c4ae6db81d50f3dc9071e1ba8e28dea3a7310537b1b4f",
@@ -1169,7 +1319,7 @@
     "assets/plans-icon-agent-lock-v1.js": "6fe45aaa491b453d0bbc63875f9c185bf497f79f1535d4b1aafe33b1c50ed43b",
     "assets/ops-v53430.js": "9e894f8eb5e2f01c493bdcda210a076e0bc1b4c889db856711f2e80a273ac359",
     "assets/warehouse-ledger-eod-freeze-v1.js": "7e7be4c624578b666f6d18b181fb39c170cfeb2ad88ecd5b34dda6745ae8a4ec",
-    "assets/kartabl-sync-v1.js": "c80487ea49f6aa490be6e257aaf8bb4c374670cd505d253792512d14b1e11778",
+    "assets/kartabl-sync-v1.js": "3a26437e8ca7579c1719e0d50580e8dfb407443fa39da3a5c6e31f758f0c3295",
     "assets/warehouse-serial-filters-v2.css": "53a627f798f705ad14fea8b91bdd6cbbfe15bb583a8c9bb934f87cf336427690",
     "assets/ops-coop-strip-v3.js": "9396694e990dad7f8c05c6044511347bd0ecb7980a5ef37373af86f286a09b28",
     "assets/sidebar-edge-profile-v2.js": "7af357f377a56213e3442aebfff715c4af6665c8360fe14a9655e8dc4b86df59",
@@ -1209,7 +1359,9 @@
     "lib/customer-credit-routes.php": "f4dc56ba4ebeb9397f6557a7550a31cb21278c6462c5dfc1ea22d7ba30cb98cf",
     "config/customer-credit.yaml": "f287d7df9621e23a98241b5c246458a54a1f063d970aef1691a7082c23b8d741",
     "assets/customer-credit.js": "bd9ebe9b2d1def9d72afe832ebd769eff97fa5b1ecac4029b5d60d7669f145a9",
-    "assets/offer-plan-code.js": "9324b63e41da28a759c0c3af83afccb2783b3cd84c110007d30d2bf24ff61f25"
+    "assets/offer-plan-code.js": "ef97ef17511ec07d64f3acd8087736db03e0c8c1738fbe6ae2d489b6e36a38c6",
+    "assets/offer-plan-code.css": "43e236c19809436f26dc2d730e56843524681cdf7c3c60eed1b72511d601e6d8",
+    "lib/offer-product-scope.php": "d13a748810705fbbaf8d5225161b7a86bd961f38f0f0f90d76d0f1d5abdf0f34"
   },
   "protected_cartons": [
     "I90-097",
@@ -1246,6 +1398,8 @@
     "lib/customer-credit-routes.php",
     "config/customer-credit.yaml",
     "assets/customer-credit.js",
-    "assets/offer-plan-code.js"
+    "assets/offer-plan-code.js",
+    "assets/offer-plan-code.css",
+    "lib/offer-product-scope.php"
   ]
 }
