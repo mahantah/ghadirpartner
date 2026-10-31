@@ -1,0 +1,9 @@
+# Customer monthly credit
+
+Managers configure «اعتبار ماهانه» from the customer action menu. Admin and finance roles can enable or disable credit and set a nonnegative integer toman limit. New and unconfigured customers have credit disabled. No balances or historical orders are migrated during installation.
+
+Available credit is the smaller of (limit minus current solar-month credit purchases) and (limit minus all outstanding credit invoices and pending credit requests), floored at zero. Existing Iranian calendar helpers and the site timezone define the month. Unused allowance does not carry forward. Paying this month's credit purchase does not recycle its monthly purchase quota. Previous-month debt continues to reduce availability until finance marks its invoice fully settled. Unreviewed receipts and a deposit status alone do not release credit. Canceled, deleted or company-rejected orders release reservations.
+
+Customers see their own balance, disabled/enabled credit choice and the exact existing company commitment. The server validates new or increased credit exposure in both automation and portal under the existing MySQL write lock, before committing. The shared rollback handler reports credit denials as HTTP 422. Cash purchases, existing serial allocation and unrelated order progression remain unchanged; reducing a limit below existing debt blocks additional purchases without rewriting old invoices. Settings updates retain actor/time.
+
+Validation: strict TypeScript/ESLint/Prettier, deterministic compiled JavaScript, pure financial policy fixtures, transaction rollback and sequential reservation fixtures, API role/identity fixtures, mobile/desktop browser fixtures and finite release tamper/rollback checks. Release validates ten code paths and the original 18 protected cartons, creates a private code checkpoint and writes no database state.
