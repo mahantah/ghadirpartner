@@ -57,3 +57,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+.gp-offer-editor .gp-offer-delete,
+.gp-offer-delete {
+  color: #a12828;
+  border: 1px solid #d9a5a5;
+  background: #fff5f5;
+}
+.gp-offer-editor button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

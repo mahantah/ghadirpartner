@@ -22,7 +22,10 @@ class Fixture {
   constructor(){
     this.fields=new Map();this.requests=[];this.errors=[];this.html='';
     const self=this;
-    this.context={HTMLInputElement:Field,HTMLSelectElement:Select,console,esc:String,
+    this.context={HTMLInputElement:Field,HTMLSelectElement:Select,HTMLButtonElement:Field,console,esc:String,
+      jalaliDate:v=>({'2026-10-31':'1405/08/09','2026-11-21':'1405/08/30'}[v]||''),
+      jalaliToGregorianIso:v=>({'1405/08/09':'2026-10-31','1405/08/30':'2026-11-21'}[v]||''),
+      confirm:()=>true,location:{reload:()=>{self.reloaded=true;}},
       document:{getElementById:id=>self.field(id),createElement:()=>({value:"",selected:false,textContent:""}),querySelector:()=>({value:'all'}),querySelectorAll:()=>[]},
       parseMoneyInput:value=>Number(String(value).replace(/[۰-۹]/g,c=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[,٬\s]/g,'')),
       $:id=>self.field(id), selectedIds:()=>[7], ensureOffers:async()=>[],
@@ -66,6 +69,19 @@ class Fixture {
     assert.deepEqual(body.products,['I90','M3P']);assert.equal(body.product,'');
     fixture.requests=[];fixture.context.gpOfferPlanEditor.fill(prefix,{product:'V77',discount_type:'amount',discount_value:100,promo_code:'LEGACY'});
     await fixture.context[method]();assert.deepEqual(fixture.requests[0].body.products,['V77']);
+  }
+  for(const [fixture,prefix] of [[page,'gpPlan'],[modal,'gpPlanApply']]){
+    const editor=fixture.context.gpOfferPlanEditor;
+    editor.fill(prefix,{id:9,start_date:'2026-10-31',end_date:'2026-11-21',max_uses:5});
+    assert.equal(fixture.field(prefix+'StartDate').value,'1405/08/09');
+    fixture.field(prefix+'MaxUses').value='۵';
+    let payload=editor.read(prefix);assert.equal(payload.start_date,'2026-10-31');assert.equal(payload.end_date,'2026-11-21');assert.equal(payload.max_uses,5);
+    fixture.field(prefix+'MaxUses').value='1.5';assert.throws(()=>editor.read(prefix),/عدد صحیح/);
+    fixture.field(prefix+'MaxUses').value='';assert.equal(editor.read(prefix).max_uses,0);
+    fixture.field(prefix+'StartDate').value='۱۴۰۵/۰۸/۳۰';fixture.field(prefix+'EndDate').value='۱۴۰۵/۰۸/۰۹';assert.throws(()=>editor.read(prefix),/قبل از شروع/);
+    fixture.field(prefix+'StartDate').value='1405/13/01';assert.throws(()=>editor.read(prefix),/معتبر نیست/);
+    fixture.requests=[];fixture.context.confirm=()=>false;await editor.remove(9);assert.equal(fixture.requests.length,0);
+    fixture.context.confirm=()=>true;await editor.remove(9);assert.equal(fixture.requests[0].path,'/api/offers/delete');assert.equal(fixture.requests[0].body.id,9);assert.equal(fixture.reloaded,true);
   }
   console.log('PASS: both active handlers submit multi-product arrays, preserve legacy scope and retain independent fields');
 })().catch(error=>{console.error(error);process.exitCode=1;});

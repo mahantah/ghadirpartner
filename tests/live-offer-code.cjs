@@ -20,7 +20,10 @@ class Fixture {
   constructor(){
     this.fields=new Map();this.requests=[];this.errors=[];this.html='';
     const self=this;
-    this.context={HTMLInputElement:Field,HTMLSelectElement:Select,console,esc:String,
+    this.context={HTMLInputElement:Field,HTMLSelectElement:Select,HTMLButtonElement:Field,console,esc:String,
+      jalaliDate:v=>({'2026-10-31':'1405/08/09','2026-11-21':'1405/08/30'}[v]||''),
+      jalaliToGregorianIso:v=>({'1405/08/09':'2026-10-31','1405/08/30':'2026-11-21'}[v]||''),
+      confirm:()=>true,location:{reload:()=>{self.reloaded=true;}},
       document:{getElementById:id=>self.field(id),createElement:()=>({value:"",selected:false,textContent:""}),querySelector:()=>({value:'all'}),querySelectorAll:()=>[]},
       parseMoneyInput:value=>Number(String(value).replace(/[۰-۹]/g,c=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[,٬\s]/g,'')),
       $:id=>self.field(id), selectedIds:()=>[7], ensureOffers:async()=>[],

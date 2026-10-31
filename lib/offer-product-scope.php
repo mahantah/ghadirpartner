@@ -17,6 +17,33 @@ final class GpOfferProductScope
         return array_values(array_unique($names));
     }
 
+    /** Validate the total redemption limit; zero retains unlimited legacy behavior. */
+    public static function limit(array $request): int
+    {
+        $raw = $request['max_uses'] ?? 0;
+        if (!is_int($raw) || $raw < 0 || $raw > 9007199254740991) throw new InvalidArgumentException('سقف استفاده باید عدد صحیح و نامنفی باشد');
+        return $raw;
+    }
+
+    /** Count each order once, including older orders that lacked a usage log. */
+    public static function usageCount(array $state, int $id): int
+    {
+        $orders = []; $unlinked = 0;
+        foreach ($state['offer_usages'] ?? [] as $row) {
+            if ((int)($row['offer_id'] ?? 0) !== $id) continue;
+            $orderId = (int)($row['order_id'] ?? 0);
+            if ($orderId > 0) $orders[$orderId] = true; else $unlinked++;
+        }
+        foreach ($state['orders'] ?? [] as $order) if ((int)($order['offer_id'] ?? 0) === $id && (int)($order['id'] ?? 0) > 0) $orders[(int)$order['id']] = true;
+        return count($orders) + $unlinked;
+    }
+
+    public static function exhausted(array $state, array $offer): bool
+    {
+        $limit = max(0, (int)($offer['max_uses'] ?? 0));
+        return $limit > 0 && self::usageCount($state, (int)($offer['id'] ?? 0)) >= $limit;
+    }
+
     /** New lists are authoritative; legacy single-product offers retain their old meaning. */
     public static function names(array $offer): array
     {

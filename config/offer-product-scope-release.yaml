@@ -161,19 +161,199 @@
     {
       "file": "assets/offer-plan-code.js",
       "old": "\"use strict\";\n(() => {\n    class OfferPlanEditor {\n        constructor(doc, parseMoney) {\n            this.doc = doc;\n            this.parseMoney = parseMoney;\n        }\n        /** Prefixes distinguish the page from the customer-operation modal. */\n        markup(prefix) {\n            return `<label>نوع تخفیف<select id=\"${prefix}DiscountType\"><option value=\"none\">بدون تخفیف مبلغی</option><option value=\"percent\">درصد تخفیف</option><option value=\"amount\">مبلغ تخفیف (تومان)</option></select></label><label style=\"grid-column:1 / -1\">کد تخفیف — الزامی برای تخفیف<input id=\"${prefix}PromoCode\" dir=\"ltr\" placeholder=\"مثال GHADIR10\" autocomplete=\"off\"><span class=\"small\">کد دلخواه و غیرتکراری خود را وارد کنید.</span></label>`;\n        }\n        /** Restore existing financial fields so changing the audience cannot erase them. */\n        fill(prefix, source = {}) {\n            this.field(prefix + \"DiscountType\").value =\n                source.discount_type || \"none\";\n            this.field(prefix + \"PromoCode\").value = source.promo_code || \"\";\n            this.field(prefix + \"Discount\").value = String(source.discount_value || \"\");\n        }\n        /** Validate before I/O and submit canonical numeric amounts and codes. */\n        read(prefix, source = {}) {\n            const type = this.field(prefix + \"DiscountType\").value;\n            const codeField = this.field(prefix + \"PromoCode\");\n            const code = codeField.value.replace(/\\s+/gu, \"\").toUpperCase();\n            const amount = type === \"none\"\n                ? 0\n                : this.parseMoney(this.field(prefix + \"Discount\").value);\n            if (![\"none\", \"percent\", \"amount\"].includes(type))\n                throw new Error(\"نوع تخفیف را انتخاب کنید\");\n            if (!Number.isSafeInteger(amount) ||\n                amount < 0 ||\n                (type !== \"none\" && amount < 1))\n                throw new Error(\"مقدار تخفیف معتبر وارد کنید\");\n            if (type === \"percent\" && amount > 100)\n                throw new Error(\"درصد تخفیف باید بین ۱ تا ۱۰۰ باشد\");\n            if (type !== \"none\" && !code) {\n                codeField.scrollIntoView({ block: \"center\" });\n                codeField.focus();\n                throw new Error(\"کد تخفیف را در کادر «کد تخفیف» وارد کنید؛ مثال GHADIR10\");\n            }\n            codeField.value = code;\n            return {\n                discount_type: type,\n                discount_value: amount,\n                promo_code: code,\n                one_time_per_customer: !!source.one_time_per_customer,\n            };\n        }\n        field(id) {\n            const field = this.doc.getElementById(id);\n            if (!(field instanceof HTMLInputElement) &&\n                !(field instanceof HTMLSelectElement))\n                throw new Error(\"فرم طرح کامل بارگذاری نشده؛ صفحه را تازه‌سازی کنید\");\n            return field;\n        }\n    }\n    Object.assign(window, {\n        gpOfferPlanEditor: new OfferPlanEditor(document, (value) => parseMoneyInput(value)),\n    });\n})();\n",
-      "new": "\"use strict\";\n(() => {\n    class OfferPlanEditor {\n        constructor(doc, parseMoney, loadCatalog) {\n            this.doc = doc;\n            this.parseMoney = parseMoney;\n            this.loadCatalog = loadCatalog;\n            this.catalog = null;\n            this.scopes = new Map();\n            this.ready = new Set();\n        }\n        /** Prefixes distinguish the page from the customer-operation modal. */\n        markup(prefix) {\n            return `<div class=\"gp-offer-editor\"><div class=\"gp-offer-row\"><label>نوع تخفیف<select id=\"${prefix}DiscountType\"><option value=\"none\">بدون تخفیف مبلغی</option><option value=\"percent\">درصد تخفیف</option><option value=\"amount\">مبلغ تخفیف (تومان)</option></select></label><label>مقدار تخفیف<input id=\"${prefix}Discount\" inputmode=\"numeric\" placeholder=\"درصد یا مبلغ به تومان\"></label></div><label>کد تخفیف<input id=\"${prefix}PromoCode\" dir=\"ltr\" placeholder=\"مثال GHADIR10\" autocomplete=\"off\"><span class=\"small\">برای تخفیف درصدی یا مبلغی، کد دلخواه و غیرتکراری وارد کنید.</span></label><label>کالاهای مشمول تخفیف<select id=\"${prefix}Products\" multiple aria-describedby=\"${prefix}ProductHint\" disabled></select><span id=\"${prefix}ProductHint\" class=\"small\">بدون انتخاب = همه کالاها. برای چند انتخاب در کامپیوتر Ctrl را نگه دارید.</span></label><button type=\"button\" id=\"${prefix}AllProducts\">همه کالاها</button><div id=\"${prefix}CatalogStatus\" role=\"status\">در حال دریافت کالاها…</div><button type=\"button\" id=\"${prefix}CatalogRetry\">دریافت دوباره کالاها</button></div>`;\n        }\n        /** Restore existing financial fields so changing the audience cannot erase them. */\n        fill(prefix, source = {}) {\n            const names = source.products ?? (source.product ? [source.product] : []);\n            this.scopes.set(prefix, names);\n            if (this.ready.has(prefix))\n                this.selectNames(prefix, names);\n            this.field(prefix + \"DiscountType\").value =\n                source.discount_type || \"none\";\n            this.field(prefix + \"PromoCode\").value = source.promo_code || \"\";\n            this.field(prefix + \"Discount\").value = String(source.discount_value || \"\");\n        }\n        /** Load product choices once and preserve the most recently selected offer during async loading. */\n        async mount(prefix) {\n            const select = this.productField(prefix);\n            const status = this.doc.getElementById(prefix + \"CatalogStatus\");\n            const retry = this.doc.getElementById(prefix + \"CatalogRetry\");\n            const allProducts = this.doc.getElementById(prefix + \"AllProducts\");\n            if (allProducts)\n                allProducts.onclick = () => {\n                    this.scopes.set(prefix, []);\n                    this.selectNames(prefix, []);\n                };\n            if (retry)\n                retry.onclick = () => {\n                    void this.mount(prefix);\n                };\n            select.disabled = true;\n            this.ready.delete(prefix);\n            try {\n                if (this.catalog === null) {\n                    const response = await this.loadCatalog();\n                    if (!Array.isArray(response))\n                        throw new Error(\"فهرست کالاها دریافت نشد\");\n                    this.catalog = response.map((row) => {\n                        if (typeof row !== \"object\" ||\n                            row === null ||\n                            !(\"name\" in row) ||\n                            typeof row.name !== \"string\" ||\n                            !row.name.trim())\n                            throw new Error(\"فهرست کالاها معتبر نیست\");\n                        return row.name;\n                    });\n                }\n                const selected = this.scopes.get(prefix) ?? [];\n                const names = [...new Set([...this.catalog, ...selected])];\n                select.replaceChildren();\n                for (const name of names) {\n                    const option = this.doc.createElement(\"option\");\n                    option.value = name;\n                    option.textContent = name;\n                    option.selected = selected.includes(name);\n                    select.append(option);\n                }\n                select.disabled = false;\n                this.ready.add(prefix);\n                select.onchange = () => this.scopes.set(prefix, Array.from(select.selectedOptions, (o) => o.value));\n                if (status)\n                    status.textContent =\n                        \"خالی بگذارید تا تخفیف برای همه کالاها باشد؛ یا یک یا چند کالا انتخاب کنید.\";\n                if (retry)\n                    retry.hidden = true;\n            }\n            catch (error) {\n                if (status)\n                    status.textContent =\n                        error instanceof Error ? error.message : \"دریافت کالاها ناموفق بود\";\n                if (retry)\n                    retry.hidden = false;\n            }\n        }\n        selectNames(prefix, names) {\n            const select = this.productField(prefix);\n            const existing = new Set(Array.from(select.options, (option) => option.value));\n            for (const name of names)\n                if (!existing.has(name)) {\n                    const option = this.doc.createElement(\"option\");\n                    option.value = name;\n                    option.textContent = name;\n                    select.append(option);\n                }\n            for (const option of this.productField(prefix).options)\n                option.selected = names.includes(option.value);\n        }\n        productField(prefix) {\n            const field = this.field(prefix + \"Products\");\n            if (!(field instanceof HTMLSelectElement))\n                throw new Error(\"انتخاب کالاها در دسترس نیست\");\n            return field;\n        }\n        /** Validate before I/O and submit canonical numeric amounts and codes. */\n        read(prefix, source = {}) {\n            if (!this.ready.has(prefix))\n                throw new Error(\"ابتدا فهرست کالاهای طرح را دریافت کنید\");\n            const products = Array.from(this.productField(prefix).selectedOptions, (option) => option.value);\n            const type = this.field(prefix + \"DiscountType\").value;\n            const codeField = this.field(prefix + \"PromoCode\");\n            const code = codeField.value.replace(/\\s+/gu, \"\").toUpperCase();\n            const amount = type === \"none\"\n                ? 0\n                : this.parseMoney(this.field(prefix + \"Discount\").value);\n            if (![\"none\", \"percent\", \"amount\"].includes(type))\n                throw new Error(\"نوع تخفیف را انتخاب کنید\");\n            if (!Number.isSafeInteger(amount) ||\n                amount < 0 ||\n                (type !== \"none\" && amount < 1))\n                throw new Error(\"مقدار تخفیف معتبر وارد کنید\");\n            if (type === \"percent\" && amount > 100)\n                throw new Error(\"درصد تخفیف باید بین ۱ تا ۱۰۰ باشد\");\n            if (type !== \"none\" && !code) {\n                codeField.scrollIntoView({ block: \"center\" });\n                codeField.focus();\n                throw new Error(\"کد تخفیف را در کادر «کد تخفیف» وارد کنید؛ مثال GHADIR10\");\n            }\n            codeField.value = code;\n            return {\n                products,\n                product: products.length === 1 ? (products[0] ?? \"\") : \"\",\n                discount_type: type,\n                discount_value: amount,\n                promo_code: code,\n                one_time_per_customer: !!source.one_time_per_customer,\n            };\n        }\n        field(id) {\n            const field = this.doc.getElementById(id);\n            if (!(field instanceof HTMLInputElement) &&\n                !(field instanceof HTMLSelectElement))\n                throw new Error(\"فرم طرح کامل بارگذاری نشده؛ صفحه را تازه‌سازی کنید\");\n            return field;\n        }\n    }\n    Object.assign(window, {\n        gpOfferPlanEditor: new OfferPlanEditor(document, (value) => parseMoneyInput(value), () => req(\"/api/catalog\")),\n    });\n})();\n",
+      "new": "\"use strict\";\n(() => {\n    class OfferPlanEditor {\n        constructor(doc, parseMoney, loadCatalog) {\n            this.doc = doc;\n            this.parseMoney = parseMoney;\n            this.loadCatalog = loadCatalog;\n            this.catalog = null;\n            this.scopes = new Map();\n            this.ready = new Set();\n            this.offers = new Map();\n        }\n        /** Prefixes distinguish the page from the customer-operation modal. */\n        markup(prefix) {\n            return `<div class=\"gp-offer-editor\"><div class=\"gp-offer-row\"><label>نوع تخفیف<select id=\"${prefix}DiscountType\"><option value=\"none\">بدون تخفیف مبلغی</option><option value=\"percent\">درصد تخفیف</option><option value=\"amount\">مبلغ تخفیف (تومان)</option></select></label><label>مقدار تخفیف<input id=\"${prefix}Discount\" inputmode=\"numeric\" placeholder=\"درصد یا مبلغ به تومان\"></label></div><label>کد تخفیف<input id=\"${prefix}PromoCode\" dir=\"ltr\" placeholder=\"مثال GHADIR10\" autocomplete=\"off\"><span class=\"small\">برای تخفیف درصدی یا مبلغی، کد دلخواه و غیرتکراری وارد کنید.</span></label><div class=\"gp-offer-row\"><label>تاریخ شروع (شمسی)<input id=\"${prefix}StartDate\" dir=\"ltr\" placeholder=\"۱۴۰۵/۰۸/۰۹\" inputmode=\"numeric\"></label><label>تاریخ پایان (شمسی)<input id=\"${prefix}EndDate\" dir=\"ltr\" placeholder=\"۱۴۰۵/۰۸/۳۰\" inputmode=\"numeric\"></label></div><label>سقف کل دفعات استفاده<input id=\"${prefix}MaxUses\" inputmode=\"numeric\" placeholder=\"خالی یا صفر = نامحدود\"><span id=\"${prefix}UsageCount\" class=\"small\">سقف برای مجموع استفاده همه مشتریان است؛ هر سفارش موفق یک استفاده محسوب می‌شود.</span></label><label>کالاهای مشمول تخفیف<select id=\"${prefix}Products\" multiple aria-describedby=\"${prefix}ProductHint\" disabled></select><span id=\"${prefix}ProductHint\" class=\"small\">بدون انتخاب = همه کالاها. برای چند انتخاب در کامپیوتر Ctrl را نگه دارید.</span></label><button type=\"button\" id=\"${prefix}AllProducts\">همه کالاها</button><div id=\"${prefix}CatalogStatus\" role=\"status\">در حال دریافت کالاها…</div><button type=\"button\" id=\"${prefix}CatalogRetry\">دریافت دوباره کالاها</button><button type=\"button\" class=\"gp-offer-delete\" id=\"${prefix}Delete\" disabled>حذف طرح / کد تخفیف</button></div>`;\n        }\n        /** Restore existing financial fields so changing the audience cannot erase them. */\n        fill(prefix, source = {}) {\n            this.offers.set(prefix, source.id || 0);\n            const remove = this.doc.getElementById(prefix + \"Delete\");\n            if (remove instanceof HTMLButtonElement)\n                remove.disabled = !source.id;\n            this.field(prefix + \"StartDate\").value = jalaliDate(source.start_date || \"\");\n            this.field(prefix + \"EndDate\").value = jalaliDate(source.end_date || \"\");\n            this.field(prefix + \"MaxUses\").value = String(source.max_uses || \"\");\n            const usage = this.doc.getElementById(prefix + \"UsageCount\");\n            if (usage)\n                usage.textContent = `استفاده‌شده: ${Number(source.usage_count || 0).toLocaleString(\"fa-IR\")} بار — سقف برای مجموع همه مشتریان؛ صفر یا خالی = نامحدود.`;\n            const names = source.products ?? (source.product ? [source.product] : []);\n            this.scopes.set(prefix, names);\n            if (this.ready.has(prefix))\n                this.selectNames(prefix, names);\n            this.field(prefix + \"DiscountType\").value =\n                source.discount_type || \"none\";\n            this.field(prefix + \"PromoCode\").value = source.promo_code || \"\";\n            this.field(prefix + \"Discount\").value = String(source.discount_value || \"\");\n        }\n        /** Load product choices once and preserve the most recently selected offer during async loading. */\n        async mount(prefix) {\n            const remove = this.doc.getElementById(prefix + \"Delete\");\n            if (remove)\n                remove.onclick = () => {\n                    void this.remove(this.offers.get(prefix) || 0);\n                };\n            const select = this.productField(prefix);\n            const status = this.doc.getElementById(prefix + \"CatalogStatus\");\n            const retry = this.doc.getElementById(prefix + \"CatalogRetry\");\n            const allProducts = this.doc.getElementById(prefix + \"AllProducts\");\n            if (allProducts)\n                allProducts.onclick = () => {\n                    this.scopes.set(prefix, []);\n                    this.selectNames(prefix, []);\n                };\n            if (retry)\n                retry.onclick = () => {\n                    void this.mount(prefix);\n                };\n            select.disabled = true;\n            this.ready.delete(prefix);\n            try {\n                if (this.catalog === null) {\n                    const response = await this.loadCatalog();\n                    if (!Array.isArray(response))\n                        throw new Error(\"فهرست کالاها دریافت نشد\");\n                    this.catalog = response.map((row) => {\n                        if (typeof row !== \"object\" ||\n                            row === null ||\n                            !(\"name\" in row) ||\n                            typeof row.name !== \"string\" ||\n                            !row.name.trim())\n                            throw new Error(\"فهرست کالاها معتبر نیست\");\n                        return row.name;\n                    });\n                }\n                const selected = this.scopes.get(prefix) ?? [];\n                const names = [...new Set([...this.catalog, ...selected])];\n                select.replaceChildren();\n                for (const name of names) {\n                    const option = this.doc.createElement(\"option\");\n                    option.value = name;\n                    option.textContent = name;\n                    option.selected = selected.includes(name);\n                    select.append(option);\n                }\n                select.disabled = false;\n                this.ready.add(prefix);\n                select.onchange = () => this.scopes.set(prefix, Array.from(select.selectedOptions, (o) => o.value));\n                if (status)\n                    status.textContent =\n                        \"خالی بگذارید تا تخفیف برای همه کالاها باشد؛ یا یک یا چند کالا انتخاب کنید.\";\n                if (retry)\n                    retry.hidden = true;\n            }\n            catch (error) {\n                if (status)\n                    status.textContent =\n                        error instanceof Error ? error.message : \"دریافت کالاها ناموفق بود\";\n                if (retry)\n                    retry.hidden = false;\n            }\n        }\n        selectNames(prefix, names) {\n            const select = this.productField(prefix);\n            const existing = new Set(Array.from(select.options, (option) => option.value));\n            for (const name of names)\n                if (!existing.has(name)) {\n                    const option = this.doc.createElement(\"option\");\n                    option.value = name;\n                    option.textContent = name;\n                    select.append(option);\n                }\n            for (const option of this.productField(prefix).options)\n                option.selected = names.includes(option.value);\n        }\n        productField(prefix) {\n            const field = this.field(prefix + \"Products\");\n            if (!(field instanceof HTMLSelectElement))\n                throw new Error(\"انتخاب کالاها در دسترس نیست\");\n            return field;\n        }\n        /** Validate before I/O and submit canonical numeric amounts and codes. */\n        read(prefix, source = {}) {\n            if (!this.ready.has(prefix))\n                throw new Error(\"ابتدا فهرست کالاهای طرح را دریافت کنید\");\n            const startDate = this.date(prefix + \"StartDate\");\n            const endDate = this.date(prefix + \"EndDate\");\n            if (startDate && endDate && startDate > endDate)\n                throw new Error(\"تاریخ پایان نمی‌تواند قبل از شروع باشد\");\n            const rawLimit = this.digits(this.field(prefix + \"MaxUses\").value).trim();\n            if (rawLimit && !/^\\d+$/u.test(rawLimit))\n                throw new Error(\"تعداد دفعات استفاده باید عدد صحیح و نامنفی باشد\");\n            const maxUses = Number(rawLimit || 0);\n            if (!Number.isSafeInteger(maxUses) || maxUses < 0)\n                throw new Error(\"سقف استفاده معتبر نیست\");\n            const products = Array.from(this.productField(prefix).selectedOptions, (option) => option.value);\n            const type = this.field(prefix + \"DiscountType\").value;\n            const codeField = this.field(prefix + \"PromoCode\");\n            const code = codeField.value.replace(/\\s+/gu, \"\").toUpperCase();\n            const amount = type === \"none\"\n                ? 0\n                : this.parseMoney(this.field(prefix + \"Discount\").value);\n            if (![\"none\", \"percent\", \"amount\"].includes(type))\n                throw new Error(\"نوع تخفیف را انتخاب کنید\");\n            if (!Number.isSafeInteger(amount) ||\n                amount < 0 ||\n                (type !== \"none\" && amount < 1))\n                throw new Error(\"مقدار تخفیف معتبر وارد کنید\");\n            if (type === \"percent\" && amount > 100)\n                throw new Error(\"درصد تخفیف باید بین ۱ تا ۱۰۰ باشد\");\n            if (type !== \"none\" && !code) {\n                codeField.scrollIntoView({ block: \"center\" });\n                codeField.focus();\n                throw new Error(\"کد تخفیف را در کادر «کد تخفیف» وارد کنید؛ مثال GHADIR10\");\n            }\n            codeField.value = code;\n            return {\n                start_date: startDate,\n                end_date: endDate,\n                max_uses: maxUses,\n                products,\n                product: products.length === 1 ? (products[0] ?? \"\") : \"\",\n                discount_type: type,\n                discount_value: amount,\n                promo_code: code,\n                one_time_per_customer: !!source.one_time_per_customer,\n            };\n        }\n        /** Confirm deletion and retain historical order references on the server. */\n        async remove(id) {\n            if (!Number.isSafeInteger(id) || id < 1)\n                return;\n            if (!window.confirm(\"این طرح و کد تخفیف حذف شود؟ سوابق استفاده در سفارش‌ها حفظ می‌شود.\"))\n                return;\n            try {\n                await req(\"/api/offers/delete\", {\n                    method: \"POST\",\n                    headers: { \"Content-Type\": \"application/json\" },\n                    body: JSON.stringify({ id }),\n                });\n                window.location.reload();\n            }\n            catch (error) {\n                window.alert(error instanceof Error ? error.message : \"حذف طرح انجام نشد\");\n            }\n        }\n        digits(value) {\n            return value\n                .replace(/[۰-۹]/gu, (c) => String(\"۰۱۲۳۴۵۶۷۸۹\".indexOf(c)))\n                .replace(/[٠-٩]/gu, (c) => String(\"٠١٢٣٤٥٦٧٨٩\".indexOf(c)));\n        }\n        date(id) {\n            const text = this.digits(this.field(id).value).trim().replace(/-/gu, \"/\");\n            if (!text)\n                return \"\";\n            const parts = text.match(/^(\\d{4})\\/(\\d{1,2})\\/(\\d{1,2})$/u);\n            if (!parts)\n                throw new Error(\"تاریخ شمسی را به شکل ۱۴۰۵/۰۸/۰۹ وارد کنید\");\n            const normalized = `${parts[1]}/${String(Number(parts[2])).padStart(2, \"0\")}/${String(Number(parts[3])).padStart(2, \"0\")}`;\n            const iso = jalaliToGregorianIso(normalized);\n            if (!iso || jalaliDate(iso) !== normalized)\n                throw new Error(\"تاریخ شمسی معتبر نیست\");\n            return iso;\n        }\n        field(id) {\n            const field = this.doc.getElementById(id);\n            if (!(field instanceof HTMLInputElement) &&\n                !(field instanceof HTMLSelectElement))\n                throw new Error(\"فرم طرح کامل بارگذاری نشده؛ صفحه را تازه‌سازی کنید\");\n            return field;\n        }\n    }\n    Object.assign(window, {\n        gpOfferPlanEditor: new OfferPlanEditor(document, (value) => parseMoneyInput(value), () => req(\"/api/catalog\")),\n    });\n})();\n",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "function offer_by_code($s,$code,$customerId){",
+      "new": "function offer_by_code($s,$code,$customerId){require_once __DIR__.'/lib/offer-product-scope.php';",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "if(!offer_is_active_for_customer($o,(int)$customerId))continue;",
+      "new": "if(!offer_is_active_for_customer($o,(int)$customerId))continue;if(GpOfferProductScope::exhausted($s,$o))fail('سقف دفعات استفاده از این کد تخفیف تکمیل شده است',409);",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "$today=date('Y-m-d');if(empty($o['active']))return false;",
+      "new": "$today=date('Y-m-d');if(!empty($o['deleted'])||empty($o['active']))return false;",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "try{$gpOfferProducts=GpOfferProductScope::normalize($x,$s['products']??[]);}",
+      "new": "try{$gpOfferProducts=GpOfferProductScope::normalize($x,$s['products']??[]);$gpOfferLimit=GpOfferProductScope::limit($x);}",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "        $item['products']=$gpOfferProducts;",
+      "new": "        if($oldOfferIndex>=0&&!empty($s['special_offers'][$oldOfferIndex]['deleted']))fail('طرح حذف شده است',404);\n        $item['max_uses']=$gpOfferLimit;\n        $item['products']=$gpOfferProducts;",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "$all=$s['special_offers']??[];$usage=offer_usage_rows($s);",
+      "new": "$all=array_values(array_filter($s['special_offers']??[],fn($o)=>empty($o['deleted'])));$usage=offer_usage_rows($s);",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "$o['usage_count']=count(array_filter($usage,fn($x)=>(int)($x['offer_id']??0)===$oid));",
+      "new": "$o['usage_count']=GpOfferProductScope::usageCount($s,$oid);",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "$rows=GpOfferProductScope::visibleToClient($rows,$_SERVER);",
+      "new": "$rows=array_values(array_filter($rows,fn($o)=>!GpOfferProductScope::exhausted($s,$o)));$rows=GpOfferProductScope::visibleToClient($rows,$_SERVER);",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "if($p==='/api/offers/save'&&$m==='POST'){",
+      "new": "if($p==='/api/offers/delete'&&$m==='POST'){\n    auth(['admin']);$x=input();if(!is_int($x['id']??null)||$x['id']<1)fail('شناسه طرح معتبر نیست',422);\n    out(db(true,function(&$s)use($x){$i=idx($s['special_offers'],$x['id']);if($i<0)fail('طرح پیدا نشد',404);$s['special_offers'][$i]['deleted']=true;$s['special_offers'][$i]['active']=false;$s['special_offers'][$i]['updated_at']=now();return ['ok'=>true];}));\n}\nif($p==='/api/offers/save'&&$m==='POST'){",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "function offer_by_code($s,$code,$customerId){",
+      "new": "function offer_by_code($s,$code,$customerId){require_once dirname(__DIR__).'/lib/offer-product-scope.php';",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if(!offer_is_active_for_customer($o,(int)$customerId))continue;",
+      "new": "if(!offer_is_active_for_customer($o,(int)$customerId))continue;if(GpOfferProductScope::exhausted($s,$o))fail('سقف دفعات استفاده از این کد تخفیف تکمیل شده است',409);",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$today=date('Y-m-d');if(empty($o['active']))return false;",
+      "new": "$today=date('Y-m-d');if(!empty($o['deleted'])||empty($o['active']))return false;",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "try{$gpOfferProducts=GpOfferProductScope::normalize($x,$s['products']??[]);}",
+      "new": "try{$gpOfferProducts=GpOfferProductScope::normalize($x,$s['products']??[]);$gpOfferLimit=GpOfferProductScope::limit($x);}",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "        $item['products']=$gpOfferProducts;",
+      "new": "        if($oldOfferIndex>=0&&!empty($s['special_offers'][$oldOfferIndex]['deleted']))fail('طرح حذف شده است',404);\n        $item['max_uses']=$gpOfferLimit;\n        $item['products']=$gpOfferProducts;",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$all=$s['special_offers']??[];$usage=offer_usage_rows($s);",
+      "new": "$all=array_values(array_filter($s['special_offers']??[],fn($o)=>empty($o['deleted'])));$usage=offer_usage_rows($s);",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$o['usage_count']=count(array_filter($usage,fn($x)=>(int)($x['offer_id']??0)===$oid));",
+      "new": "$o['usage_count']=GpOfferProductScope::usageCount($s,$oid);",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$rows=GpOfferProductScope::visibleToClient($rows,$_SERVER);",
+      "new": "$rows=array_values(array_filter($rows,fn($o)=>!GpOfferProductScope::exhausted($s,$o)));$rows=GpOfferProductScope::visibleToClient($rows,$_SERVER);",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if($p==='/api/offers/save'&&$m==='POST'){",
+      "new": "if($p==='/api/offers/delete'&&$m==='POST'){\n    auth(['admin']);$x=input();if(!is_int($x['id']??null)||$x['id']<1)fail('شناسه طرح معتبر نیست',422);\n    out(db(true,function(&$s)use($x){$i=idx($s['special_offers'],$x['id']);if($i<0)fail('طرح پیدا نشد',404);$s['special_offers'][$i]['deleted']=true;$s['special_offers'][$i]['active']=false;$s['special_offers'][$i]['updated_at']=now();return ['ok'=>true];}));\n}\nif($p==='/api/offers/save'&&$m==='POST'){",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if($offer&&!empty($offer['one_time_per_customer'])){",
+      "new": "if($offer){",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if(offer_used_by_customer($s,(int)($offer['id']??0),(int)$c['id']))fail('این کد تخفیف قبلاً توسط شما استفاده شده است',409);",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$offers=array_values(array_filter(array_reverse($all),fn($o)=>!empty($o['active'])",
+      "new": "$offers=array_values(array_filter(array_reverse($all),fn($o)=>empty($o['deleted'])&&!empty($o['active'])",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$offers=array_values(array_filter(array_reverse($all),fn($o)=>empty($o['deleted'])&&!empty($o['active'])&&(($o['start_date']??'')===''||$o['start_date']<=$today)&&(($o['end_date']??'')===''||$o['end_date']>=$today)&&(($o['audience']??'all')==='all'||in_array($cid,array_map('intval',$o['customer_ids']??[]),true))));",
+      "new": "require_once dirname(__DIR__).'/lib/offer-product-scope.php';$offers=array_values(array_filter(array_reverse($all),fn($o)=>empty($o['deleted'])&&!empty($o['active'])&&(($o['start_date']??'')===''||$o['start_date']<=$today)&&(($o['end_date']??'')===''||$o['end_date']>=$today)&&(($o['audience']??'all')==='all'||in_array($cid,array_map('intval',$o['customer_ids']??[]),true))));$offers=array_values(array_filter($offers,fn($o)=>!GpOfferProductScope::exhausted($s,$o)));",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "          start_date: src && src.start_date || '',\n          end_date: src && src.end_date || '',",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "          start_date: src && src.start_date || '',\n          end_date: src && src.end_date || '',",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "    if (!o) return;\n    if ($('gpPlanTitle'))",
+      "new": "    if (!o) { window.gpOfferPlanEditor.fill('gpPlan', {}); return; }\n    if ($('gpPlanTitle'))",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "\">ویرایش</button></td></tr>';",
+      "new": "\">ویرایش</button> <button class=\"btnlight gp-offer-delete\" type=\"button\" onclick=\"window.gpOfferPlanEditor.remove(' + o.id + ')\">حذف</button></td></tr>';",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "$gpOfferLimit=GpOfferProductScope::limit($x);",
+      "new": "$gpOfferLimit=array_key_exists('max_uses',$x)?GpOfferProductScope::limit($x):($oldOfferIndex>=0?(int)($s['special_offers'][$oldOfferIndex]['max_uses']??0):0);",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$gpOfferLimit=GpOfferProductScope::limit($x);",
+      "new": "$gpOfferLimit=array_key_exists('max_uses',$x)?GpOfferProductScope::limit($x):($oldOfferIndex>=0?(int)($s['special_offers'][$oldOfferIndex]['max_uses']??0):0);",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if(in_array('admin',$u['roles']??[]))$offers=array_values(array_reverse($all));",
+      "new": "if(in_array('admin',$u['roles']??[]))$offers=array_values(array_filter(array_reverse($all),fn($o)=>empty($o['deleted'])));",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$offers=array_values(array_filter($offers,fn($o)=>!GpOfferProductScope::exhausted($s,$o)));",
+      "new": "$offers=GpOfferProductScope::visibleToClient(array_values(array_filter($offers,fn($o)=>!GpOfferProductScope::exhausted($s,$o))),$_SERVER);",
       "count": 1
     }
   ],
   "expected_files": {
-    "assets/kartabl-sync-v1.js": "3a26437e8ca7579c1719e0d50580e8dfb407443fa39da3a5c6e31f758f0c3295",
-    "assets/sales-plans-menu-v1.js": "0780d8f053909e7f9d02f80a4d6acf9b3d83115932e9ffac029703d0d376ff3f",
-    "index.php": "31423a9c91bbc0817faa9666d0090f1ea3cf00542024c03f66c3ff127dda688b",
-    "partners/index.php": "d0749cb82092650271b6ba90daed44c5d8a61bb32d614ebf310babf4f63a1a37",
+    "assets/kartabl-sync-v1.js": "a974102faa562f019113acc1d4c245ab3e4b86e95a59df4b1df5f31c76339981",
+    "assets/sales-plans-menu-v1.js": "e4de933982dc68163e61e9d88d062c16ecde37ff09e553a932214a2f597fdede",
+    "index.php": "a7ede06b0cc8f67afcc6dc307374f8e6272ab59a3619ee249d466e8859c7fdc2",
+    "partners/index.php": "21ab5b9578640a4cbb851edad9803d7aea693f3f08a1b034abaf8f18c079727d",
     "app.html": "f02c7d1ed0fbcb18e831f3fb7fe6fa1d2d479b9b7e8df1d6bcd0921d8d255c6b",
-    "assets/offer-plan-code.js": "4b1b8e7165fe4b10af80ca88ae5a5084d8878ed10a1841c6b010c7f5d2318436",
-    "assets/offer-plan-code.css": "fc43d83d421c6dd5555c7d10f44cf537ac1e8e2f618944fdec3156d5d9b112ab",
-    "lib/offer-product-scope.php": "d13a748810705fbbaf8d5225161b7a86bd961f38f0f0f90d76d0f1d5abdf0f34"
+    "assets/offer-plan-code.js": "738d0e1a59d9011c36b44936e378a0d423e3c32b045ec726237605bd0b1aab05",
+    "assets/offer-plan-code.css": "19f3cddb0150fb259e6364498be826efe12fa3f03c68e5ecba2276d57535a4f4",
+    "lib/offer-product-scope.php": "4c2a0701178f2b83374dfe95e569faf2ea99777f8a5b9d77ab0451683165fb84"
   },
   "protected_cartons": [
     "I90-097",
