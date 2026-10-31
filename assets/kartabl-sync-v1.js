@@ -429,6 +429,8 @@
       '<div class="gp-ops-sep"></div>' +
       '<button class="danger-menu" type="button" onclick="closeCustomerMenus();deleteCustomer(' + id + ')">حذف مشتری</button>';
     Array.prototype.forEach.call(menu.querySelectorAll('button'),customerActionIcon);
+    // Fit the completed list, including credit and icons, inside the visible viewport.
+    if(menu.getBoundingClientRect().bottom>innerHeight-8)menu.style.top=Math.max(8,innerHeight-menu.offsetHeight-8)+'px';
   }
 
   function wrapMenu() {

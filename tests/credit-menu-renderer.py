@@ -30,9 +30,9 @@ function closeCustomerMenus(){}window.gpCustomerCredit={open(id){opened=id}};
 try{
  for(const permitted of [true,false]){
   allowed=permitted;document.querySelector('.customer-menu')?.remove();
-  let menu=document.createElement('div');menu.className='order-menu customer-menu open';document.body.append(menu);
+  let menu=document.createElement('div');menu.className='order-menu customer-menu open';menu.style.cssText='position:fixed;top:95vh';document.body.append(menu);
   fillOpsMenu(42);fillOpsMenu(42);if([...menu.querySelectorAll('button')].some(b=>b.querySelectorAll('svg').length!==1))throw Error('missing or duplicate icon');let button=menu.querySelector('[data-gp-credit-action]');
-  if(!!button!==permitted||menu.querySelectorAll('[data-gp-credit-action]').length>1)throw Error('visibility');
+  if(menu.getBoundingClientRect().bottom>innerHeight-7)throw Error('menu outside viewport');if(!!button!==permitted||menu.querySelectorAll('[data-gp-credit-action]').length>1)throw Error('visibility');
   if(button){button.click();if(opened!==42)throw Error('wrong customer')}
   if(!menu.textContent.includes('ویرایش مشخصات')||!menu.textContent.includes('حذف مشتری'))throw Error('legacy actions');
  }
