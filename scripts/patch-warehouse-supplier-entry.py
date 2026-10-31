@@ -27,6 +27,16 @@ class WarehouseSupplierEntryPatch:
         if not isinstance(marker, str) or not marker or not isinstance(rules, list):
             raise ValueError("invalid_supplier_entry_policy")
         self._marker = marker
+        loader_old, loader_new = policy.get("loader_old"), policy.get("loader_new")
+        if (
+            not isinstance(loader_old, str)
+            or not loader_old
+            or not isinstance(loader_new, str)
+            or not loader_new.startswith(loader_old + "&")
+        ):
+            raise ValueError("invalid_supplier_entry_loader")
+        self._loader_old = loader_old
+        self._loader_new = loader_new
         self._rules: list[tuple[str, str, list[tuple[str, str]]]] = []
         for rule in rules:
             if not isinstance(rule, dict):
@@ -106,6 +116,26 @@ class WarehouseSupplierEntryPatch:
             return staged
         return staged + f"\n/* {self._marker} */\n"
 
+    def render_entrypoint(self, original: str) -> str:
+        """Version the exact active script URL so browsers fetch the corrected asset.
+
+        Args:
+            original: Private HTML entrypoint, kept otherwise unchanged.
+
+        Returns:
+            HTML referencing the versioned warehouse asset.
+
+        Raises:
+            ValueError: The expected single script URL has changed.
+        """
+        if original.count(self._loader_old) != 1:
+            raise ValueError("supplier_entry_loader_mismatch")
+        if self._loader_new in original:
+            return original
+        if self._loader_old + '"' not in original:
+            raise ValueError("supplier_entry_loader_drift")
+        return original.replace(self._loader_old + '"', self._loader_new + '"', 1)
+
 
 class WarehouseSupplierEntryCommand:
     """Keep source and destination I/O outside the pure patch facade."""
@@ -123,10 +153,16 @@ class WarehouseSupplierEntryCommand:
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument("source", type=Path)
         parser.add_argument("output", type=Path)
+        parser.add_argument("--entrypoint", action="store_true")
         args = parser.parse_args()
         if args.source.resolve() == args.output.resolve():
             raise ValueError("supplier_entry_source_equals_output")
-        staged = self._patch.render(args.source.read_text(encoding="utf-8"))
+        source = args.source.read_text(encoding="utf-8")
+        staged = (
+            self._patch.render_entrypoint(source)
+            if args.entrypoint
+            else self._patch.render(source)
+        )
         with args.output.open("x", encoding="utf-8") as stream:
             stream.write(staged)
         print("Supplier entry staged; no server or database writes.")

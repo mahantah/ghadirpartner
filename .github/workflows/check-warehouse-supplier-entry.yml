@@ -41,12 +41,14 @@ jobs:
           chmod 700 "$private"
           trap 'rm -rf "$private"' EXIT
           curl --fail --silent --show-error --max-time 40 https://ghadirpartner.ir/assets/warehouse-v53438.js -o "$private/warehouse.js"
+          curl --fail --silent --show-error --max-time 40 https://ghadirpartner.ir/app.html -o "$private/app.html"
           if node /tmp/supplier-entry-tests/warehouse-supplier-entry.js "$private/warehouse.js" > "$private/baseline.log" 2>&1; then
             echo 'STOP: active entry handlers no longer reproduce the reported bug'
             exit 1
           fi
           grep -Fq 'supplier omitted' "$private/baseline.log"
           python3 scripts/patch-warehouse-supplier-entry.py "$private/warehouse.js" "$private/staged.js"
+          python3 scripts/patch-warehouse-supplier-entry.py --entrypoint "$private/app.html" "$private/staged.html"
           python3 tests/warehouse-supplier-entry.py "$private/warehouse.js"
           node --check "$private/staged.js"
           node /tmp/supplier-entry-tests/warehouse-supplier-entry.js "$private/staged.js"

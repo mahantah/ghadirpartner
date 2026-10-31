@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from typing import Protocol, cast
@@ -13,6 +14,10 @@ class Patch(Protocol):
 
     def render(self, original: str) -> str:
         """Stage supplier entry while rejecting unexpected source changes."""
+        ...
+
+    def render_entrypoint(self, original: str) -> str:
+        """Version the active warehouse script reference without modifying other HTML."""
         ...
 
 
@@ -44,6 +49,24 @@ class SupplierEntrySafetyRegression:
         staged = self._patch.render(source)
         assert staged != source
         assert self._patch.render(staged) == staged
+        root = Path(__file__).resolve().parents[1]
+        policy: object = json.loads(
+            (root / "config/warehouse-supplier-entry.yaml").read_text()
+        )
+        assert isinstance(policy, dict)
+        old: object = policy.get("loader_old")
+        new: object = policy.get("loader_new")
+        assert isinstance(old, str) and isinstance(new, str)
+        html = '<script src="' + old + '"></script>'
+        versioned = self._patch.render_entrypoint(html)
+        assert versioned == '<script src="' + new + '"></script>'
+        assert self._patch.render_entrypoint(versioned) == versioned
+        try:
+            self._patch.render_entrypoint(html + html)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("duplicate_loader_accepted")
         for changed in (
             source.replace("window.saveWarehouseFile=", "window.changed=", 1),
             source.replace(

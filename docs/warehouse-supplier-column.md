@@ -39,6 +39,8 @@ therefore cannot display a name that was never submitted.
 the reviewed private asset. It includes the trimmed supplier in both requests
 and clears the input only after a successful response. Warehouse selection,
 serials, capacity, partial-carton reason, shelf and refresh behavior are retained.
+The same facade's `--entrypoint` mode versions the single active script URL to
+invalidate browser caches; publish both the staged asset and staged HTML.
 Configuration validates each complete handler hash; unexpected source or partial
 installations fail closed. Existing output files cannot be overwritten.
 
