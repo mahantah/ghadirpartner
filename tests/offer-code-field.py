@@ -1,4 +1,5 @@
 """Check the bounded markup patch without loading private production HTML."""
+
 import json
 from html.parser import HTMLParser
 from pathlib import Path
@@ -12,9 +13,7 @@ class OfferCodeFieldTest(HTMLParser):
         super().__init__()
         self.tags: list[tuple[str, dict[str, str | None]]] = []
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Collect relevant attributes without browser or network access."""
         self.tags.append((tag, dict(attrs)))
 
@@ -32,12 +31,8 @@ class OfferCodeFieldTest(HTMLParser):
             tag == "label" and attrs.get("for") == "offerPromoCode"
             for tag, attrs in self.tags
         )
-        assert any(
-            attrs.get("id") == "offerPromoCodeHint" for _, attrs in self.tags
-        )
-        assert any(
-            attrs.get("style") == "grid-column:1 / -1" for _, attrs in self.tags
-        )
+        assert any(attrs.get("id") == "offerPromoCodeHint" for _, attrs in self.tags)
+        assert any(attrs.get("style") == "grid-column:1 / -1" for _, attrs in self.tags)
         assert "scrollIntoView" in validation["new"] and ".focus(" in validation["new"]
         assert "promo_code" in validation["new"]
         print("PASS: one labeled full-width code field, help and missing-code focus")
