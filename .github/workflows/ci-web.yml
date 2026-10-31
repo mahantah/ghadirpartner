@@ -107,9 +107,9 @@ jobs:
       - name: Strict Python checks for the bounded patch
         run: |
           python3 -m pip install ruff mypy
-          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py
-          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py
-          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py
+          ruff check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py tests/offer-code-field.py
+          ruff format --check scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py tests/offer-code-field.py
+          mypy --strict scripts/patch-native-order-flow.py tests/native-order-flow-patch.py scripts/build-web-partial-delivery.py scripts/build-order-actions-theme.py tests/credit-menu-renderer.py tests/offer-code-field.py
       - name: Order policy, financial rows, consent and review transitions
         run: |
           php -l scripts/release-partial-dispatch.php
@@ -125,6 +125,9 @@ jobs:
           php -l tests/native-order-create-integration.php
           php -l scripts/release-portal-quantity.php
           php tests/portal-quantity-release.php
+          php -l scripts/release-offer-code.php
+          php tests/offer-code-release.php
+          python3 tests/offer-code-field.py
           php -l scripts/release-portal-addresses.php
           php tests/portal-addresses-release.php
           php -l tests/portal-addresses.php
