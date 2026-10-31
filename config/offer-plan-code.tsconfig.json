@@ -1,0 +1,4 @@
+{
+  "extends": "./customer-credit.tsconfig.json",
+  "files": ["../scripts/offer-plan-code.ts"]
+}
