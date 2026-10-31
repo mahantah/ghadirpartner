@@ -1,0 +1,48 @@
+name: Warehouse supplier column checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/warehouse-supplier-column.ts'
+      - 'scripts/patch-warehouse-supplier-column.py'
+      - 'assets/warehouse-supplier-column.js'
+      - 'config/warehouse-supplier-column*'
+      - 'tests/warehouse-supplier-column*'
+      - '.github/workflows/check-warehouse-supplier-column.yml'
+permissions:
+  contents: read
+jobs:
+  supplier-column:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install project check tools
+        run: |
+          npm ci --prefix tooling/partial-delivery-web --ignore-scripts --no-audit --no-fund
+          python3 -m pip install ruff mypy
+      - name: Type, lint, format and bounded patch checks
+        run: |
+          npm --prefix tooling/partial-delivery-web run check
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/warehouse-supplier-column.tsconfig.json
+          git diff --exit-code -- assets/warehouse-supplier-column.js
+          tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs scripts/warehouse-supplier-column.ts --max-warnings 0
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check scripts/warehouse-supplier-column.ts config/warehouse-supplier-column.tsconfig.json tests/warehouse-supplier-column.html
+          python3 -m ruff check scripts/patch-warehouse-supplier-column.py tests/warehouse-supplier-column.py
+          python3 -m ruff format --check scripts/patch-warehouse-supplier-column.py tests/warehouse-supplier-column.py
+          python3 -m mypy --strict scripts/patch-warehouse-supplier-column.py tests/warehouse-supplier-column.py
+          python3 tests/warehouse-supplier-column.py
+      - name: Browser regression at mobile and desktop widths
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          for viewport in '390,844' '1440,900'; do
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --allow-file-access-from-files --no-first-run --window-size="$viewport" --virtual-time-budget=3000 --dump-dom "file://$GITHUB_WORKSPACE/tests/warehouse-supplier-column.html" > /tmp/supplier-column-result.html 2>/tmp/supplier-column-browser.log
+            grep -Fq '>SUPPLIER_COLUMN_PASS<' /tmp/supplier-column-result.html
+          done

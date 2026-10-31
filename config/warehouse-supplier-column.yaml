@@ -1,0 +1,7 @@
+{
+  "marker": "GP_WAREHOUSE_SUPPLIER_COLUMN_V1_20261031",
+  "legacy_sha256": "7ed1e2313cddfb41ac4d69410c7c1af2d9f68a6e0cf30a17005eacf9a4874d0f",
+  "v4_anchor": "  function gpDecorateWarehouse(state){",
+  "v5_start": "  function decorateWarehouse(state){",
+  "v5_end": "  function serialFromRow(row){"
+}

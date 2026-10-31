@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <meta charset="utf-8" />
+  <title>Supplier column regression</title>
+  <body>
+    <table>
+      <thead id="headers"></thead>
+      <tbody id="warehouseBody"></tbody>
+    </table>
+    <div id="result">PENDING</div>
+    <script src="../assets/warehouse-supplier-column.js"></script>
+    <script>
+      const check = (condition, message) => {
+        if (!condition) throw new Error(message);
+      };
+      const headers = document.getElementById("headers");
+      const body = document.getElementById("warehouseBody");
+      const carton = {
+        id: 8,
+        code: "BOX-008",
+        supplier: "تامین‌کننده ثبت‌شده",
+      };
+      const state = { cartons: [carton] };
+      const renderer = new WarehouseSupplierColumn(
+        document,
+        (item) => item.supplier || "",
+      );
+      try {
+        for (const selected of [false, true]) {
+          for (const native of [false, true]) {
+            headers.innerHTML = `<tr>${selected ? "<th>انتخاب</th>" : ""}<th>شماره باکس</th><th>مدل</th>${native ? "<th>تامین‌کننده</th>" : ""}<th>عملیات</th></tr>`;
+            body.innerHTML = `<tr>${selected ? '<td class="gp-wh-carton-select-cell"><input type="checkbox" class="gp-wh-carton-label-check" data-carton-id="8" checked></td>' : ""}<td><b class="code">BOX-008</b></td><td>K9</td>${native ? "<td>نام قبلی</td>" : ""}<td><button>چاپ لیبل</button></td></tr>`;
+            renderer.render(state);
+            const row = body.firstElementChild;
+            const button = row.querySelector("button");
+            const checkbox = row.querySelector("input");
+            check(
+              row.children.length === headers.firstElementChild.children.length,
+              "column alignment",
+            );
+            check(
+              row.querySelector(".gp-supplier-v5-cell").textContent ===
+                carton.supplier,
+              "saved supplier missing",
+            );
+            const before = body.innerHTML;
+            renderer.render(state);
+            check(body.innerHTML === before, "repeat render mutates DOM");
+            check(
+              row.querySelector("button") === button,
+              "print action replaced",
+            );
+            if (selected)
+              check(
+                checkbox.checked && row.querySelector("input") === checkbox,
+                "selection changed",
+              );
+            carton.supplier = '<img src="x" onerror="alert(1)">';
+            renderer.render(state);
+            check(!row.querySelector("img"), "supplier HTML executed");
+            check(
+              row.querySelector(".gp-supplier-v5-cell").textContent ===
+                carton.supplier,
+              "supplier text escaped incorrectly",
+            );
+            carton.supplier = "تامین‌کننده ثبت‌شده";
+            body.innerHTML = `<tr><td colspan="${row.children.length}">خالی</td></tr>`;
+            renderer.render(state);
+            check(
+              !body.querySelector(".gp-supplier-v5-cell"),
+              "empty state modified",
+            );
+          }
+        }
+        headers.innerHTML =
+          "<tr><th>انتخاب</th><th>شماره باکس</th><th>مدل</th><th>تامین‌کننده</th><th>عملیات</th></tr>";
+        body.innerHTML =
+          '<tr><td><input class="gp-wh-carton-label-check" data-carton-id="8"></td><td>BOX-008</td><td>K9</td><td>-</td><td><button>چاپ</button></td></tr>';
+        renderer.render(state);
+        carton.supplier = "نام جدید";
+        renderer.render(state);
+        check(
+          body.querySelector(".gp-supplier-v5-cell").textContent === "نام جدید",
+          "supplier update stale",
+        );
+        check(
+          JSON.stringify(state) === JSON.stringify({ cartons: [carton] }),
+          "state changed",
+        );
+        document.getElementById("result").textContent = "SUPPLIER_COLUMN_PASS";
+      } catch (error) {
+        document.getElementById("result").textContent =
+          `SUPPLIER_COLUMN_FAIL: ${error.message}`;
+      }
+    </script>
+  </body>
+</html>
