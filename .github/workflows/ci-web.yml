@@ -125,6 +125,10 @@ jobs:
           php -l tests/native-order-create-integration.php
           php -l scripts/release-portal-quantity.php
           php tests/portal-quantity-release.php
+          php -l scripts/release-portal-addresses.php
+          php tests/portal-addresses-release.php
+          php -l tests/portal-addresses.php
+          php tests/portal-addresses.php
           php tests/native-order-flow.php
           php tests/native-order-review-routes.php
           python3 -m py_compile scripts/patch-native-order-flow.py

@@ -1,0 +1,45 @@
+{
+  "before_files": {
+    "partners/index.php": "9df2921deeac9eb31702a3af37bb0e910b65a197be023ade813200096893a62c"
+  },
+  "operations": [
+    {
+      "file": "partners/index.php",
+      "old": "if(in_array($p,['/api/native/credit','/api/native/proof','/api/orders/add'],true))require_once __DIR__.'/native-r54.php';",
+      "new": "if(in_array($p,['/api/addresses','/api/orders/add'],true))require_once __DIR__.'/native-r51-core.php';\nif(in_array($p,['/api/native/credit','/api/native/proof','/api/orders/add'],true))require_once __DIR__.'/native-r54.php';",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "if($isCustomer){$o['purchase_items']=$purchaseItems;",
+      "new": "if($isCustomer){$o['delivery_address']=gp_address_snapshot($s['customers'][$ci],trim((string)($x['address_id']??'')));$o['purchase_items']=$purchaseItems;",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "partners/index.php": "85ffca20d24023a55b6cc516baaf3e1f107cbab4d5b85a77beb7109f624269a2"
+  },
+  "required_files": {
+    "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}
