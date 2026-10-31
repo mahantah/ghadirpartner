@@ -18,9 +18,9 @@ interface EntryWindow {
 
 /** Exercise the reviewed private handlers without touching a server or real data. */
 class SupplierEntryRegression {
-  /** Load only the two active entry handlers from the supplied staged asset. */
   private readonly handlers: [keyof EntryWindow, string][];
 
+  /** Load only the two active entry handlers from the supplied staged asset. */
   constructor(source: string) {
     this.handlers = (["saveWarehouseCarton", "saveWarehouseFile"] as const).map(
       (name) => {
@@ -155,3 +155,4 @@ new SupplierEntryRegression(fs.readFileSync(process.argv[2] ?? "", "utf8"))
     console.error(error.message);
     process.exitCode = 1;
   });
+
