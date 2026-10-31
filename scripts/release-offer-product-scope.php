@@ -41,6 +41,7 @@ final class OfferProductScopeRelease
             $decoded=base64_decode($content,true);if($decoded===false)throw new RuntimeException('invalid_manifest');$staged[$file]=$decoded;
         }
         foreach($staged as $file=>$text)if(!hash_equals($this->manifest['expected_files'][$file],hash('sha256',$text)))throw new RuntimeException('staged_hash_mismatch');
+        foreach($staged as $file=>$text)if(substr($file,-4)==='.php'){try{token_get_all($text,TOKEN_PARSE);}catch(ParseError $error){throw new RuntimeException('staged_php_invalid');}}
         return $staged;
     }
     /** Replace each code file atomically, invalidating cached PHP bytecode. */
@@ -101,6 +102,6 @@ try{
     if(!in_array($mode,['apply','verify','rollback'],true))throw new RuntimeException('invalid_mode');
     echo json_encode($service->$mode(),JSON_THROW_ON_ERROR);
 }catch(Throwable $error){
-    http_response_code(409);$safe=['protected_carton_state_mismatch','invalid_manifest','source_hash_mismatch','anchor_mismatch','staged_hash_mismatch','publish_failed','readback_failed','checkpoint_exists','backup_failed','rollback_unavailable','rollback_failed','invalid_mode'];
+    http_response_code(409);$safe=['protected_carton_state_mismatch','invalid_manifest','staged_php_invalid','source_hash_mismatch','anchor_mismatch','staged_hash_mismatch','publish_failed','readback_failed','checkpoint_exists','backup_failed','rollback_unavailable','rollback_failed','invalid_mode'];
     echo json_encode(['ok'=>false,'error'=>in_array($error->getMessage(),$safe,true)?$error->getMessage():'offer_product_scope_release_failed']);
 }
