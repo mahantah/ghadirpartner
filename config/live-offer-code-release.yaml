@@ -1,0 +1,83 @@
+{
+  "before_files": {
+    "assets/kartabl-sync-v1.js": "e8bb59786499e8eae5899864f3043c1b938e9cf366b8c3b97ae0c6e5de2913f8",
+    "assets/sales-plans-menu-v1.js": "da94cb0531a5d68da39896740d5e86be8e67bb01ae8cbc91ee3ecdd3e071920b",
+    "app.html": "6147ec9cece94cfe45932cd703fd777a1b0ba798f78993cb75a2bc7f2575005c"
+  },
+  "operations": [
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "  window.gpOpenPlanApply = async function (presetId) {\n    await ensureOffers();\n    var picked = presetId ? [+presetId] : selectedIds();\n    var offerOpts = (window.PORTAL_OFFERS || []).map(function (o) {\n      return '<option value=\"' + o.id + '\">' + esc(o.title || 'طرح') + '</option>';\n    }).join('');\n    modal(\n      '<h3>اعمال طرح جدید</h3>' +\n      '<div class=\"small\" style=\"margin-bottom:10px\">طرح را برای همه مشتریان یا فقط انتخاب‌شده‌ها اعمال کنید. از همین‌جا طرح تازه هم می‌سازید.</div>' +\n      '<div class=\"mutedbox\">' +\n        '<label><input type=\"radio\" name=\"gpPlanAud\" value=\"all\" style=\"width:auto\" ' + (picked.length ? '' : 'checked') + '> همه مشتریان</label>' +\n        '<label style=\"margin-right:14px\"><input type=\"radio\" name=\"gpPlanAud\" value=\"selected\" style=\"width:auto\" ' + (picked.length ? 'checked' : '') + '> مشتری‌های دلخواه' +\n        (picked.length ? ' (' + picked.length + ' مورد)' : '') + '</label>' +\n      '</div>' +\n      '<div class=\"grid\" style=\"margin-top:10px\">' +\n        '<select id=\"gpPlanExisting\"><option value=\"\">طرح تازه بساز</option>' + offerOpts + '</select>' +\n        '<input id=\"gpPlanTitle\" placeholder=\"عنوان طرح یا تخفیف\">' +\n        '<input id=\"gpPlanBadge\" placeholder=\"برچسب، مثال: فروش ویژه\">' +\n        '<input id=\"gpPlanDiscount\" placeholder=\"تخفیف — درصد یا مبلغ\" inputmode=\"numeric\">' +\n      '</div>' +\n      '<textarea id=\"gpPlanDesc\" style=\"width:100%;margin-top:8px\" placeholder=\"توضیح طرح\"></textarea>' +\n      '<input type=\"hidden\" id=\"gpPlanIds\" value=\"' + picked.join(',') + '\">' +\n      '<div class=\"toolbar\" style=\"margin-top:10px\">' +\n        '<button type=\"button\" onclick=\"gpSavePlanApply()\">اعمال طرح</button>' +\n        '<button class=\"btnlight\" type=\"button\" onclick=\"closeModal()\">بستن</button>' +\n      '</div>'\n    );\n  };\n\n  window.gpSavePlanApply = async function () {\n    try {\n      var aud = (document.querySelector('input[name=\"gpPlanAud\"]:checked') || {}).value || 'all';\n      var ids = ($('gpPlanIds').value || '').split(',').map(Number).filter(Boolean);\n      if (aud === 'selected' && !ids.length) ids = selectedIds();\n      if (aud === 'selected' && !ids.length) throw new Error('حداقل یک مشتری را از کارتابل انتخاب کنید');\n      var existing = $('gpPlanExisting') && +$('gpPlanExisting').value;\n      var offers = window.PORTAL_OFFERS || [];\n      var src = existing ? offers.filter(function (o) { return +o.id === existing; })[0] : null;\n      var title = ($('gpPlanTitle') && $('gpPlanTitle').value.trim()) || (src && src.title) || '';\n      if (!title) throw new Error('عنوان طرح را بنویسید');\n      await req('/api/offers/save', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          id: existing || 0,\n          title: title,\n          badge: ($('gpPlanBadge') && $('gpPlanBadge').value) || (src && src.badge) || 'طرح ویژه',\n          description: ($('gpPlanDesc') && $('gpPlanDesc').value) || (src && src.description) || '',\n          product: src && src.product || '',\n          start_date: src && src.start_date || '',\n          end_date: src && src.end_date || '',\n          active: true,\n          audience: aud === 'selected' ? 'selected' : 'all',\n          customer_ids: aud === 'selected' ? ids : [],\n          discount_value: $('gpPlanDiscount') ? $('gpPlanDiscount').value : ''\n        })\n      });\n      closeModal();\n      toast('طرح اعمال شد');\n      if (typeof loadPortalOffers === 'function') loadPortalOffers();\n    } catch (e) { alert(e.message); }\n  };\n\n",
+      "new": "  window.gpOpenPlanApply = async function (presetId) {\n    await ensureOffers();\n    var picked = presetId ? [+presetId] : selectedIds();\n    var offerOpts = (window.PORTAL_OFFERS || []).map(function (o) {\n      return '<option value=\"' + o.id + '\">' + esc(o.title || 'طرح') + '</option>';\n    }).join('');\n    modal(\n      '<h3>اعمال طرح جدید</h3>' +\n      '<div class=\"small\" style=\"margin-bottom:10px\">طرح را برای همه مشتریان یا فقط انتخاب‌شده‌ها اعمال کنید. از همین‌جا طرح تازه هم می‌سازید.</div>' +\n      '<div class=\"mutedbox\">' +\n        '<label><input type=\"radio\" name=\"gpPlanAud\" value=\"all\" style=\"width:auto\" ' + (picked.length ? '' : 'checked') + '> همه مشتریان</label>' +\n        '<label style=\"margin-right:14px\"><input type=\"radio\" name=\"gpPlanAud\" value=\"selected\" style=\"width:auto\" ' + (picked.length ? 'checked' : '') + '> مشتری‌های دلخواه' +\n        (picked.length ? ' (' + picked.length + ' مورد)' : '') + '</label>' +\n      '</div>' +\n      '<div class=\"grid\" style=\"margin-top:10px\">' +\n        '<select id=\"gpPlanApplyExisting\"><option value=\"\">طرح تازه بساز</option>' + offerOpts + '</select>' +\n        '<input id=\"gpPlanApplyTitle\" placeholder=\"عنوان طرح یا تخفیف\">' +\n        '<input id=\"gpPlanApplyBadge\" placeholder=\"برچسب، مثال: فروش ویژه\">' +\n        '<label>مقدار تخفیف<input id=\"gpPlanApplyDiscount\" placeholder=\"درصد یا مبلغ به تومان\" inputmode=\"numeric\"></label>' + window.gpOfferPlanEditor.markup('gpPlanApply') +\n      '</div>' +\n      '<textarea id=\"gpPlanApplyDesc\" style=\"width:100%;margin-top:8px\" placeholder=\"توضیح طرح\"></textarea>' +\n      '<input type=\"hidden\" id=\"gpPlanApplyIds\" value=\"' + picked.join(',') + '\">' +\n      '<div class=\"toolbar\" style=\"margin-top:10px\">' +\n        '<button type=\"button\" onclick=\"gpSavePlanApply()\">اعمال طرح</button>' +\n        '<button class=\"btnlight\" type=\"button\" onclick=\"closeModal()\">بستن</button>' +\n      '</div>'\n    );\n    $('gpPlanApplyExisting').addEventListener('change', function () {\n      var chosen = (window.PORTAL_OFFERS || []).filter(function (o) { return +o.id === +$('gpPlanApplyExisting').value; })[0] || {};\n      window.gpOfferPlanEditor.fill('gpPlanApply', chosen);\n      $('gpPlanApplyTitle').value = chosen.title || '';\n      $('gpPlanApplyBadge').value = chosen.badge || '';\n      $('gpPlanApplyDesc').value = chosen.description || '';\n    });\n  };\n\n  window.gpSavePlanApply = async function () {\n    try {\n      var aud = (document.querySelector('input[name=\"gpPlanAud\"]:checked') || {}).value || 'all';\n      var ids = ($('gpPlanApplyIds').value || '').split(',').map(Number).filter(Boolean);\n      if (aud === 'selected' && !ids.length) ids = selectedIds();\n      if (aud === 'selected' && !ids.length) throw new Error('حداقل یک مشتری را از کارتابل انتخاب کنید');\n      var existing = $('gpPlanApplyExisting') && +$('gpPlanApplyExisting').value;\n      var offers = window.PORTAL_OFFERS || [];\n      var src = existing ? offers.filter(function (o) { return +o.id === existing; })[0] : null;\n      var title = ($('gpPlanApplyTitle') && $('gpPlanApplyTitle').value.trim()) || (src && src.title) || '';\n      if (!title) throw new Error('عنوان طرح را بنویسید');\n      await req('/api/offers/save', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          id: existing || 0,\n          title: title,\n          badge: ($('gpPlanApplyBadge') && $('gpPlanApplyBadge').value) || (src && src.badge) || 'طرح ویژه',\n          description: ($('gpPlanApplyDesc') && $('gpPlanApplyDesc').value) || (src && src.description) || '',\n          product: src && src.product || '',\n          start_date: src && src.start_date || '',\n          end_date: src && src.end_date || '',\n          active: true,\n          audience: aud === 'selected' ? 'selected' : 'all',\n          customer_ids: aud === 'selected' ? ids : [],\n          ...window.gpOfferPlanEditor.read('gpPlanApply', src || {})\n        })\n      });\n      closeModal();\n      toast('طرح اعمال شد');\n      if (typeof loadPortalOffers === 'function') loadPortalOffers();\n    } catch (e) { alert(e.message); }\n  };\n\n",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "'<input id=\"gpPlanDiscount\" placeholder=\"تخفیف — درصد یا مبلغ\" inputmode=\"numeric\">' +",
+      "new": "'<label>مقدار تخفیف<input id=\"gpPlanDiscount\" placeholder=\"درصد یا مبلغ به تومان\" inputmode=\"numeric\"></label>' + window.gpOfferPlanEditor.markup('gpPlan') +",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "    if ($('gpPlanDiscount')) $('gpPlanDiscount').value = o.discount_value || '';",
+      "new": "    if ($('gpPlanDiscount')) $('gpPlanDiscount').value = o.discount_value || '';\n    window.gpOfferPlanEditor.fill('gpPlan', o);",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "    if ($('gpPlanExisting')) $('gpPlanExisting').value = '';",
+      "new": "    if ($('gpPlanExisting')) $('gpPlanExisting').value = '';\n    window.gpOfferPlanEditor.fill('gpPlan', {});",
+      "count": 1
+    },
+    {
+      "file": "assets/sales-plans-menu-v1.js",
+      "old": "  window.gpSavePlanPage = async function () {\n    var msg = $('gpPlanPageMsg');\n    try {\n      var aud = (document.querySelector('#salesPlans input[name=\"gpPlanAud\"]:checked') || {}).value || 'all';\n      var ids = [].map.call(document.querySelectorAll('#gpPlanPickList input:checked'), function (el) { return +el.value; }).filter(Boolean);\n      if (aud === 'selected' && !ids.length) throw new Error('حداقل یک مشتری را انتخاب کنید');\n      var existing = $('gpPlanExisting') && +$('gpPlanExisting').value;\n      var offers = window.PORTAL_OFFERS || [];\n      var src = existing ? offers.filter(function (o) { return +o.id === existing; })[0] : null;\n      var title = ($('gpPlanTitle') && $('gpPlanTitle').value.trim()) || (src && src.title) || '';\n      if (!title) throw new Error('عنوان طرح را بنویسید');\n      await req('/api/offers/save', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          id: existing || 0,\n          title: title,\n          badge: ($('gpPlanBadge') && $('gpPlanBadge').value) || (src && src.badge) || 'طرح ویژه',\n          description: ($('gpPlanDesc') && $('gpPlanDesc').value) || (src && src.description) || '',\n          product: src && src.product || '',\n          start_date: src && src.start_date || '',\n          end_date: src && src.end_date || '',\n          active: true,\n          audience: aud === 'selected' ? 'selected' : 'all',\n          customer_ids: aud === 'selected' ? ids : [],\n          discount_value: $('gpPlanDiscount') ? $('gpPlanDiscount').value : ''\n        })\n      });\n      if (msg) { msg.className = 'ok'; msg.textContent = 'طرح اعمال شد'; }\n      toast('طرح اعمال شد');\n      await loadOffers();\n      fillOfferSelect(existing || '');\n      paintTable();\n      gpClearPlanPage();\n    } catch (e) {\n      if (msg) { msg.className = 'msg'; msg.textContent = e.message; }\n      else alert(e.message);\n    }\n  };",
+      "new": "  window.gpSavePlanPage = async function () {\n    var msg = $('gpPlanPageMsg');\n    try {\n      var aud = (document.querySelector('#salesPlans input[name=\"gpPlanAud\"]:checked') || {}).value || 'all';\n      var ids = [].map.call(document.querySelectorAll('#gpPlanPickList input:checked'), function (el) { return +el.value; }).filter(Boolean);\n      if (aud === 'selected' && !ids.length) throw new Error('حداقل یک مشتری را انتخاب کنید');\n      var existing = $('gpPlanExisting') && +$('gpPlanExisting').value;\n      var offers = window.PORTAL_OFFERS || [];\n      var src = existing ? offers.filter(function (o) { return +o.id === existing; })[0] : null;\n      var title = ($('gpPlanTitle') && $('gpPlanTitle').value.trim()) || (src && src.title) || '';\n      if (!title) throw new Error('عنوان طرح را بنویسید');\n      await req('/api/offers/save', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          id: existing || 0,\n          title: title,\n          badge: ($('gpPlanBadge') && $('gpPlanBadge').value) || (src && src.badge) || 'طرح ویژه',\n          description: ($('gpPlanDesc') && $('gpPlanDesc').value) || (src && src.description) || '',\n          product: src && src.product || '',\n          start_date: src && src.start_date || '',\n          end_date: src && src.end_date || '',\n          active: true,\n          audience: aud === 'selected' ? 'selected' : 'all',\n          customer_ids: aud === 'selected' ? ids : [],\n          ...window.gpOfferPlanEditor.read('gpPlan', src || {})\n        })\n      });\n      if (msg) { msg.className = 'ok'; msg.textContent = 'طرح اعمال شد'; }\n      toast('طرح اعمال شد');\n      await loadOffers();\n      fillOfferSelect(existing || '');\n      paintTable();\n      gpClearPlanPage();\n    } catch (e) {\n      if (msg) { msg.className = 'msg'; msg.textContent = e.message; }\n      else alert(e.message);\n    }\n  };",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "<script src=\"/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons\"></script>",
+      "new": "<script src=\"/assets/offer-plan-code.js?v=20261031activeforms\"></script>\n<script src=\"/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons\"></script>",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons",
+      "new": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons&offerfix=20261031forms",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/sales-plans-menu-v1.js?v=1&whfix=20261028a",
+      "new": "/assets/sales-plans-menu-v1.js?v=1&whfix=20261028a&offerfix=20261031forms",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "assets/kartabl-sync-v1.js": "c80487ea49f6aa490be6e257aaf8bb4c374670cd505d253792512d14b1e11778",
+    "assets/sales-plans-menu-v1.js": "3b030b741987c1ce77941e107bcaae713c53678854c492b1743cc81cc77716a1",
+    "app.html": "f5fac4efa1f94f3afeecb9bf59ae4c69f6d30bac7651d2486df11be0be7879e1",
+    "assets/offer-plan-code.js": "9324b63e41da28a759c0c3af83afccb2783b3cd84c110007d30d2bf24ff61f25"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}

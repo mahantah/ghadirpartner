@@ -60,6 +60,14 @@ jobs:
           tooling/partial-delivery-web/node_modules/.bin/prettier --check scripts/customer-credit.ts config/customer-credit.tsconfig.json
           tooling/partial-delivery-web/node_modules/.bin/tsc -p config/customer-credit.tsconfig.json --noEmit false --outFile /tmp/customer-credit.js
           cmp assets/customer-credit.js /tmp/customer-credit.js
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/offer-plan-code.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs scripts/offer-plan-code.ts --max-warnings 0
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check scripts/offer-plan-code.ts config/offer-plan-code.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/offer-plan-code.tsconfig.json --noEmit false --outFile /tmp/offer-plan-code.js
+          cmp assets/offer-plan-code.js /tmp/offer-plan-code.js
+          node tests/live-offer-code.cjs
+          php -l scripts/release-live-offer-code.php
+          php tests/live-offer-code-release.php
           php -l lib/customer-credit.php
           php -l lib/customer-credit-routes.php
           php -l scripts/release-customer-credit.php
