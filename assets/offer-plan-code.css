@@ -12,6 +12,9 @@
   font-weight: 600;
   color: #102a43;
 }
+.grid:has(> .gp-offer-editor) > label:has([id$="Existing"]) {
+  grid-column: 1 / -1;
+}
 .gp-offer-editor {
   grid-column: 1 / -1;
   display: grid;
