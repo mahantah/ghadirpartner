@@ -22,7 +22,11 @@ This patch changes only supplier-column rendering. It does not repair missing
 supplier values in storage or modify warehouse, carton, serial, or order data.
 Private production source is not included in this repository. Validation against
 the current owner HTML and the existing protected-carton release checks remains
-required before an owner-approved deployment. No deployment is automated here.
+required before an owner-approved deployment. The separate release workflow runs
+only by manual dispatch or a change to its exact release sentinel on main.
+It stages against current owner HTML, checkpoints the original HTML privately,
+and uses the existing server-side protected-carton guard before and after the
+atomic replacement. Failed readback or health checks restore the checkpoint.
 
 Validation: project `npm run check`, strict TypeScript, ESLint with zero warnings,
 Prettier, Ruff, strict mypy, bounded patch regression and browser fixtures for
