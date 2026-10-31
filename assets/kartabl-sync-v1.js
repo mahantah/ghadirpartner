@@ -386,6 +386,26 @@
     } catch (e) { alert(e.message); }
   };
 
+  /** Render a local semantic icon without changing the authorized action handler. */
+  function customerActionIcon(button) {
+    var handler=button.getAttribute('onclick')||'';
+    var paths={
+      edit:'<path d="m16 3 5 5-12 12-6 1 1-6L16 3ZM13 6l5 5"/>',
+      credit:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>',
+      contact:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/>',
+      password:'<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9M16 16l3-3M18 18l3-3"/>',
+      prices:'<path d="M3 3h9l9 9-9 9-9-9V3Z"/><circle cx="8" cy="8" r="1"/>',
+      coop:'<circle cx="8" cy="7" r="3"/><circle cx="17" cy="9" r="2"/><path d="M2 21v-3a6 6 0 0 1 12 0v3M16 15a5 5 0 0 1 6 5"/>',
+      discount:'<path d="m5 19 14-14"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/>',
+      offers:'<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M2 8h20M12 8v13M12 8C3 8 4 1 8 3l4 5ZM12 8c9 0 8-7 4-5l-4 5Z"/>',
+      active:'<path d="M12 2v10M6 5a9 9 0 1 0 12 0"/>',
+      remove:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>'
+    };
+    var key=/gpCustomerCredit/.test(handler)?'credit':/Contact/.test(handler)?'contact':/Password/.test(handler)?'password':/Price/.test(handler)?'prices':/Coop/.test(handler)?'coop':/PlanApply/.test(handler)?'discount':/Offers/.test(handler)?'offers':/Active/.test(handler)?'active':/deleteCustomer/.test(handler)?'remove':'edit';
+    button.textContent=(button.textContent||'').replace(/^[✎📱🔑💲🤝٪📋⏸▶]+\s*/u,'');
+    button.insertAdjacentHTML('afterbegin','<svg viewBox="0 0 24 24" aria-hidden="true">'+paths[key]+'</svg>');
+  }
+
   function fillOpsMenu(id) {
     var menus = document.querySelectorAll('.customer-menu.open');
     var menu = menus.length ? menus[menus.length - 1] : null;
@@ -397,7 +417,7 @@
     menu.innerHTML =
       '<button type="button" onclick="closeCustomerMenus();openCustomerEdit(' + id + ')">✎ ویرایش مشخصات</button>' +
       ((has('admin') || has('finance')) ? '<button type="button" data-gp-credit-action onclick="closeCustomerMenus();window.gpCustomerCredit.open(' + id + ')">اعتبار ماهانه</button>' : '') +
-      '<button type="button" onclick="closeCustomerMenus();gpChangeCustomerContact(' + id + ')">📱 تغییر تماس</button>' +
+      '<button type="button" onclick="closeCustomerMenus();gpChangeCustomerContact(' + id + ')">📱 تغییر شماره تماس</button>' +
       '<button type="button" onclick="closeCustomerMenus();gpResetCustomerPassword(' + id + ')">🔑 بازیابی رمز مشتری</button>' +
       '<button type="button" onclick="closeCustomerMenus();openCustomerPriceEdit(' + id + ')">💲 ' + PRICE_TITLE + '</button>' +
       '<button type="button" onclick="closeCustomerMenus();gpChangeCoop(' + id + ')">🤝 تغییر نوع همکاری</button>' +
@@ -408,6 +428,7 @@
         : '') +
       '<div class="gp-ops-sep"></div>' +
       '<button class="danger-menu" type="button" onclick="closeCustomerMenus();deleteCustomer(' + id + ')">حذف مشتری</button>';
+    Array.prototype.forEach.call(menu.querySelectorAll('button'),customerActionIcon);
   }
 
   function wrapMenu() {
