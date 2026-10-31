@@ -42,7 +42,7 @@ jobs:
           name,token=sys.argv[1:]
           source=Path('scripts/release-portal-addresses.php').read_text()
           integrity=Path('lib/preswitch-carton-integrity.php').read_text().removeprefix('<?php\n')
-          fixture=Path('tests/portal-addresses.php').read_text().removeprefix('<?php\n').split('// __ADDRESS_FIXTURE_ENTRY__')[0]
+          fixture=Path('tests/portal-addresses.php').read_text().removeprefix('<?php\n').replace('declare(strict_types=1);','',1).split('// __ADDRESS_FIXTURE_ENTRY__')[0]
           manifest=base64.b64encode(Path('config/portal-addresses-release.yaml').read_bytes()).decode()
           m=json.loads(Path('config/portal-addresses-release.yaml').read_text())
           dependencies={name:base64.b64encode(Path(name).read_bytes()).decode() for name in m['expected_files'] if name not in m['before_files']}
