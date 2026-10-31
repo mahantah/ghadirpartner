@@ -1007,13 +1007,25 @@
       "old": "if($isCustomer){$o['purchase_items']=$purchaseItems;",
       "new": "if($isCustomer){$o['delivery_address']=gp_address_snapshot($s['customers'][$ci],trim((string)($x['address_id']??'')));$o['purchase_items']=$purchaseItems;",
       "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "<input id=\"offerPromoCode\" dir=\"ltr\" placeholder=\"کد تخفیف؛ مثال GHADIR10\" oninput=\"this.value=this.value.toUpperCase().replace(/\\s+/g,'')\">",
+      "new": "<div class=\"offer-code-field\" style=\"grid-column:1 / -1\"><label for=\"offerPromoCode\" class=\"small\"><b>کد تخفیف — الزامی برای تخفیف درصدی یا مبلغی</b></label><input id=\"offerPromoCode\" dir=\"ltr\" aria-describedby=\"offerPromoCodeHint\" autocomplete=\"off\" placeholder=\"کد تخفیف؛ مثال GHADIR10\" oninput=\"this.value=this.value.toUpperCase().replace(/\\s+/g,'')\"><div id=\"offerPromoCodeHint\" class=\"small\">کد دلخواه خود را اینجا وارد کنید؛ مثال GHADIR10. کد نباید برای طرح دیگری استفاده شده باشد.</div></div>",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "if(discount_type!=='none'&&!promo_code)return alert('برای تخفیف، کد تخفیف وارد کنید');",
+      "new": "if(discount_type!=='none'&&!promo_code){$('offerPromoCode').scrollIntoView({block:'center',behavior:'smooth'});$('offerPromoCode').focus({preventScroll:true});return alert('کد تخفیف را در کادر «کد تخفیف» وارد کنید؛ مثال GHADIR10');}",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
     "index.php": "97feb8d5f62fa615cc59cb33f51fc3b7bd76b78e4022d86b2ad53212d2cbf4aa",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "4942a127faf6b3ea397d6729f24640eaa34d4fb54825af76c29540150fea564d",
+    "app.html": "6147ec9cece94cfe45932cd703fd777a1b0ba798f78993cb75a2bc7f2575005c",
     "partners/portal.html": "a957c020c9f46533b796857af00d266a51ca4e72e9ebb22b90acc856f3e76311",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "6c1fd2b2f82ce15afc24aff31160c96cab0896b7b3beb15b6f4307d50bd79d4b",
