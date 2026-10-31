@@ -1,0 +1,122 @@
+{
+  "before_files": {
+    "index.php": "a919d5f8c57be7a59fc3b790ca79e6f346ee96373dee83f2e9fa5f13a5a69d68",
+    "partners/index.php": "6a455c590062a69ce0853a66eafd0dd83f1f04751411937361f3afe3484a48d4",
+    "lib/storage.php": "9808b4e9344623283bd2e32a1cb30eb9bcdf5942346ff7bc01e903386f6442df",
+    "partners/native-r54.php": "d59703b3aae6b24977095c62061c667246e2cca0ef8f318aac75d831ea59dcb0",
+    "app.html": "29d4f878bab0be17ab71f77827be4e261c511fe41c5bbf1c3df7bf06e4a417fa",
+    "partners/portal.html": "3d49d00d060e621ce1b5ecfd6cc1e02152129d7b67650eeccf1197a7dd52c88e"
+  },
+  "operations": [
+    {
+      "file": "index.php",
+      "old": "function db($write,$fn){return ghadir_db((bool)$write,$fn);}",
+      "new": "require_once __DIR__.'/lib/customer-credit.php';\nfunction db($write,$fn){return $write?GpCustomerCredit::create()->transaction(true,$fn):ghadir_db(false,$fn);}",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "require_once __DIR__.'/lib/native-order-flow-routes.php';",
+      "new": "require_once __DIR__.'/lib/customer-credit-routes.php';\nrequire_once __DIR__.'/lib/native-order-flow-routes.php';",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "function db($write,$fn){return ghadir_db((bool)$write,$fn);}",
+      "new": "require_once dirname(__DIR__).'/lib/customer-credit.php';\nfunction db($write,$fn){return $write?GpCustomerCredit::create()->transaction(true,$fn):ghadir_db(false,$fn);}",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "require_once dirname(__DIR__).'/lib/native-order-flow-routes.php';",
+      "new": "require_once dirname(__DIR__).'/lib/customer-credit-routes.php';\nrequire_once dirname(__DIR__).'/lib/native-order-flow-routes.php';",
+      "count": 1
+    },
+    {
+      "file": "index.php",
+      "old": "$x['id']=$s['next_customer']++;",
+      "new": "unset($x['monthly_credit']);$x['id']=$s['next_customer']++;",
+      "count": 1
+    },
+    {
+      "file": "partners/index.php",
+      "old": "$x['id']=$s['next_customer']++;",
+      "new": "unset($x['monthly_credit']);$x['id']=$s['next_customer']++;",
+      "count": 1
+    },
+    {
+      "file": "lib/storage.php",
+      "old": "if ($write && $pdo->inTransaction()) $pdo->rollBack();",
+      "new": "if ($write && $pdo->inTransaction()) $pdo->rollBack();\n        if ($e instanceof GpMonthlyCreditViolation) fail($e->getMessage(),422);",
+      "count": 1
+    },
+    {
+      "file": "partners/native-r54.php",
+      "old": "return ['configured'=>isset($c['credit_available_amount']),'available'=>isset($c['credit_available_amount'])?max(0,(int)$c['credit_available_amount']):null,'due_date'=>$c['credit_due_date']??'','requires_approval'=>true];",
+      "new": "return GpCustomerCredit::create()->balance($s,(int)($u['customer_id']??0))+['configured'=>true,'due_date'=>$c['credit_due_date']??'','requires_approval'=>true];",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "<button onclick=\"closeCustomerMenus();openCustomerEdit(${id})\">✎ ویرایش</button>",
+      "new": "<button onclick=\"closeCustomerMenus();openCustomerEdit(${id})\">✎ ویرایش</button>${has('admin')||has('finance')?`<button onclick=\"closeCustomerMenus();window.gpCustomerCredit.open(${id})\">اعتبار ماهانه</button>`:''}",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "<script src=\"/assets/partial-delivery-web.js?v=20261029menu\" defer></script>",
+      "new": "<script src=\"/assets/partial-delivery-web.js?v=20261029menu\" defer></script><script src=\"/assets/customer-credit.js?v=20261031a\" defer></script>",
+      "count": 1
+    },
+    {
+      "file": "partners/portal.html",
+      "old": "</body>",
+      "new": "<script src=\"/assets/customer-credit.js?v=20261031a\" data-credit-portal defer></script></body>",
+      "count": 1
+    },
+    {
+      "file": "partners/portal.html",
+      "old": "let body={customer_id:isCustomer()?me.customer_id:",
+      "new": "let body={settlement_details:window.gpCustomerCredit?.settlement(requested_payment_method),customer_id:isCustomer()?me.customer_id:",
+      "count": 1
+    },
+    {
+      "file": "partners/portal.html",
+      "old": "if(isCustomer())await loadCustomerPurchaseReport()",
+      "new": "if(isCustomer()){await loadCustomerPurchaseReport();await window.gpCustomerCredit?.refresh()}",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "index.php": "97feb8d5f62fa615cc59cb33f51fc3b7bd76b78e4022d86b2ad53212d2cbf4aa",
+    "partners/index.php": "9df2921deeac9eb31702a3af37bb0e910b65a197be023ade813200096893a62c",
+    "lib/storage.php": "b000c5c391cb02b32da52b818a36806b8e4e018a0d98c4f9923a5c08ebd204d4",
+    "partners/native-r54.php": "6c1fd2b2f82ce15afc24aff31160c96cab0896b7b3beb15b6f4307d50bd79d4b",
+    "app.html": "385157a8ad7924fddf9d5215a14c1ce30829b2a1315c81df64d61f7db46a6f32",
+    "partners/portal.html": "a957c020c9f46533b796857af00d266a51ca4e72e9ebb22b90acc856f3e76311",
+    "lib/customer-credit.php": "d589706b63276a69f05ef3bc3ce20b792f5df08ccd814f366e892d4e8004f4bc",
+    "lib/customer-credit-routes.php": "f4dc56ba4ebeb9397f6557a7550a31cb21278c6462c5dfc1ea22d7ba30cb98cf",
+    "config/customer-credit.yaml": "f287d7df9621e23a98241b5c246458a54a1f063d970aef1691a7082c23b8d741",
+    "assets/customer-credit.js": "bd9ebe9b2d1def9d72afe832ebd769eff97fa5b1ecac4029b5d60d7669f145a9"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}

@@ -8,6 +8,7 @@ on:
       - 'tests/**'
       - 'lib/**'
       - 'app.html'
+      - 'config/customer-credit*'
       - 'config/order-actions*'
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
@@ -23,6 +24,7 @@ on:
       - 'tests/**'
       - 'lib/**'
       - 'app.html'
+      - 'config/customer-credit*'
       - 'config/order-actions*'
       - 'config/shipping-methods.yaml'
       - 'config/native-order-flow*'
@@ -53,6 +55,16 @@ jobs:
           npm ci --prefix tooling/partial-delivery-web --ignore-scripts --no-audit --no-fund
           npm --prefix tooling/partial-delivery-web run check
           python3 scripts/build-web-partial-delivery.py --check
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/customer-credit.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs scripts/customer-credit.ts --max-warnings 0
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check scripts/customer-credit.ts config/customer-credit.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/customer-credit.tsconfig.json --noEmit false --outFile /tmp/customer-credit.js
+          cmp assets/customer-credit.js /tmp/customer-credit.js
+          php -l lib/customer-credit.php
+          php -l lib/customer-credit-routes.php
+          php -l scripts/release-customer-credit.php
+          php tests/customer-credit.php
+          php tests/customer-credit-release.php
           php -l lib/partial-delivery-web.php
           php -l lib/partial-delivery-web-routes.php
           python3 scripts/build-order-actions-theme.py --check
@@ -521,6 +533,13 @@ jobs:
               --dump-dom "file://$GITHUB_WORKSPACE/tests/order-actions-appearance.html" > /tmp/order-appearance-result.html 2>/tmp/chrome.log
             if ! grep -Fq 'ORDER_ACTIONS_APPEARANCE_PASS</output>' /tmp/order-appearance-result.html; then
               grep -o 'ORDER_ACTIONS_APPEARANCE_FAIL[^<]*' /tmp/order-appearance-result.html || true
+              exit 1
+            fi
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$viewport" --virtual-time-budget=2000 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/customer-credit.html" > /tmp/customer-credit.html 2>/tmp/chrome.log
+            if ! grep -Fq 'CUSTOMER_CREDIT_PASS</output>' /tmp/customer-credit.html; then
+              grep -o 'CUSTOMER_CREDIT_FAIL[^<]*' /tmp/customer-credit.html || true
               exit 1
             fi
             echo "Original order actions + burger-to-X animation, close and paging passed at $viewport"
