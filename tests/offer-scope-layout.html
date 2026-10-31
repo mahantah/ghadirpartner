@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../assets/offer-plan-code.css">
+<style>
+body{font-family:Tahoma,Arial,sans-serif;margin:16px;background:#fff8f2;color:#102a43}.card{background:white;padding:20px;border-radius:18px;max-width:900px;margin:auto}.grid{display:grid}.grid input,.grid select{border:1px solid #ccd8e4;border-radius:8px;padding:9px;font:inherit}button{background:#102a43;color:white;border:0;padding:10px 16px;border-radius:8px}.small{font-size:12px}label{line-height:1.8}
+</style>
+<script>function parseMoneyInput(v){return Number(v)}async function req(){return [{name:'I90'},{name:'M3P 4G'},{name:'V77'}]}</script>
+<script src="../assets/offer-plan-code.js"></script>
+</head>
+<body><main class="card"><h2>طرح فروش</h2><div id="form" class="grid"></div><output id="result">PENDING</output></main>
+<script>
+(async()=>{try{
+ const editor=window.gpOfferPlanEditor;
+ document.getElementById('form').innerHTML='<label>انتخاب طرح<select><option>طرح تازه</option></select></label><label>عنوان طرح<input value="فروش ویژه"></label><label>برچسب<input value="ویژه همکاران"></label>'+editor.markup('layout');
+ await editor.mount('layout');editor.fill('layout',{products:['I90','M3P 4G'],discount_type:'percent',discount_value:10,promo_code:'MULTI10'});
+ if(document.documentElement.scrollWidth>innerWidth)throw Error('horizontal overflow');
+ for(const suffix of ['DiscountType','Discount','PromoCode','Products']){const field=document.getElementById('layout'+suffix);if(!field||field.getBoundingClientRect().width<100||getComputedStyle(field).visibility==='hidden')throw Error('field not visible '+suffix)}
+ const columns=getComputedStyle(document.querySelector('.gp-offer-row')).gridTemplateColumns.trim().split(/\s+/).length;
+ if(columns!==(innerWidth<=700?1:2))throw Error('responsive columns');
+ const payload=editor.read('layout');if(payload.products.length!==2||payload.promo_code!=='MULTI10')throw Error('scope retention');
+ document.getElementById('result').textContent='SCOPE_LAYOUT_PASS';
+}catch(error){document.getElementById('result').textContent='SCOPE_LAYOUT_FAIL '+error.message}})();
+</script></body></html>

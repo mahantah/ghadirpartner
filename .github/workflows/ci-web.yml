@@ -67,6 +67,7 @@ jobs:
           cmp assets/offer-plan-code.js /tmp/offer-plan-code.js
           node tests/live-offer-code.cjs
           node tests/offer-product-scope.cjs
+          node tests/offer-scope-layout.cjs
           php -l lib/offer-product-scope.php
           php tests/offer-product-scope.php
           php -l scripts/release-offer-product-scope.php
