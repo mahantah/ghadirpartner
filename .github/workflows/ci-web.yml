@@ -67,6 +67,8 @@ jobs:
           php tests/customer-credit-release.php
           php -l scripts/release-credit-menu.php
           php tests/credit-menu-release.php
+          php -l scripts/release-customer-actions.php
+          php tests/customer-actions-release.php
           python3 tests/credit-menu-renderer.py
           php -l lib/partial-delivery-web.php
           php -l lib/partial-delivery-web-routes.php

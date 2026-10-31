@@ -48,7 +48,7 @@ class OrderActionsThemeBuilder:
         body = source[source.index(marker) :]
         prefix = (
             "/* Generated tokens: scripts/build-order-actions-theme.py */\n"
-            "body > .order-menu.open:not(.customer-menu){"
+            "body > .order-menu.open{"
             f"--gp-action-navy:{raw['navy']};--gp-action-orange:{raw['orange']};"
             f"--gp-action-width:{raw['width_px']}px;--gp-action-blur:{raw['blur_px']}px;"
             f"--gp-action-duration:{raw['duration_ms']}ms;" + "}\n"

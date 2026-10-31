@@ -14,10 +14,10 @@ class CreditMenuRendererCheck:
         root = Path(__file__).resolve().parents[1]
         source = (root / "assets/kartabl-sync-v1.js").read_text()
         renderer = (
-            "function fillOpsMenu"
-            + source.split("function fillOpsMenu", 1)[1].split("function wrapMenu", 1)[
-                0
-            ]
+            "function customerActionIcon"
+            + source.split("function customerActionIcon", 1)[1].split(
+                "function wrapMenu", 1
+            )[0]
         )
         html = (
             """<!doctype html><html><body><output id="result">PENDING</output><script>
@@ -30,15 +30,25 @@ function closeCustomerMenus(){}window.gpCustomerCredit={open(id){opened=id}};
 try{
  for(const permitted of [true,false]){
   allowed=permitted;document.querySelector('.customer-menu')?.remove();
-  let menu=document.createElement('div');menu.className='customer-menu open';document.body.append(menu);
-  fillOpsMenu(42);fillOpsMenu(42);let button=menu.querySelector('[data-gp-credit-action]');
-  if(!!button!==permitted||menu.querySelectorAll('[data-gp-credit-action]').length>1)throw Error('visibility');
+  let menu=document.createElement('div');menu.className='order-menu customer-menu open';menu.style.cssText='position:fixed;top:95vh';document.body.append(menu);
+  fillOpsMenu(42);fillOpsMenu(42);if([...menu.querySelectorAll('button')].some(b=>b.querySelectorAll('svg').length!==1))throw Error('missing or duplicate icon');let button=menu.querySelector('[data-gp-credit-action]');
+  if(menu.getBoundingClientRect().bottom>innerHeight-7)throw Error('menu outside viewport');if(!!button!==permitted||menu.querySelectorAll('[data-gp-credit-action]').length>1)throw Error('visibility');
   if(button){button.click();if(opened!==42)throw Error('wrong customer')}
   if(!menu.textContent.includes('ویرایش مشخصات')||!menu.textContent.includes('حذف مشتری'))throw Error('legacy actions');
  }
  document.getElementById('result').textContent='CREDIT_MENU_PASS';
 }catch(e){document.getElementById('result').textContent='CREDIT_MENU_FAIL '+e.message}
 </script></body></html>"""
+        )
+        html = html.replace(
+            "<body>",
+            '<link rel="stylesheet" href="'
+            + (root / "assets/order-action-burger-v1.css").as_uri()
+            + '"><style>.order-menu.customer-menu{background:#fff!important}.customer-menu button{background:#fff!important;color:#111!important}</style><body>',
+        )
+        html = html.replace(
+            "fillOpsMenu(42);fillOpsMenu(42);",
+            "fillOpsMenu(42);fillOpsMenu(42);if(getComputedStyle(menu).backgroundColor!=='rgb(16, 42, 67)')throw Error('navy');menu.querySelectorAll('button').forEach(b=>b.style.setProperty('transition','none','important'));menu.querySelector('button').focus();if(getComputedStyle(menu.querySelector('button')).backgroundColor!=='rgb(245, 130, 32)')throw Error('orange');if(getComputedStyle(menu.querySelectorAll('button')[1]).filter!=='blur(1px)')throw Error('blur');",
         )
         browser = shutil.which("google-chrome") or shutil.which("chromium")
         if not browser:
@@ -52,6 +62,7 @@ try{
                     "--headless=new",
                     "--no-sandbox",
                     "--disable-gpu",
+                    "--allow-file-access-from-files",
                     "--dump-dom",
                     fixture.as_uri(),
                 ],
