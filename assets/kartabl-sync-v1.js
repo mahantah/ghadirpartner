@@ -396,6 +396,7 @@
     var c = typeof customerById === 'function' ? customerById(id) : {};
     menu.innerHTML =
       '<button type="button" onclick="closeCustomerMenus();openCustomerEdit(' + id + ')">✎ ویرایش مشخصات</button>' +
+      ((has('admin') || has('finance')) ? '<button type="button" data-gp-credit-action onclick="closeCustomerMenus();window.gpCustomerCredit.open(' + id + ')">اعتبار ماهانه</button>' : '') +
       '<button type="button" onclick="closeCustomerMenus();gpChangeCustomerContact(' + id + ')">📱 تغییر تماس</button>' +
       '<button type="button" onclick="closeCustomerMenus();gpResetCustomerPassword(' + id + ')">🔑 بازیابی رمز مشتری</button>' +
       '<button type="button" onclick="closeCustomerMenus();openCustomerPriceEdit(' + id + ')">💲 ' + PRICE_TITLE + '</button>' +

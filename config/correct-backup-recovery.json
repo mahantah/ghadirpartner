@@ -953,13 +953,31 @@
       "old": "if(isCustomer())await loadCustomerPurchaseReport()",
       "new": "if(isCustomer()){await loadCustomerPurchaseReport();await window.gpCustomerCredit?.refresh()}",
       "count": 1
+    },
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "      '<button type=\"button\" onclick=\"closeCustomerMenus();openCustomerEdit(' + id + ')\">✎ ویرایش مشخصات</button>' +",
+      "new": "      '<button type=\"button\" onclick=\"closeCustomerMenus();openCustomerEdit(' + id + ')\">✎ ویرایش مشخصات</button>' +\n      ((has('admin') || has('finance')) ? '<button type=\"button\" data-gp-credit-action onclick=\"closeCustomerMenus();window.gpCustomerCredit.open(' + id + ')\">اعتبار ماهانه</button>' : '') +",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "${has('admin')||has('finance')?`<button onclick=\"closeCustomerMenus();window.gpCustomerCredit.open(${id})\">اعتبار ماهانه</button>`:''}",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/kartabl-sync-v1.js?v=2&whfix=20261028a",
+      "new": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031credit",
+      "count": 1
     }
   ],
   "expected_files": {
     "mobile.html": "4b6c9f9e9899fe98144b1e5ee2e727785b6c3b4e30ca1d2f5914adeb202eccfc",
     "index.php": "97feb8d5f62fa615cc59cb33f51fc3b7bd76b78e4022d86b2ad53212d2cbf4aa",
     "VERSION.txt": "2e63231d6f803b518558e70b451923fc6bcb3cc558ba3f391de5dd708999fa03",
-    "app.html": "385157a8ad7924fddf9d5215a14c1ce30829b2a1315c81df64d61f7db46a6f32",
+    "app.html": "ce0983c410c7ce3a4113e7d62cf0dce4e291a29ad651cead3643cb4dec00b02b",
     "partners/portal.html": "a957c020c9f46533b796857af00d266a51ca4e72e9ebb22b90acc856f3e76311",
     "partners/native-r51-core.php": "d4a0d7a570e87ea81cf766f3a0d85493999812fda7cc1f46ab04c7a32b7f9f6e",
     "partners/native-r54.php": "6c1fd2b2f82ce15afc24aff31160c96cab0896b7b3beb15b6f4307d50bd79d4b",
@@ -1055,7 +1073,7 @@
     "assets/plans-icon-agent-lock-v1.js": "6fe45aaa491b453d0bbc63875f9c185bf497f79f1535d4b1aafe33b1c50ed43b",
     "assets/ops-v53430.js": "9e894f8eb5e2f01c493bdcda210a076e0bc1b4c889db856711f2e80a273ac359",
     "assets/warehouse-ledger-eod-freeze-v1.js": "7e7be4c624578b666f6d18b181fb39c170cfeb2ad88ecd5b34dda6745ae8a4ec",
-    "assets/kartabl-sync-v1.js": "7a2affa4ace62b1dbc76220f33bd15f557d1c96cdf8664edacaf1f8e205aed08",
+    "assets/kartabl-sync-v1.js": "fc7c91c5339279a1fb67f026cd65afc2623fd969425ce7a68c20751c46998253",
     "assets/warehouse-serial-filters-v2.css": "53a627f798f705ad14fea8b91bdd6cbbfe15bb583a8c9bb934f87cf336427690",
     "assets/ops-coop-strip-v3.js": "9396694e990dad7f8c05c6044511347bd0ecb7980a5ef37373af86f286a09b28",
     "assets/sidebar-edge-profile-v2.js": "7af357f377a56213e3442aebfff715c4af6665c8360fe14a9655e8dc4b86df59",

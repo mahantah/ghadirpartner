@@ -1,0 +1,50 @@
+{
+  "before_files": {
+    "assets/kartabl-sync-v1.js": "7a2affa4ace62b1dbc76220f33bd15f557d1c96cdf8664edacaf1f8e205aed08",
+    "app.html": "385157a8ad7924fddf9d5215a14c1ce30829b2a1315c81df64d61f7db46a6f32"
+  },
+  "operations": [
+    {
+      "file": "assets/kartabl-sync-v1.js",
+      "old": "      '<button type=\"button\" onclick=\"closeCustomerMenus();openCustomerEdit(' + id + ')\">✎ ویرایش مشخصات</button>' +",
+      "new": "      '<button type=\"button\" onclick=\"closeCustomerMenus();openCustomerEdit(' + id + ')\">✎ ویرایش مشخصات</button>' +\n      ((has('admin') || has('finance')) ? '<button type=\"button\" data-gp-credit-action onclick=\"closeCustomerMenus();window.gpCustomerCredit.open(' + id + ')\">اعتبار ماهانه</button>' : '') +",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "${has('admin')||has('finance')?`<button onclick=\"closeCustomerMenus();window.gpCustomerCredit.open(${id})\">اعتبار ماهانه</button>`:''}",
+      "new": "",
+      "count": 1
+    },
+    {
+      "file": "app.html",
+      "old": "/assets/kartabl-sync-v1.js?v=2&whfix=20261028a",
+      "new": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031credit",
+      "count": 1
+    }
+  ],
+  "expected_files": {
+    "assets/kartabl-sync-v1.js": "fc7c91c5339279a1fb67f026cd65afc2623fd969425ce7a68c20751c46998253",
+    "app.html": "ce0983c410c7ce3a4113e7d62cf0dce4e291a29ad651cead3643cb4dec00b02b"
+  },
+  "protected_cartons": [
+    "I90-097",
+    "I90-098",
+    "I90-099",
+    "I90-100",
+    "I90-101",
+    "I90-102",
+    "I90-103",
+    "I90-109",
+    "I90-110",
+    "I90-111",
+    "I90-112",
+    "I90-113",
+    "I90-114",
+    "I90-115",
+    "I90-116",
+    "I90-123",
+    "I90-124",
+    "I90-125"
+  ]
+}
