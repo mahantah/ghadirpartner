@@ -45,8 +45,11 @@ jobs:
           rm -rf /tmp/v53438 /tmp/delta
           mkdir -p /tmp/v53438 /tmp/delta
           unzip -q "$BASE" -d /tmp/v53438
-          ROOT="$(find /tmp/v53438 -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
-          if [[ -z "$ROOT" || ! -f "$ROOT/index.php" ]]; then ROOT=/tmp/v53438; fi
+          ROOT=/tmp/v53438
+          if [[ ! -f "$ROOT/index.php" || ! -f "$ROOT/VERSION.txt" ]]; then
+            ROOT="$(find /tmp/v53438 -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+            if [[ -z "$ROOT" || ! -f "$ROOT/index.php" || ! -f "$ROOT/VERSION.txt" ]]; then ROOT=/tmp/v53438; fi
+          fi
           test "$(cat "$ROOT/VERSION.txt")" = "V5.3.4.38-INVENTORY-LAZY-API-FIX"
           # The original ZIP has no .htaccess, but the static-entry patch
           # requires it. Copy reviewed repository configuration for the
