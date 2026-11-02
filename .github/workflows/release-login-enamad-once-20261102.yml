@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/release-login-enamad-once-20261102.yml'
+      - 'scripts/patch-login-enamad-v1.py'
 permissions:
   contents: read
 concurrency:
