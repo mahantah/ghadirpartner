@@ -1,0 +1,124 @@
+name: Fix eNamad seal display on login (one-time)
+on:
+  pull_request:
+    paths:
+      - 'assets/login-enamad-v2.*'
+      - 'scripts/patch-login-enamad-v2.py'
+      - '.github/workflows/release-login-enamad-v2-once.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-login-enamad-v2-once.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check seal assets and idempotence
+        run: |
+          set -euo pipefail
+          node --check assets/login-enamad-v2.js
+          python3 -m py_compile scripts/patch-login-enamad-v2.py
+          python3 - <<'PY'
+          import runpy
+          x=runpy.run_path('scripts/patch-login-enamad-v2.py')
+          patch=x['EnamadV2Patch']()
+          before='<html><head><link rel="stylesheet" href="/assets/login-enamad-v1.css?v=20261102a"></head><body><div id="login"><input id="lu"><input id="lp"><button id="loginbtn"></button></div><script src="/assets/login-enamad-v1.js?v=20261102a"></script></body></html>'
+          after=patch.apply(before)
+          assert after==patch.apply(after)
+          assert 'login-enamad-v1.js' not in after and 'login-enamad-v1.css' not in after
+          assert after.count('/assets/login-enamad-v2.js')==1
+          assert after.count('/assets/login-enamad-v2.css')==1
+          try:patch.apply('<html></html>')
+          except ValueError:pass
+          else:raise AssertionError('Must fail on login drift')
+          print('Login seal idempotence and asset updates verified')
+          PY
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Patch only live login seal assets, with rollback
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          DIR="$(mktemp -d)"
+          cleanup(){ rm -rf "$DIR"; }
+          trap cleanup EXIT
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o "$DIR/app-before.html"
+          bye
+          EOF
+          cp "$DIR/app-before.html" "$DIR/app-after.html"
+          python3 scripts/patch-login-enamad-v2.py "$DIR/app-after.html"
+          python3 scripts/patch-login-enamad-v2.py "$DIR/app-after.html"
+          cp "$DIR/app-before.html" "$DIR/app-rollback.html"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put assets/login-enamad-v2.js -o /assets/login-enamad-v2.js
+          put assets/login-enamad-v2.css -o /assets/login-enamad-v2.css
+          get /app.html -o "$DIR/app-drift.html"
+          bye
+          EOF
+          cmp "$DIR/app-before.html" "$DIR/app-drift.html"
+          rollback(){
+            lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$DIR/app-rollback.html" -o /app.html
+          bye
+          EOF
+          }
+          trap rollback ERR
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$DIR/app-after.html" -o /app.html
+          bye
+          EOF
+          curl -fsSL --max-time 30 -H 'Cache-Control: no-cache' "https://ghadirpartner.ir/app.html?enamad-v2=${GITHUB_RUN_ID}" -o "$DIR/app-public.html"
+          grep -Fq '/assets/login-enamad-v2.js?v=20261102b' "$DIR/app-public.html"
+          grep -Fq '/assets/login-enamad-v2.css?v=20261102b' "$DIR/app-public.html"
+          curl -fsSL --max-time 30 https://ghadirpartner.ir/assets/login-enamad-v2.js -o "$DIR/live.js"
+          curl -fsSL --max-time 30 https://ghadirpartner.ir/assets/login-enamad-v2.css -o "$DIR/live.css"
+          node --check "$DIR/live.js"
+          grep -Fq 'GP_LOGIN_ENAMAD_SEAL_V2_20261102' "$DIR/live.css"
+          curl -fsS --max-time 30 https://ghadirpartner.ir/healthz -o /dev/null
+          trap - ERR
+          echo 'SUCCESS: Login eNamad v2 deployed and website health verified.'
