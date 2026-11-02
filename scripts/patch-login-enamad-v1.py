@@ -35,11 +35,17 @@ class LoginEnamadPatch:
         for control in ('id="lu"', 'id="lp"', 'id="loginbtn"'):
             if control not in html:
                 raise ValueError("Expected credential control missing: " + control)
-        if html.count("</head>") != 1 or html.count("</body>") != 1:
-            raise ValueError("Unexpected HTML document boundaries")
-        return (html
-                .replace("</head>", f'<!-- {MARKER} -->\n<link rel="stylesheet" href="{CSS}">\n</head>', 1)
-                .replace("</body>", f'<script src="{JS}" defer></script>\n</body>', 1))
+        # The live compiled page contains HTML snippets inside scripts and
+        # templates, so closing tag strings may occur more than once. Only
+        # the last real document boundaries are safe insertion points.
+        head_at = html.rfind("</head>")
+        body_at = html.rfind("</body>")
+        if head_at < 0 or body_at < 0 or head_at >= body_at:
+            raise ValueError("Production HTML document boundary missing")
+        result = html[:body_at] + f'<script src="{JS}" defer></script>\n' + html[body_at:]
+        head_at = result.rfind("</head>")
+        result = result[:head_at] + f'<!-- {MARKER} -->\n<link rel="stylesheet" href="{CSS}">\n' + result[head_at:]
+        return result
 
 
 def main() -> None:
