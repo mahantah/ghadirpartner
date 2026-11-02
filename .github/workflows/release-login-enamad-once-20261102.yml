@@ -44,7 +44,6 @@ jobs:
           css=Path("assets/login-enamad-v1.css").read_text()
           original="https://trustseal.enamad.ir/?id=7833479&Code=TWkVm1TWlJur0GPTQsBUkAme2pLiKNIn"
           assert original in script
-          assert original.replace('?', 'logo.aspx?') not in script
           assert "https://trustseal.enamad.ir/logo.aspx?id=7833479&Code=TWkVm1TWlJur0GPTQsBUkAme2pLiKNIn" in script
           assert 'referrerPolicy = "origin"' in script
           assert '#login .gp-login-enamad' in css
