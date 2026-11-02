@@ -5,6 +5,10 @@ $model=new GpCreditModel();$monthOf=static function(string $s): string{return su
 $customer=['id'=>1,'monthly_credit'=>['enabled'=>true,'limit'=>100]];
 $order=['id'=>1,'customer_id'=>1,'requested_payment_method'=>'credit','payment_method'=>'','approval_status'=>'در انتظار تأیید','status'=>'در انتظار تأیید سفارش','estimated_total'=>30,'created_at'=>'1405/07/01','payment_status'=>'پرداخت نشده'];
 $state=['customers'=>[$customer],'orders'=>[$order]];
+$split=$order;$split['id']=99;$split['requested_payment_method']='mixed';$split['native_settlement']=['credit_amount'=>12,'cash_amount'=>18];
+if($model->amount($split)!==12)throw new Exception('split_credit_partial_exposure');
+$split['native_settlement']['credit_amount']=0;
+if($model->amount($split)!==0)throw new Exception('split_cash_only_no_credit_exposure');
 $b=$model->balance($state,1,'1405/08',$monthOf);if($b['available']!==70||$b['monthly_used']!==0||$b['reserved']!==30)throw new Exception('prior_debt');
 $next=$order;$next['id']=2;$next['estimated_total']=70;$next['created_at']='1405/08/01';$after=$state;$after['orders'][]=$next;
 $model->assertChanges($state,$after,'1405/08',$monthOf);
