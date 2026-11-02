@@ -41,6 +41,22 @@ final class NativeOrderFlowTest
         foreach (['cash','check','credit'] as $method) {
             $request['requested_payment_method']=$method; $this->service->validateRequest($request); $this->checks++;
         }
+        $request=$this->request();
+        $request['requested_payment_method']='mixed';
+        $request['settlement_details']+=['split'=>true,'cash_enabled'=>true,'cash_amount'=>40,'check_enabled'=>false,'check_amount'=>0,'credit_enabled'=>true,'credit_amount'=>60];
+        $this->service->validateRequest($request);$this->checks++;
+        $this->check($this->service->creditCommitment($request)['terms_accepted']===true,'mixed credit consent retained');
+        $missingTerms=$request;$missingTerms['settlement_details']['terms_accepted']=false;
+        $this->fails(function () use ($missingTerms): void { $this->service->validateRequest($missingTerms); },'mixed credit requires consent');
+        $badAmount=$request;$badAmount['settlement_details']['cash_amount']=-1;
+        $this->fails(function () use ($badAmount): void { $this->service->validateRequest($badAmount); },'mixed negative amount');
+        $onePart=$request;$onePart['settlement_details']['cash_enabled']=false;$onePart['settlement_details']['cash_amount']=0;
+        $this->fails(function () use ($onePart): void { $this->service->validateRequest($onePart); },'mixed needs two parts');
+        $checkCash=$request;$checkCash['settlement_details']['credit_enabled']=false;$checkCash['settlement_details']['credit_amount']=0;
+        $checkCash['settlement_details']['check_enabled']=true;$checkCash['settlement_details']['check_amount']=60;
+        $checkCash['settlement_details']['terms_accepted']=false;
+        $this->service->validateRequest($checkCash);$this->checks++;
+        $this->check($this->service->creditCommitment($checkCash)===[],'noncredit mixed has no credit commitment');
         $request=$this->request();unset($request['invoice_type']);
         $this->fails(function () use ($request): void { $this->service->validateRequest($request); }, 'implicit invoice');
         foreach ([false, 'true', 'false', 1, null] as $acceptance) {
