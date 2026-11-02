@@ -47,14 +47,27 @@ final class GpCustomerOrderFlow
             throw new InvalidArgumentException('اطلاعات تسویه معتبر نیست');
         }
         $method = $request['requested_payment_method'] ?? '';
-        if (!in_array($method, ['cash', 'check', 'credit', 'online'], true)) {
+        if (!in_array($method, ['cash', 'check', 'credit', 'online', 'mixed'], true)) {
             throw new InvalidArgumentException('روش تسویه را انتخاب کنید');
         }
-        if ($method === 'credit' && (($request['settlement_details']['terms_accepted'] ?? false) !== true)) {
+        $settlement = $request['settlement_details'] ?? [];
+        if ($method === 'mixed') {
+            if (($settlement['split'] ?? false) !== true) throw new InvalidArgumentException('جزئیات تسویه ترکیبی الزامی است');
+            $active = 0;
+            foreach (['cash', 'check', 'credit'] as $part) {
+                $enabled = ($settlement[$part . '_enabled'] ?? false) === true;
+                $amount = $settlement[$part . '_amount'] ?? 0;
+                if (!is_int($amount) || $amount < 0 || (!$enabled && $amount !== 0)) throw new InvalidArgumentException('مبلغ روش تسویه معتبر نیست');
+                if ($enabled && $amount > 0) ++$active;
+            }
+            if ($active < 2) throw new InvalidArgumentException('حداقل دو روش تسویه برای حالت ترکیبی الزامی است');
+        }
+        $hasCredit = $method === 'credit' || ($method === 'mixed' && ($settlement['credit_enabled'] ?? false) === true && ($settlement['credit_amount'] ?? 0) > 0);
+        if ($hasCredit && (($settlement['terms_accepted'] ?? false) !== true)) {
             throw new InvalidArgumentException('پذیرش تعهد تسویه اعتباری الزامی است');
         }
-        if ($method === 'credit') {
-            $revision = $request['settlement_details']['commitment_sha256'] ?? '';
+        if ($hasCredit) {
+            $revision = $settlement['commitment_sha256'] ?? '';
             if (!is_string($revision) || !hash_equals(hash('sha256', $this->policy['credit_commitment']), $revision)) {
                 throw new InvalidArgumentException('متن تعهد تغییر کرده است؛ در نسخه جدید برنامه آن را دوباره تأیید کنید');
             }
@@ -120,9 +133,13 @@ final class GpCustomerOrderFlow
     /** Capture the exact server-owned text alongside a credit consent without approving payment. */
     public function creditCommitment(array $request): array
     {
-        if (($request['requested_payment_method'] ?? '') !== 'credit') return [];
-        return ['terms_accepted' => true, 'commitment_text' => $this->policy['credit_commitment'],
+        $method = $request['requested_payment_method'] ?? '';
+        $splitCredit = $method === 'mixed' && ($request['settlement_details']['credit_enabled'] ?? false) === true && ($request['settlement_details']['credit_amount'] ?? 0) > 0;
+        if ($method !== 'credit' && !$splitCredit) return [];
+        $snapshot = ['terms_accepted' => true, 'commitment_text' => $this->policy['credit_commitment'],
             'commitment_sha256' => hash('sha256', $this->policy['credit_commitment'])];
+        if ($splitCredit) $snapshot['credit_amount'] = $request['settlement_details']['credit_amount'];
+        return $snapshot;
     }
 
     /** A final company decision cannot revive a cancelled, rejected or fulfilled order. */

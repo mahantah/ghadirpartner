@@ -94,7 +94,7 @@
     "partners/native-r54.php": "6c1fd2b2f82ce15afc24aff31160c96cab0896b7b3beb15b6f4307d50bd79d4b",
     "app.html": "385157a8ad7924fddf9d5215a14c1ce30829b2a1315c81df64d61f7db46a6f32",
     "partners/portal.html": "a957c020c9f46533b796857af00d266a51ca4e72e9ebb22b90acc856f3e76311",
-    "lib/customer-credit.php": "d589706b63276a69f05ef3bc3ce20b792f5df08ccd814f366e892d4e8004f4bc",
+    "lib/customer-credit.php": "c48d13fa3e303d4cad1e7ffc5e8bc66d845daba21cad8c4f52f1c3deb0804590",
     "lib/customer-credit-routes.php": "f4dc56ba4ebeb9397f6557a7550a31cb21278c6462c5dfc1ea22d7ba30cb98cf",
     "config/customer-credit.yaml": "f287d7df9621e23a98241b5c246458a54a1f063d970aef1691a7082c23b8d741",
     "assets/customer-credit.js": "bd9ebe9b2d1def9d72afe832ebd769eff97fa5b1ecac4029b5d60d7669f145a9"
