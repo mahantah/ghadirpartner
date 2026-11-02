@@ -1,4 +1,5 @@
 name: Release Native Customer Order Flow R5.12
+# Production release trigger documents PR #111 mixed-settlement deploy (2026-11-02).
 on:
   workflow_dispatch:
   push:

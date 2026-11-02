@@ -1,4 +1,5 @@
 name: Release Customer Monthly Credit
+# Production release trigger documents PR #111 mixed-settlement deploy (2026-11-02).
 on:
   workflow_dispatch:
   push:
