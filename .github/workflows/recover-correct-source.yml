@@ -1,10 +1,6 @@
 name: Recover Owner Correct Code Baseline
-# Production recover after PR #111 mixed-settlement merge (2026-11-02).
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/recover-correct-source.yml']
 permissions:
   contents: read
 concurrency:
