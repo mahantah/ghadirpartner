@@ -1,0 +1,141 @@
+name: Add official eNamad seal to production login (one-time)
+on:
+  pull_request:
+    paths:
+      - 'assets/login-enamad-v1.*'
+      - 'scripts/patch-login-enamad-v1.py'
+      - '.github/workflows/release-login-enamad-once-20261102.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-login-enamad-once-20261102.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify official seal, browser JavaScript and fail-closed HTML patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/login-enamad-v1.js
+          python3 -m py_compile scripts/patch-login-enamad-v1.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from importlib.machinery import SourceFileLoader
+          m=SourceFileLoader("em", "scripts/patch-login-enamad-v1.py").load_module()
+          fixture='<!doctype html><html><head></head><body><div id="login"><input id="lu"><input id="lp"><button id="loginbtn">ورود</button></div></body></html>'
+          out=m.LoginEnamadPatch().apply(fixture)
+          assert out==m.LoginEnamadPatch().apply(out)
+          assert out.count('GP_LOGIN_ENAMAD_SEAL_V1_20261102')==1
+          assert out.count('login-enamad-v1.css')==1
+          assert out.count('login-enamad-v1.js')==1
+          for bad in ('<html><head></head><body></body></html>',fixture.replace('id="lp"','id="password"')):
+            try:m.LoginEnamadPatch().apply(bad)
+            except ValueError:pass
+            else:raise AssertionError('Expected fail-closed patch rejection')
+          script=Path("assets/login-enamad-v1.js").read_text()
+          css=Path("assets/login-enamad-v1.css").read_text()
+          original="https://trustseal.enamad.ir/?id=7833479&Code=TWkVm1TWlJur0GPTQsBUkAme2pLiKNIn"
+          assert original in script
+          assert "https://trustseal.enamad.ir/logo.aspx?id=7833479&Code=TWkVm1TWlJur0GPTQsBUkAme2pLiKNIn" in script
+          assert 'referrerPolicy = "origin"' in script
+          assert '#login .gp-login-enamad' in css
+          assert '#login.hidden' in css
+          print('eNamad security, responsive styling and idempotence PASS')
+          PY
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test]
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install FTPS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Patch live app.html only, verify, restore on failure
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          mkdir -p "$RUNNER_TEMP/enamad-before" "$RUNNER_TEMP/enamad-after"
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          get /app.html -o "$RUNNER_TEMP/enamad-before/app.html"
+          bye
+          EOF
+          cp "$RUNNER_TEMP/enamad-before/app.html" "$RUNNER_TEMP/enamad-after/app.html"
+          python3 scripts/patch-login-enamad-v1.py "$RUNNER_TEMP/enamad-after/app.html"
+          python3 scripts/patch-login-enamad-v1.py "$RUNNER_TEMP/enamad-after/app.html"
+          # No background changes or unrelated code removed by the patch.
+          grep -Fq 'GP_LOGIN_ENAMAD_SEAL_V1_20261102' "$RUNNER_TEMP/enamad-after/app.html"
+          cp "$RUNNER_TEMP/enamad-before/app.html" "$RUNNER_TEMP/enamad-after/rollback.html"
+          DEPLOY_STARTED=0
+          rollback() {
+            code=$?
+            if [ "$DEPLOY_STARTED" = 1 ]; then
+              lftp <<EOF || true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$RUNNER_TEMP/enamad-after/rollback.html" -o /app.html
+          bye
+          EOF
+            fi
+            exit "$code"
+          }
+          trap rollback ERR
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put assets/login-enamad-v1.js -o /assets/login-enamad-v1.js
+          put assets/login-enamad-v1.css -o /assets/login-enamad-v1.css
+          get /app.html -o "$RUNNER_TEMP/enamad-after/recheck.html"
+          bye
+          EOF
+          cmp "$RUNNER_TEMP/enamad-before/app.html" "$RUNNER_TEMP/enamad-after/recheck.html"
+          DEPLOY_STARTED=1
+          lftp <<EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          open -p 21 "$FTP_SERVER"
+          user "$FTP_USERNAME" "$FTP_PASSWORD"
+          put "$RUNNER_TEMP/enamad-after/app.html" -o /app.html
+          bye
+          EOF
+          curl -fsSL --max-time 30 -H 'Cache-Control: no-cache' "https://ghadirpartner.ir/app.html?enamad=${GITHUB_RUN_ID}" -o "$RUNNER_TEMP/enamad-after/live.html"
+          grep -Fq 'GP_LOGIN_ENAMAD_SEAL_V1_20261102' "$RUNNER_TEMP/enamad-after/live.html"
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/login-enamad-v1.js?v=20261102a' -o "$RUNNER_TEMP/enamad-after/live.js"
+          curl -fsSL --max-time 30 'https://ghadirpartner.ir/assets/login-enamad-v1.css?v=20261102a' -o "$RUNNER_TEMP/enamad-after/live.css"
+          node --check "$RUNNER_TEMP/enamad-after/live.js"
+          grep -Fq 'GP_LOGIN_ENAMAD_SEAL_V1_20261102' "$RUNNER_TEMP/enamad-after/live.css"
+          curl -fsS --max-time 20 https://ghadirpartner.ir/healthz -o /dev/null
+          DEPLOY_STARTED=0
+          trap - ERR
+          echo 'Official eNamad trust seal live on login bottom-left; no authentication, backend or data changes.'

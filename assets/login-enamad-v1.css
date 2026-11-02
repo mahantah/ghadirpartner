@@ -1,0 +1,49 @@
+/* GP_LOGIN_ENAMAD_SEAL_V1_20261102
+   Fixed to bottom left of login only; no overlay on auth controls.
+*/
+#login .gp-login-enamad {
+  position: fixed;
+  z-index: 35;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  min-height: 96px;
+  max-height: 116px;
+  padding: 6px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: rgba(255,255,255,.93);
+  box-shadow: 0 4px 18px rgba(16,42,67,.18);
+  cursor: pointer;
+}
+#login .gp-login-enamad img {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  max-height: 104px;
+  object-fit: contain;
+  border: 0;
+}
+#login .gp-login-enamad:focus-visible {
+  outline: 3px solid #f58220;
+  outline-offset: 3px;
+}
+#login.hidden .gp-login-enamad,
+#login[hidden] .gp-login-enamad {
+  display: none !important;
+}
+@media (max-width: 600px) {
+  #login .gp-login-enamad {
+    left: max(8px, env(safe-area-inset-left, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    width: 64px;
+    min-height: 64px;
+    max-height: 82px;
+    padding: 4px;
+    border-radius: 9px;
+  }
+  #login .gp-login-enamad img { max-height: 74px; }
+}
