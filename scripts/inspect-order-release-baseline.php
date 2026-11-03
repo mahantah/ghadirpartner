@@ -4,6 +4,10 @@ declare(strict_types=1);
 /** Read-only fingerprint and patch-anchor inspection of the active owner code. */
 final class OrderReleaseBaselineInspection
 {
+    private string $root;
+    /** @var array<string,array<string,mixed>> */
+    private array $manifests;
+
     private const ALLOWED_FILES = [
         'index.php', 'partners/index.php', 'partners/native-r54.php',
         'lib/storage.php', 'app.html', 'partners/portal.html',
@@ -17,8 +21,10 @@ final class OrderReleaseBaselineInspection
      * @param string $root Absolute web root on the production host.
      * @param array<string,array<string,mixed>> $manifests Verified finite release manifests.
      */
-    public function __construct(private string $root, private array $manifests)
+    public function __construct(string $root, array $manifests)
     {
+        $this->root = $root;
+        $this->manifests = $manifests;
     }
 
     /**
