@@ -10,7 +10,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 test_parent = Path(__file__).resolve().parent
-sys.path.insert(0, str(test_parent.parent / "scripts" if test_parent.name == "tests" else test_parent))
+sys.path.insert(
+    0,
+    str(test_parent.parent / "scripts" if test_parent.name == "tests" else test_parent),
+)
 
 from hotfix_mixed_order import (  # noqa: E402
     MixedSettlementHotfix,
@@ -69,13 +72,34 @@ class MixedSettlementHotfixTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="gp-mixed-hotfix-test-")
         self.root = Path(self.temporary.name)
         (self.root / "lib").mkdir()
-        self.old = {"lib/customer-credit.php": b"credit-old", "lib/native-order-flow.php": b"order-old"}
-        self.new = {"lib/customer-credit.php": b"credit-new", "lib/native-order-flow.php": b"order-new"}
+        self.old = {
+            "lib/customer-credit.php": b"credit-old",
+            "lib/native-order-flow.php": b"order-old",
+        }
+        self.new = {
+            "lib/customer-credit.php": b"credit-new",
+            "lib/native-order-flow.php": b"order-new",
+        }
         targets = []
         for path, source in self.new.items():
             (self.root / path).write_bytes(source)
-            targets.append(TargetFile(path, hashlib.sha256(self.old[path]).hexdigest(), hashlib.sha256(source).hexdigest()))
-        self.settings = ReleaseSettings("ftp.example", "user", "secret", 21, 20, "https://example.test/healthz", 20, tuple(targets))
+            targets.append(
+                TargetFile(
+                    path,
+                    hashlib.sha256(self.old[path]).hexdigest(),
+                    hashlib.sha256(source).hexdigest(),
+                )
+            )
+        self.settings = ReleaseSettings(
+            "ftp.example",
+            "user",
+            "secret",
+            21,
+            20,
+            "https://example.test/healthz",
+            20,
+            tuple(targets),
+        )
 
     def tearDown(self) -> None:
         """Remove all owned temporary test fixture files."""
@@ -84,8 +108,12 @@ class MixedSettlementHotfixTests(unittest.TestCase):
     def test_releases_only_the_two_allowlisted_files(self) -> None:
         """Publish credit before order and verify both exact target hashes."""
         remote = FakeRemote(self.old)
-        result = MixedSettlementHotfix(remote, FakeHealth(), self.settings, self.root).release()
-        self.assertEqual(result, ("lib/customer-credit.php", "lib/native-order-flow.php"))
+        result = MixedSettlementHotfix(
+            remote, FakeHealth(), self.settings, self.root
+        ).release()
+        self.assertEqual(
+            result, ("lib/customer-credit.php", "lib/native-order-flow.php")
+        )
         self.assertEqual(remote.live_replacements, list(result))
         self.assertEqual({key: remote.files[key] for key in self.new}, self.new)
         self.assertEqual(set(remote.files), set(self.new))
@@ -93,29 +121,41 @@ class MixedSettlementHotfixTests(unittest.TestCase):
     def test_idempotent_when_already_released(self) -> None:
         """Avoid touching production when both installed hashes are current."""
         remote = FakeRemote(self.new)
-        result = MixedSettlementHotfix(remote, FakeHealth(()), self.settings, self.root).release()
+        result = MixedSettlementHotfix(
+            remote, FakeHealth(()), self.settings, self.root
+        ).release()
         self.assertEqual(result, ())
         self.assertEqual(remote.live_replacements, [])
 
     def test_refuses_unknown_live_source(self) -> None:
         """Do not overwrite a source that differs from both pinned versions."""
-        remote = FakeRemote({**self.old, "lib/native-order-flow.php": b"changed-elsewhere"})
+        remote = FakeRemote(
+            {**self.old, "lib/native-order-flow.php": b"changed-elsewhere"}
+        )
         with self.assertRaisesRegex(RuntimeError, "production_sha256_mismatch"):
-            MixedSettlementHotfix(remote, FakeHealth(()), self.settings, self.root).release()
+            MixedSettlementHotfix(
+                remote, FakeHealth(()), self.settings, self.root
+            ).release()
         self.assertEqual(remote.live_replacements, [])
 
     def test_refuses_unhealthy_production_before_writes(self) -> None:
         """Abort without stage uploads when the live health endpoint is failing."""
         remote = FakeRemote(self.old)
-        with self.assertRaisesRegex(RuntimeError, "production_unhealthy_before_release"):
-            MixedSettlementHotfix(remote, FakeHealth((False,)), self.settings, self.root).release()
+        with self.assertRaisesRegex(
+            RuntimeError, "production_unhealthy_before_release"
+        ):
+            MixedSettlementHotfix(
+                remote, FakeHealth((False,)), self.settings, self.root
+            ).release()
         self.assertEqual(remote.files, self.old)
 
     def test_rolls_back_credit_when_order_rename_fails(self) -> None:
         """Restore the original credit file if the second publication fails."""
         remote = FakeRemote(self.old, fail_destination="lib/native-order-flow.php")
         with self.assertRaisesRegex(RuntimeError, "release_aborted_and_rolled_back"):
-            MixedSettlementHotfix(remote, FakeHealth(), self.settings, self.root).release()
+            MixedSettlementHotfix(
+                remote, FakeHealth(), self.settings, self.root
+            ).release()
         self.assertEqual({key: remote.files[key] for key in self.old}, self.old)
 
     def test_rolls_back_when_server_renames_then_reply_is_lost(self) -> None:
@@ -130,15 +170,21 @@ class MixedSettlementHotfixTests(unittest.TestCase):
                 raise OSError("simulated_lost_ftps_reply")
 
         with patch.object(remote, "replace", side_effect=interrupted_response):
-            with self.assertRaisesRegex(RuntimeError, "release_aborted_and_rolled_back"):
-                MixedSettlementHotfix(remote, FakeHealth(), self.settings, self.root).release()
+            with self.assertRaisesRegex(
+                RuntimeError, "release_aborted_and_rolled_back"
+            ):
+                MixedSettlementHotfix(
+                    remote, FakeHealth(), self.settings, self.root
+                ).release()
         self.assertEqual({key: remote.files[key] for key in self.old}, self.old)
 
     def test_rolls_back_both_when_health_fails(self) -> None:
         """Restore both exact prior versions on a failed post-release health check."""
         remote = FakeRemote(self.old)
         with self.assertRaisesRegex(RuntimeError, "release_aborted_and_rolled_back"):
-            MixedSettlementHotfix(remote, FakeHealth((True, False)), self.settings, self.root).release()
+            MixedSettlementHotfix(
+                remote, FakeHealth((True, False)), self.settings, self.root
+            ).release()
         self.assertEqual({key: remote.files[key] for key in self.old}, self.old)
 
     def test_atomic_rename_probe_prevents_unsafe_deployment(self) -> None:
@@ -153,8 +199,12 @@ class MixedSettlementHotfixTests(unittest.TestCase):
             original_replace(source, destination)
 
         with patch.object(remote, "replace", side_effect=reject_probe):
-            with self.assertRaisesRegex(RuntimeError, "release_aborted_and_rolled_back"):
-                MixedSettlementHotfix(remote, FakeHealth(), self.settings, self.root).release()
+            with self.assertRaisesRegex(
+                RuntimeError, "release_aborted_and_rolled_back"
+            ):
+                MixedSettlementHotfix(
+                    remote, FakeHealth(), self.settings, self.root
+                ).release()
         self.assertEqual({key: remote.files[key] for key in self.old}, self.old)
 
 
