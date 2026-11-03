@@ -1,0 +1,72 @@
+name: Restore production automation staff role controls
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-staff-permissions.yml'
+      - 'config/staff-permissions-release.yaml'
+      - 'scripts/release-staff-permissions.py'
+      - 'tests/test_staff_permissions_release.py'
+      - 'assets/kartabl-sync-v1.js'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-staff-permissions.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Validate strict release code and role UI tests
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          ruff format --diff scripts/release-staff-permissions.py tests/test_staff_permissions_release.py
+          ruff check --select E,F,I,UP --output-format concise scripts/release-staff-permissions.py tests/test_staff_permissions_release.py
+          ruff format --check scripts/release-staff-permissions.py tests/test_staff_permissions_release.py
+          mypy --strict scripts/release-staff-permissions.py
+          python3 -m unittest discover -s tests -p 'test_staff_permissions_release.py' -v
+          python3 -m json.tool config/staff-permissions-release.yaml >/dev/null
+          node --check assets/kartabl-sync-v1.js
+          node tests/kartabl-staff-permissions.cjs
+  preflight:
+    if: github.event_name == 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Inspect live fingerprints and exact intended patch without remote writes
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/release-staff-permissions.py --mode inspect
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Apply only fingerprint-pinned role UI patches with rollback and cache bust
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/release-staff-permissions.py --mode apply

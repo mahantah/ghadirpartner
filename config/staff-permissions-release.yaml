@@ -1,0 +1,27 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "source_ref": "854a68fb7dcd59b8cc73342ec4773af3ee5c79ac",
+  "asset": {
+    "path": "assets/kartabl-sync-v1.js",
+    "before_sha256": "a974102faa562f019113acc1d4c245ab3e4b86e95a59df4b1df5f31c76339981",
+    "after_sha256": "d9478684066c2047dde006920de460ad45ec95b1ea62b61479b99545ab4fa9bc",
+    "checkout_sha256": "aac5477109c9a15e3f42ef226f97edc28532db0efee04879c29f579a85d91aec"
+  },
+  "app": {
+    "path": "app.html",
+    "before_sha256": "4d7d68b120f9f92bc1b1c86adfc9631bdf87a76e2fd5829ce96e102e649b0ff0",
+    "after_sha256": "874398469bf54ff05473db7daf6606698db67f6ea4c2c75342aa070ca20f65cc",
+    "before_script_ref": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons&offerfix=20261031forms&scope=20261031multi",
+    "after_script_ref": "/assets/kartabl-sync-v1.js?v=2&whfix=20261031icons&offerfix=20261031forms&scope=20261031multi&staffroles=20261103"
+  }
+}
