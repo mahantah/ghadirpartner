@@ -61,7 +61,9 @@ class ReleaseSettings:
             source = _string(item, "path")
             before = _string(item, "before_sha256")
             after = _string(item, "after_sha256")
-            if not re.fullmatch(r"[0-9a-f]{64}", before) or not re.fullmatch(r"[0-9a-f]{64}", after):
+            if not re.fullmatch(r"[0-9a-f]{64}", before) or not re.fullmatch(
+                r"[0-9a-f]{64}", after
+            ):
                 raise ValueError("invalid_digest")
             if before == after:
                 raise ValueError("unchanged_target")
@@ -144,7 +146,9 @@ class FtpsClient:
 
     def __init__(self, settings: ReleaseSettings) -> None:
         """Open an authenticated FTPS connection using existing CI secrets."""
-        self._ftp = FTP_TLS(context=ssl.create_default_context(), timeout=settings.ftp_timeout)
+        self._ftp = FTP_TLS(
+            context=ssl.create_default_context(), timeout=settings.ftp_timeout
+        )
         self._ftp.connect(settings.host, settings.port)
         self._ftp.login(settings.username, settings.password)
         self._ftp.prot_p()
@@ -197,7 +201,13 @@ class HealthProbe(Protocol):
 class MixedSettlementHotfix:
     """One facade for a finite, guarded, reversible two-PHP-file release."""
 
-    def __init__(self, remote: RemoteFileClient, health: HealthProbe, settings: ReleaseSettings, sources: Path) -> None:
+    def __init__(
+        self,
+        remote: RemoteFileClient,
+        health: HealthProbe,
+        settings: ReleaseSettings,
+        sources: Path,
+    ) -> None:
         """Inject the FTPS gateway, health client, configuration, and checkout."""
         self._remote = remote
         self._health = health
@@ -231,12 +241,18 @@ class MixedSettlementHotfix:
             pending.append(target)
         if not pending:
             return ()
-        if not self._health.is_healthy(self._settings.health_url, self._settings.health_timeout):
+        if not self._health.is_healthy(
+            self._settings.health_url, self._settings.health_timeout
+        ):
             raise RuntimeError("production_unhealthy_before_release")
 
         token = secrets.token_hex(16)
         stage_paths = {
-            target.path: "lib/.gp-mixed-" + token + "-" + target.path.rsplit("/", 1)[-1] + ".stage"
+            target.path: "lib/.gp-mixed-"
+            + token
+            + "-"
+            + target.path.rsplit("/", 1)[-1]
+            + ".stage"
             for target in pending
         }
         created: set[str] = set()
@@ -258,7 +274,9 @@ class MixedSettlementHotfix:
                 self._remote.replace(stage_paths[target.path], target.path)
                 if _digest(self._remote.download(target.path)) != target.after_sha256:
                     raise RuntimeError("publication_readback_mismatch")
-            if not self._health.is_healthy(self._settings.health_url, self._settings.health_timeout):
+            if not self._health.is_healthy(
+                self._settings.health_url, self._settings.health_timeout
+            ):
                 raise RuntimeError("production_unhealthy_after_release")
             return tuple(target.path for target in applied)
         except Exception as release_error:
@@ -286,7 +304,13 @@ class MixedSettlementHotfix:
         if self._remote.download(old) != b"next":
             raise RuntimeError("non_atomic_ftp_rename")
 
-    def _rollback(self, applied: list[TargetFile], originals: dict[str, bytes], token: str, created: set[str]) -> None:
+    def _rollback(
+        self,
+        applied: list[TargetFile],
+        originals: dict[str, bytes],
+        token: str,
+        created: set[str],
+    ) -> None:
         """Restore original source bytes in reverse order without touching the DB."""
         for target in reversed(applied):
             current_digest = _digest(self._remote.download(target.path))
@@ -294,7 +318,13 @@ class MixedSettlementHotfix:
                 continue
             if current_digest != target.after_sha256:
                 raise RuntimeError("rollback_unexpected_live_source")
-            restore = "lib/.gp-mixed-" + token + "-" + target.path.rsplit("/", 1)[-1] + ".rollback"
+            restore = (
+                "lib/.gp-mixed-"
+                + token
+                + "-"
+                + target.path.rsplit("/", 1)[-1]
+                + ".rollback"
+            )
             created.add(restore)
             self._remote.upload(restore, originals[target.path])
             if _digest(self._remote.download(restore)) != target.before_sha256:
@@ -312,19 +342,35 @@ class HotfixEntry:
         """Validate CI settings and execute the guarded production release."""
         try:
             base = Path(__file__).resolve().parent.parent
-            settings = ReleaseSettings.load(base / "config/mixed-settlement-hotfix.yaml")
+            settings = ReleaseSettings.load(
+                base / "config/mixed-settlement-hotfix.yaml"
+            )
             remote = FtpsClient(settings)
             try:
-                changed = MixedSettlementHotfix(remote, HealthClient(), settings, base).release()
-                print(json.dumps({"ok": True, "updated": changed, "database_changed": False}))
+                changed = MixedSettlementHotfix(
+                    remote, HealthClient(), settings, base
+                ).release()
+                print(
+                    json.dumps(
+                        {"ok": True, "updated": changed, "database_changed": False}
+                    )
+                )
             finally:
                 remote.close()
             return 0
         except Exception as error:
             # Only a finite error category may reach public CI logs, never private code.
-            safe = {"checkout_sha256_mismatch", "production_sha256_mismatch", "production_unhealthy_before_release",
-                    "stage_readback_mismatch", "production_changed_during_release", "publication_readback_mismatch",
-                    "production_unhealthy_after_release", "release_aborted_and_rolled_back", "rollback_failed"}
+            safe = {
+                "checkout_sha256_mismatch",
+                "production_sha256_mismatch",
+                "production_unhealthy_before_release",
+                "stage_readback_mismatch",
+                "production_changed_during_release",
+                "publication_readback_mismatch",
+                "production_unhealthy_after_release",
+                "release_aborted_and_rolled_back",
+                "rollback_failed",
+            }
             message = str(error) if str(error) in safe else "deployment_guard_failed"
             print(json.dumps({"ok": False, "error": message}), file=sys.stderr)
             return 1
