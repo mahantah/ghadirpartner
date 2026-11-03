@@ -18,6 +18,9 @@ class EnamadSettings:
 
     trust_url: str
     logo_url: str
+    css_asset_url: str
+    js_asset_url: str
+    site_url: str
     desktop_width_px: int
     mobile_width_px: int
 
@@ -38,14 +41,37 @@ class EnamadSettings:
         if set(values) != {
             "trust_url",
             "logo_url",
+            "css_asset_url",
+            "js_asset_url",
+            "site_url",
             "desktop_width_px",
             "mobile_width_px",
         }:
             raise ValueError("Unexpected Enamad settings")
         trust, logo = values["trust_url"], values["logo_url"]
+        css_url, js_url = values["css_asset_url"], values["js_asset_url"]
+        site_url = values["site_url"]
         desktop, mobile = values["desktop_width_px"], values["mobile_width_px"]
         if not isinstance(trust, str) or not isinstance(logo, str):
             raise TypeError("Enamad URLs must be strings")
+        if not isinstance(css_url, str) or not isinstance(js_url, str):
+            raise TypeError("Enamad asset URLs must be strings")
+        if not isinstance(site_url, str):
+            raise TypeError("Site URL must be a string")
+        site_parts = urlparse(site_url)
+        if (
+            site_parts.scheme != "https"
+            or site_parts.netloc != "ghadirpartner.ir"
+            or site_parts.path != "/app.html"
+            or site_parts.query
+            or site_parts.fragment
+        ):
+            raise ValueError("Unexpected production site URL")
+        if (
+            re.fullmatch(r"/assets/login-enamad-[\w-]+\.css\?v=\d+", css_url) is None
+            or re.fullmatch(r"/assets/login-enamad-[\w-]+\.js\?v=\d+", js_url) is None
+        ):
+            raise ValueError("Enamad assets must be versioned local files")
         if (
             type(desktop) is not int
             or type(mobile) is not int
@@ -73,7 +99,7 @@ class EnamadSettings:
             or not trust_query["Code"][0].isalnum()
         ):
             raise ValueError("Enamad trust link and image do not match")
-        return cls(trust, logo, desktop, mobile)
+        return cls(trust, logo, css_url, js_url, site_url, desktop, mobile)
 
 
 class EnamadV2Patch:
@@ -98,8 +124,8 @@ class EnamadV2Patch:
                 raise ValueError("Missing login anchor: " + anchor)
         if source.count("</body>") < 1 or source.count("</head>") < 1:
             raise ValueError("Missing document boundaries")
-        css_url = "/assets/login-enamad-v2.css?v=20261103card"
-        js_url = "/assets/login-enamad-v2.js?v=20261103card"
+        css_url = self.settings.css_asset_url
+        js_url = self.settings.js_asset_url
         if css_url in source and js_url in source:
             if (
                 source.count(css_url) != 1
