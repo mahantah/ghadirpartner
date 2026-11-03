@@ -73,6 +73,9 @@ if __name__ == "__main__":
         )
         print(json.dumps({"ok": False, "error": category}))
         raise SystemExit(1)
+    except ssl.SSLCertVerificationError as error:
+        print(json.dumps({"ok": False, "error": "certificate_not_verified", "verify_code": error.verify_code, "phase": inspector.phase}))
+        raise SystemExit(1)
     except ssl.SSLError:
         print(json.dumps({"ok": False, "error": "ftps_tls_failure", "phase": inspector.phase}))
         raise SystemExit(1)
