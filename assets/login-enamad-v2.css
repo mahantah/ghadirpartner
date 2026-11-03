@@ -1,26 +1,32 @@
-/* GP_LOGIN_ENAMAD_SEAL_V2_20261102: viewport-level seal, above lobby. */
+/* GP_LOGIN_ENAMAD_SEAL_V2_20261103: compact, form-relative trust seal. */
 #gp-login-enamad-seal.gp-login-enamad-v2 {
-  position: fixed !important;
-  left: max(18px, env(safe-area-inset-left, 0px)) !important;
-  bottom: max(18px, env(safe-area-inset-bottom, 0px)) !important;
+  position: relative !important;
+  left: auto !important;
+  bottom: auto !important;
   top: auto !important;
   right: auto !important;
-  z-index: 2147483000 !important;
-  display: flex !important;
-  width: 88px !important;
-  height: 100px !important;
+  z-index: 1 !important;
+  display: inline-flex !important;
+  width: var(--gp-enamad-desktop-width) !important;
+  aspect-ratio: 16 / 19;
+  height: auto !important;
+  margin: 12px 0 0 !important;
+  margin-right: auto !important;
+  align-self: flex-end;
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,.96) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
   padding: 6px;
   border-radius: 12px;
   text-decoration: none !important;
   color: #102a43 !important;
-  box-shadow: 0 5px 20px rgba(0,0,0,.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   direction: rtl;
 }
-#gp-login-enamad-seal[hidden] { display: none !important; }
+#gp-login-enamad-seal[hidden] {
+  display: none !important;
+}
 #gp-login-enamad-seal img {
   display: block;
   width: 100%;
@@ -28,19 +34,26 @@
   max-width: 100%;
   object-fit: contain;
 }
-#gp-login-enamad-seal .gp-login-enamad-fallback { display: none; }
+#gp-login-enamad-seal img[hidden] {
+  display: none !important;
+}
+#gp-login-enamad-seal .gp-login-enamad-fallback {
+  display: none;
+}
 #gp-login-enamad-seal.gp-login-enamad-image-failed .gp-login-enamad-fallback {
   display: block;
-  font: 700 15px Tahoma, sans-serif;
+  font:
+    700 15px Tahoma,
+    sans-serif;
   text-align: center;
 }
-#gp-login-enamad-seal:focus-visible { outline: 3px solid #f58220; outline-offset: 3px; }
-@media(max-width:600px) {
+#gp-login-enamad-seal:focus-visible {
+  outline: 3px solid #f58220;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
   #gp-login-enamad-seal.gp-login-enamad-v2 {
-    left: max(8px, env(safe-area-inset-left, 0px)) !important;
-    bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
-    width: 64px !important;
-    height: 76px !important;
+    width: var(--gp-enamad-mobile-width) !important;
     padding: 4px;
   }
 }
