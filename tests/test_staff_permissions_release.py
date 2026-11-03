@@ -6,10 +6,11 @@ import hashlib
 import runpy
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 
-MODULE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/release-staff-permissions.py"))
+MODULE = runpy.run_path(
+    str(Path(__file__).resolve().parents[1] / "scripts/release-staff-permissions.py")
+)
 RolePatch = MODULE["RolePatch"]
 Settings = MODULE["Settings"]
 Target = MODULE["Target"]
@@ -74,7 +75,11 @@ class RolePatchTests(unittest.TestCase):
             new_lines[number] = f"fixed-{number}\n"
         live_lines = old_lines.copy()
         live_lines[39] = "customized-footer\n"
-        result, count = RolePatch().apply("".join(old_lines).encode(), "".join(new_lines).encode(), "".join(live_lines).encode())
+        result, count = RolePatch().apply(
+            "".join(old_lines).encode(),
+            "".join(new_lines).encode(),
+            "".join(live_lines).encode(),
+        )
         self.assertEqual(count, 3)
         self.assertTrue(result.endswith(b"customized-footer\n"))
         for number in (4, 17, 31):
@@ -83,7 +88,11 @@ class RolePatchTests(unittest.TestCase):
     def test_refuses_changed_patch_context(self) -> None:
         """Stop when another deployment changed an affected code block."""
         old = "".join(f"line-{number}\n" for number in range(40))
-        new = old.replace("line-4", "fixed-4").replace("line-17", "fixed-17").replace("line-31", "fixed-31")
+        new = (
+            old.replace("line-4", "fixed-4")
+            .replace("line-17", "fixed-17")
+            .replace("line-31", "fixed-31")
+        )
         live = old.replace("line-4", "changed-by-another-deployer")
         with self.assertRaisesRegex(RuntimeError, "production_patch_anchor_mismatch"):
             RolePatch().apply(old.encode(), new.encode(), live.encode())
@@ -94,14 +103,38 @@ class StaffPermissionsReleaseTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Construct a fixed two-file release using only synthetic bytes."""
-        self.before = {"assets/kartabl-sync-v1.js": b"asset-before", "app.html": b"app-before"}
-        self.after = {"assets/kartabl-sync-v1.js": b"asset-after", "app.html": b"app-after"}
+        self.before = {
+            "assets/kartabl-sync-v1.js": b"asset-before",
+            "app.html": b"app-before",
+        }
+        self.after = {
+            "assets/kartabl-sync-v1.js": b"asset-after",
+            "app.html": b"app-after",
+        }
         self.settings = Settings(
-            "ftp.example", 21, 45, "user", "secret", "https://example.test/healthz", 30,
-            "a" * 40, "b" * 64,
-            (Target("assets/kartabl-sync-v1.js", sha(self.before["assets/kartabl-sync-v1.js"]), sha(self.after["assets/kartabl-sync-v1.js"])),
-             Target("app.html", sha(self.before["app.html"]), sha(self.after["app.html"]))),
-            "old-ref", "new-ref",
+            "ftp.example",
+            21,
+            45,
+            "user",
+            "secret",
+            "https://example.test/healthz",
+            30,
+            "a" * 40,
+            "b" * 64,
+            (
+                Target(
+                    "assets/kartabl-sync-v1.js",
+                    sha(self.before["assets/kartabl-sync-v1.js"]),
+                    sha(self.after["assets/kartabl-sync-v1.js"]),
+                ),
+                Target(
+                    "app.html",
+                    sha(self.before["app.html"]),
+                    sha(self.after["app.html"]),
+                ),
+            ),
+            "old-ref",
+            "new-ref",
         )
 
     def service(self, remote: FakeRemote, health: FakeHealth) -> object:
