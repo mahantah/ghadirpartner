@@ -1,0 +1,65 @@
+"""Read-only FTPS fingerprints for the automation staff-role UI release."""
+
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import os
+import re
+import ssl
+from ftplib import FTP_TLS
+
+
+class StaffPermissionsBaseline:
+    """Inspect only the public UI files using the configured production FTPS account."""
+
+    def __init__(self) -> None:
+        """Resolve connection settings from existing GitHub Actions secrets."""
+        self.host = self._secret("FTP_SERVER")
+        self.username = self._secret("FTP_USERNAME")
+        self.password = self._secret("FTP_PASSWORD")
+
+    @staticmethod
+    def _secret(name: str) -> str:
+        """Require a configured secret without printing its contents."""
+        value = os.environ.get(name, "")
+        if not value:
+            raise RuntimeError("missing_ftp_configuration")
+        return value
+
+    def inspect(self) -> dict[str, object]:
+        """Return hashes and approved HTML/JS markers; never return source content."""
+        ftp = FTP_TLS(context=ssl.create_default_context(), timeout=45)
+        try:
+            ftp.connect(self.host, 21)
+            ftp.login(self.username, self.password)
+            ftp.prot_p()
+            asset = self._read(ftp, "assets/kartabl-sync-v1.js")
+            app = self._read(ftp, "app.html")
+        finally:
+            ftp.close()
+        tag = re.findall(rb"/assets/kartabl-sync-v1[.]js[?][A-Za-z0-9&=_-]+", app)
+        return {
+            "asset_sha256": hashlib.sha256(asset).hexdigest(),
+            "app_sha256": hashlib.sha256(app).hexdigest(),
+            "script_refs": [item.decode("ascii") for item in tag],
+            "hide_role_css_count": asset.count(b"#users .checks"),
+            "hide_edit_count": asset.count(b"#modal .checks"),
+            "reset_role_count": asset.count(b"el.checked = (u.roles"),
+        }
+
+    @staticmethod
+    def _read(ftp: FTP_TLS, path: str) -> bytes:
+        """Read a strictly named non-secret presentation file into volatile memory."""
+        payload = io.BytesIO()
+        ftp.retrbinary("RETR /" + path, payload.write)
+        return payload.getvalue()
+
+
+if __name__ == "__main__":
+    try:
+        print(json.dumps(StaffPermissionsBaseline().inspect(), ensure_ascii=False))
+    except Exception:
+        print(json.dumps({"ok": False, "error": "read_only_baseline_failed"}))
+        raise SystemExit(1)
