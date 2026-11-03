@@ -186,7 +186,7 @@ class HealthClient:
         """Check the existing public health endpoint without modifying state."""
         try:
             with urlopen(url, timeout=timeout) as response:
-                return response.status == 200
+                return int(response.status) == 200
         except OSError:
             return False
 
