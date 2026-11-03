@@ -290,7 +290,7 @@ class MixedSettlementHotfix:
                 try:
                     self._remote.delete(stage)
                 except Exception:
-                    # The stage is random, never a live path; cleanup must not mask rollback.
+                    # Cleanup of random stages must never mask a rollback error.
                     pass
 
     def _verify_atomic_replace(self, token: str, created: set[str]) -> None:
