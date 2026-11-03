@@ -25,7 +25,7 @@ jobs:
           python3 -m json.tool config/customer-credit-release.yaml >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq lftp
-      - name: Inspect production files without publishing code or database writes
+      - name: Read only the six relevant private files over FTPS and inspect hashes
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -33,37 +33,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TOKEN="$(openssl rand -hex 32)"
-          echo "::add-mask::$TOKEN"
-          FILE="__gp_order_baseline_${GITHUB_RUN_ID}.php"
-          python3 - "$FILE" "$TOKEN" <<'PY'
-          import base64, json, sys
-          from pathlib import Path
-
-          name, token = sys.argv[1:]
-          manifests = {
-              "native_order": json.loads(Path("config/native-order-release.yaml").read_text()),
-              "customer_credit": json.loads(Path("config/customer-credit-release.yaml").read_text()),
-          }
-          source = Path("scripts/inspect-order-release-baseline.php").read_text()
-          source = source.replace("__TOKEN__", token).replace(
-              "__MANIFESTS_B64__", base64.b64encode(json.dumps(manifests).encode()).decode()
-          )
-          Path("/tmp/" + name).write_text(source)
-          PY
-          php -l "/tmp/$FILE"
+          INSPECT_DIR="$(mktemp -d -t gp-order-inspect.XXXXXXXX)"
           cleanup() {
-            lftp <<EOF || true
-          set ftp:ssl-force true
-          set ftp:ssl-protect-data true
-          set ssl:verify-certificate yes
-          open -p 21 "$FTP_SERVER"
-          user "$FTP_USERNAME" "$FTP_PASSWORD"
-          rm "/$FILE"
-          bye
-          EOF
+            if [[ "$INSPECT_DIR" == /tmp/gp-order-inspect.* ]]; then
+              rm -rf -- "$INSPECT_DIR"
+            fi
           }
           trap cleanup EXIT
+          mkdir -p "$INSPECT_DIR/partners" "$INSPECT_DIR/lib"
           lftp <<EOF
           set cmd:fail-exit yes
           set ftp:ssl-force true
@@ -71,20 +48,12 @@ jobs:
           set ssl:verify-certificate yes
           open -p 21 "$FTP_SERVER"
           user "$FTP_USERNAME" "$FTP_PASSWORD"
-          put "/tmp/$FILE" -o "/$FILE"
+          get "/index.php" -o "$INSPECT_DIR/index.php"
+          get "/partners/index.php" -o "$INSPECT_DIR/partners/index.php"
+          get "/lib/storage.php" -o "$INSPECT_DIR/lib/storage.php"
+          get "/partners/native-r54.php" -o "$INSPECT_DIR/partners/native-r54.php"
+          get "/app.html" -o "$INSPECT_DIR/app.html"
+          get "/partners/portal.html" -o "$INSPECT_DIR/partners/portal.html"
           bye
           EOF
-          STATUS="$(curl -sS --max-time 120 -w '%{http_code}' -X POST -H "X-GP-Reconcile-Token: $TOKEN" "https://ghadirpartner.ir/$FILE" -o /tmp/order-baseline.json)"
-          python3 - "$STATUS" <<'PY'
-          import json, sys
-          from pathlib import Path
-
-          raw = Path("/tmp/order-baseline.json").read_text()
-          print("HTTP status:", sys.argv[1], "response bytes:", len(raw.encode()))
-          try:
-              result = json.loads(raw)
-          except json.JSONDecodeError:
-              raise RuntimeError("inspection_endpoint_returned_non_json") from None
-          print(json.dumps(result, ensure_ascii=False, indent=2))
-          assert sys.argv[1] == "200" and result.get("ok") and result.get("read_only")
-          PY
+          php scripts/inspect-order-release-baseline.php "$INSPECT_DIR"
