@@ -67,6 +67,7 @@ final class OrderReleaseBaselineInspection
                     $staged[$path] = $content;
                 }
             }
+            $original = $staged;
             $anchors = [];
             foreach ($operations as $index => $operation) {
                 if (!is_array($operation) || !isset($operation['file'], $operation['old'], $operation['new'], $operation['count'])
@@ -77,8 +78,14 @@ final class OrderReleaseBaselineInspection
                 }
                 $file = $operation['file'];
                 $found = isset($staged[$file]) ? substr_count($staged[$file], $operation['old']) : 0;
-                $anchors[] = ['operation' => $index, 'file' => $file, 'found' => $found,
-                    'required' => $operation['count']];
+                $anchors[] = [
+                    'operation' => $index,
+                    'file' => $file,
+                    'found' => $found,
+                    'required' => $operation['count'],
+                    'original_old_count' => isset($original[$file]) ? substr_count($original[$file], $operation['old']) : 0,
+                    'original_new_count' => isset($original[$file]) ? substr_count($original[$file], $operation['new']) : 0,
+                ];
                 if ($found === $operation['count']) {
                     $staged[$file] = str_replace($operation['old'], $operation['new'], $staged[$file]);
                 }
