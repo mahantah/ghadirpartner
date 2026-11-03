@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "strict": true,
+    "noEmit": true,
+    "target": "ES2020",
+    "lib": ["DOM", "ES2020"]
+  },
+  "files": ["../assets/login-enamad-v2.js"]
+}

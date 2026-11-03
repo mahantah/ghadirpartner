@@ -38,6 +38,32 @@ concurrency:
   group: web-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  login-enamad:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify login trust badge without touching authentication
+        run: |
+          npm ci --prefix tooling/partial-delivery-web --ignore-scripts --no-audit --no-fund
+          python3 -m pip install ruff mypy
+          python3 -m ruff check scripts/patch-login-enamad-v2.py tests/test_login_enamad_v2.py
+          python3 -m ruff format --check scripts/patch-login-enamad-v2.py tests/test_login_enamad_v2.py
+          python3 -m mypy --strict scripts/patch-login-enamad-v2.py tests/test_login_enamad_v2.py
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/login-enamad.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs assets/login-enamad-v2.js --max-warnings 0
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check assets/login-enamad-v2.js assets/login-enamad-v2.css tests/login-enamad-v2.cjs config/login-enamad.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/prettier --parser json --check config/login-enamad.yaml
+          python3 -m py_compile scripts/patch-login-enamad-v2.py
+          python3 tests/test_login_enamad_v2.py
+          node --check assets/login-enamad-v2.js
+          node tests/login-enamad-v2.cjs
   web-partial-delivery:
     runs-on: ubuntu-latest
     timeout-minutes: 10
