@@ -84,8 +84,6 @@
       '#ctbody tr.gp-coop-agent td{background:#d8f5e3!important}' +
       '#ctbody tr.gp-coop-marketer td{background:#ffe0bf!important}' +
       '#ctbody tr.gp-coop-sub td{background:#fff1dd!important}' +
-      '#users .checks,#users .newrole,#users label:has(.newrole){display:none!important}' +
-      '#users table th:nth-child(3),#users table td:nth-child(3){display:none}' +
       '.customer-menu button{display:block;width:100%;text-align:right}' +
       '.gp-ops-sep{height:1px;background:#edf1f5;margin:6px 0}';
     document.head.appendChild(css);
@@ -464,36 +462,17 @@
         var body = $('utbody');
         if (!body) return;
         var rows = staffUsers(typeof USERS !== 'undefined' ? USERS : window.USERS);
+        var labels = typeof roleNames !== 'undefined' ? roleNames : {};
         body.innerHTML = rows.map(function (u) {
-          return '<tr><td>' + esc(u.username) + '</td><td>' + esc(u.mobile || '-') +
-            '</td><td class="gp-role-hide"></td><td>' + (u.active ? 'فعال' : 'غیرفعال') +
+          return '<tr><td>' + esc(u.username) +
+            (u.mobile ? '<div class="small">' + esc(u.mobile) + '</div>' : '') +
+            '</td><td>' + (u.roles || []).map(function (role) { return esc(labels[role] || role); }).join('، ') +
+            '</td><td>' + (u.active ? 'فعال' : 'غیرفعال') +
             '</td><td><button class="btnlight" onclick="openUserEdit(' + u.id + ')">ویرایش</button></td></tr>';
-        }).join('') || '<tr><td colspan="5">کاربر اتوماسیونی ثبت نشده است.</td></tr>';
+        }).join('') || '<tr><td colspan="4">کاربر اتوماسیونی ثبت نشده است.</td></tr>';
       } catch (e) {}
     };
     window.loadUsers.__gpSync1 = true;
-    if (typeof window.openUserEdit === 'function' && !window.openUserEdit.__gpSync1) {
-      var baseEdit = window.openUserEdit;
-      window.openUserEdit = function (id) {
-        baseEdit.apply(this, arguments);
-        [].forEach.call(document.querySelectorAll('#modal .checks, #modal label:has(.editrole)'), function (el) {
-          el.style.display = 'none';
-        });
-      };
-      window.openUserEdit.__gpSync1 = true;
-    }
-    if (typeof window.saveUser === 'function' && !window.saveUser.__gpSync1) {
-      var baseSave = window.saveUser;
-      window.saveUser = async function (id) {
-        var list = typeof USERS !== 'undefined' ? USERS : window.USERS || [];
-        var u = list.filter(function (x) { return +x.id === +id; })[0] || {};
-        [].forEach.call(document.querySelectorAll('.editrole'), function (el) {
-          el.checked = (u.roles || []).indexOf(el.value) >= 0;
-        });
-        return baseSave.apply(this, arguments);
-      };
-      window.saveUser.__gpSync1 = true;
-    }
     slimUsersPage();
   }
 
@@ -502,19 +481,6 @@
     if (!sec) return;
     var h = sec.querySelector('h3');
     if (h) h.textContent = 'کاربران اتوماسیون';
-    [].forEach.call(sec.querySelectorAll('.checks'), function (el) { el.style.display = 'none'; });
-    if ($('addUserBtn') && !$('addUserBtn').dataset.gpSync1) {
-      $('addUserBtn').dataset.gpSync1 = '1';
-      var prev = window.addUser;
-      window.addUser = async function () {
-        try {
-          [].forEach.call(document.querySelectorAll('.newrole'), function (el) { el.checked = el.value === 'sales'; });
-          if (typeof prev === 'function') return prev.apply(this, arguments);
-        } catch (e) {
-          if ($('umsg')) $('umsg').textContent = e.message;
-        }
-      };
-    }
   }
 
   function paintChannelPages() {
