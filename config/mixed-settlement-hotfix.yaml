@@ -1,0 +1,25 @@
+{
+  "ftps": {
+    "host": "${FTP_SERVER}",
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}",
+    "port": 21,
+    "timeout_seconds": 45
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "files": [
+    {
+      "path": "lib/customer-credit.php",
+      "before_sha256": "d589706b63276a69f05ef3bc3ce20b792f5df08ccd814f366e892d4e8004f4bc",
+      "after_sha256": "c48d13fa3e303d4cad1e7ffc5e8bc66d845daba21cad8c4f52f1c3deb0804590"
+    },
+    {
+      "path": "lib/native-order-flow.php",
+      "before_sha256": "c8b2958a97fa0308ca21ed6d8bf1f415c19b1cf29ca07013fe1ebdb64b77a542",
+      "after_sha256": "772e1b205e1512a6ac7ba5bcda6027ae4b0810ed17332ddca54ac8d6eb965e7e"
+    }
+  ]
+}
