@@ -79,7 +79,12 @@ jobs:
           import json, sys
           from pathlib import Path
 
-          result = json.loads(Path("/tmp/order-baseline.json").read_text())
+          raw = Path("/tmp/order-baseline.json").read_text()
+          print("HTTP status:", sys.argv[1], "response bytes:", len(raw.encode()))
+          try:
+              result = json.loads(raw)
+          except json.JSONDecodeError:
+              raise RuntimeError("inspection_endpoint_returned_non_json") from None
           print(json.dumps(result, ensure_ascii=False, indent=2))
           assert sys.argv[1] == "200" and result.get("ok") and result.get("read_only")
           PY
