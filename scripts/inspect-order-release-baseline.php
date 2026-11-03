@@ -18,7 +18,9 @@ final class OrderReleaseBaselineInspection
     ];
 
     /**
-     * @param string $root Absolute web root on the production host.
+     * Initialize the read-only release inspector.
+     *
+     * @param string $root Temporary private mirror of the production web root.
      * @param array<string,array<string,mixed>> $manifests Verified finite release manifests.
      */
     public function __construct(string $root, array $manifests)
@@ -94,19 +96,18 @@ final class OrderReleaseBaselineInspection
 if (defined('ORDER_RELEASE_BASELINE_TEST')) {
     return;
 }
-ini_set('display_errors', '0');
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST'
-    || !hash_equals('__TOKEN__', (string)($_SERVER['HTTP_X_GP_RECONCILE_TOKEN'] ?? ''))) {
+if (PHP_SAPI !== 'cli' || count($argv) !== 2 || !is_dir($argv[1])) {
     http_response_code(403);
-    exit('{"ok":false}');
+    exit(1);
 }
 try {
     /** @var array<string,array<string,mixed>> $manifests */
-    $manifests = json_decode(base64_decode('__MANIFESTS_B64__', true), true, 512, JSON_THROW_ON_ERROR);
-    echo json_encode((new OrderReleaseBaselineInspection(__DIR__, $manifests))->inspect(), JSON_THROW_ON_ERROR);
+    $manifests = [
+        'native_order' => json_decode(file_get_contents(__DIR__ . '/../config/native-order-release.yaml'), true, 512, JSON_THROW_ON_ERROR),
+        'customer_credit' => json_decode(file_get_contents(__DIR__ . '/../config/customer-credit-release.yaml'), true, 512, JSON_THROW_ON_ERROR),
+    ];
+    echo json_encode((new OrderReleaseBaselineInspection($argv[1], $manifests))->inspect(), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT);
 } catch (Throwable $error) {
-    http_response_code(409);
-    echo json_encode(['ok' => false, 'error' => 'inspection_failed'], JSON_THROW_ON_ERROR);
+    fwrite(STDERR, "inspection_failed\n");
+    exit(1);
 }
