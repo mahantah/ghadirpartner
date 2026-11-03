@@ -29,6 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          ruff format --diff scripts/hotfix_mixed_order.py tests/test_hotfix_mixed_order.py
           ruff check --select E,F,I,UP --output-format concise scripts/hotfix_mixed_order.py tests/test_hotfix_mixed_order.py
           ruff format --check scripts/hotfix_mixed_order.py tests/test_hotfix_mixed_order.py
           mypy --strict scripts/hotfix_mixed_order.py
