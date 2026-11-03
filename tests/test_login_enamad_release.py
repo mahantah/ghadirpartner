@@ -21,10 +21,20 @@ class ReleaseConfigFacade(Protocol):
         """Load a validated release configuration."""
 
 
+class FtpsClientFacade(Protocol):
+    """Typed interface to the production FTPS identity validation."""
+
+    username: str
+
+    def __init__(self, host: str, username: str, password: str) -> None:
+        """Validate the configured FTP identity."""
+
+
 class EnamadReleaseTests(unittest.TestCase):
     """Confirm production destinations cannot drift to unrelated files."""
 
     release_config: ClassVar[type[ReleaseConfigFacade]]
+    ftps_client: ClassVar[type[FtpsClientFacade]]
     config: ClassVar[dict[str, object]]
 
     @classmethod
@@ -33,6 +43,7 @@ class EnamadReleaseTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         module = run_path(str(root / "scripts/deploy-login-enamad-v2.py"))
         cls.release_config = cast(type[ReleaseConfigFacade], module["ReleasePaths"])
+        cls.ftps_client = cast(type[FtpsClientFacade], module["FtpsClient"])
         cls.config = cast(
             dict[str, object],
             json.loads((root / "config/login-enamad.yaml").read_text(encoding="utf-8")),
@@ -68,6 +79,17 @@ class EnamadReleaseTests(unittest.TestCase):
                         encoding="utf-8",
                     )
                     self.release_config.load(path)
+
+    def test_production_ftp_username_preserves_actual_case(self) -> None:
+        """Accept cPanel account casing without rewriting the login identity."""
+        account = "Deploy@ghadirpartner.ir"
+        client = self.ftps_client("ftp.example.test", account, "fixture-not-a-secret")
+        self.assertEqual(client.username, account)
+
+    def test_non_deployment_ftp_accounts_are_rejected(self) -> None:
+        """Do not broaden deployment access beyond the approved FTP account."""
+        with self.assertRaises(ValueError):
+            self.ftps_client("ftp.example.test", "admin@ghadirpartner.ir", "fixture")
 
 
 if __name__ == "__main__":

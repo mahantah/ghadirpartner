@@ -61,7 +61,7 @@ class FtpsClient:
 
     def __init__(self, host: str, username: str, password: str) -> None:
         """Validate the restricted production deployment identity."""
-        if not host or username != "deploy@ghadirpartner.ir" or not password:
+        if not host or username.casefold() != "deploy@ghadirpartner.ir" or not password:
             raise ValueError("STOP: production FTPS identity is unavailable")
         self.host = host
         self.username = username
