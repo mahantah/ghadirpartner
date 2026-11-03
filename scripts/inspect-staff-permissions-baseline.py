@@ -16,7 +16,11 @@ class StaffPermissionsBaseline:
 
     def __init__(self) -> None:
         """Resolve connection settings from existing GitHub Actions secrets."""
-        self.host = self._secret("FTP_SERVER")
+        configured_host = self._secret("FTP_SERVER")
+        certificate_host = os.environ.get("FTPS_CERT_HOST", "").strip()
+        if certificate_host and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", certificate_host):
+            raise RuntimeError("invalid_certificate_hostname")
+        self.host = certificate_host or configured_host
         self.username = self._secret("FTP_USERNAME")
         self.password = self._secret("FTP_PASSWORD")
         self.phase = "connect"
