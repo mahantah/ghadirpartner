@@ -8,7 +8,7 @@ import json
 import os
 import re
 import ssl
-from ftplib import FTP_TLS
+from ftplib import FTP_TLS, error_perm
 
 
 class StaffPermissionsBaseline:
@@ -60,6 +60,19 @@ class StaffPermissionsBaseline:
 if __name__ == "__main__":
     try:
         print(json.dumps(StaffPermissionsBaseline().inspect(), ensure_ascii=False))
+    except error_perm as error:
+        response = str(error)
+        category = "ftp_auth_rejected" if response.startswith("530") else (
+            "ftp_path_not_found" if response.startswith("550") else "ftp_permission_rejected"
+        )
+        print(json.dumps({"ok": False, "error": category}))
+        raise SystemExit(1)
+    except ssl.SSLError:
+        print(json.dumps({"ok": False, "error": "ftps_tls_failure"}))
+        raise SystemExit(1)
+    except OSError:
+        print(json.dumps({"ok": False, "error": "ftps_connection_failure"}))
+        raise SystemExit(1)
     except Exception:
-        print(json.dumps({"ok": False, "error": "read_only_baseline_failed"}))
+        print(json.dumps({"ok": False, "error": "unclassified_baseline_failure"}))
         raise SystemExit(1)
