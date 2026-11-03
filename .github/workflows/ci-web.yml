@@ -38,6 +38,20 @@ concurrency:
   group: web-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  warehouse-ledger-historical-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prevent historical stock drift and protect live inventory
+        run: |
+          node --check assets/warehouse-ledger-eod-freeze-v1.js
+          node --test tests/warehouse-ledger-historical-integrity.cjs
+          python3 -m json.tool config/correct-backup-recovery.json > /dev/null
+          python3 tests/correct-backup-code-only.py
   login-enamad:
     runs-on: ubuntu-latest
     timeout-minutes: 5
