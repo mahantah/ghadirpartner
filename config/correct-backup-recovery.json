@@ -1498,7 +1498,7 @@
     "assets/order-return-exchange-v1.js": "5c553df53f66cf73da097d1219eb7ae64744cca5efc36555e528b0421ae95b88",
     "assets/plans-icon-agent-lock-v1.js": "6fe45aaa491b453d0bbc63875f9c185bf497f79f1535d4b1aafe33b1c50ed43b",
     "assets/ops-v53430.js": "9e894f8eb5e2f01c493bdcda210a076e0bc1b4c889db856711f2e80a273ac359",
-    "assets/warehouse-ledger-eod-freeze-v1.js": "7e7be4c624578b666f6d18b181fb39c170cfeb2ad88ecd5b34dda6745ae8a4ec",
+    "assets/warehouse-ledger-eod-freeze-v1.js": "6f38f792853482d718fd1c512a925f9969c39eaeafcfcfea777f9ab3444d5a70",
     "assets/kartabl-sync-v1.js": "a974102faa562f019113acc1d4c245ab3e4b86e95a59df4b1df5f31c76339981",
     "assets/warehouse-serial-filters-v2.css": "53a627f798f705ad14fea8b91bdd6cbbfe15bb583a8c9bb934f87cf336427690",
     "assets/ops-coop-strip-v3.js": "9396694e990dad7f8c05c6044511347bd0ecb7980a5ef37373af86f286a09b28",
@@ -1580,6 +1580,7 @@
     "assets/customer-credit.js",
     "assets/offer-plan-code.js",
     "assets/offer-plan-code.css",
-    "lib/offer-product-scope.php"
+    "lib/offer-product-scope.php",
+    "assets/warehouse-ledger-eod-freeze-v1.js"
   ]
 }
