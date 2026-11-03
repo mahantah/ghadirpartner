@@ -95,6 +95,8 @@ jobs:
           node tests/live-offer-code.cjs
           node tests/offer-product-scope.cjs
           node tests/offer-scope-layout.cjs
+          node --check assets/kartabl-sync-v1.js
+          node tests/kartabl-staff-permissions.cjs
           php -l lib/offer-product-scope.php
           php tests/offer-product-scope.php
           php -l scripts/release-offer-product-scope.php
