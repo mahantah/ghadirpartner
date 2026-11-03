@@ -19,6 +19,7 @@ class StaffPermissionsBaseline:
         self.host = self._secret("FTP_SERVER")
         self.username = self._secret("FTP_USERNAME")
         self.password = self._secret("FTP_PASSWORD")
+        self.phase = "connect"
 
     @staticmethod
     def _secret(name: str) -> str:
@@ -33,9 +34,13 @@ class StaffPermissionsBaseline:
         ftp = FTP_TLS(context=ssl.create_default_context(), timeout=45)
         try:
             ftp.connect(self.host, 21)
+            self.phase = "login"
             ftp.login(self.username, self.password)
+            self.phase = "data_protection"
             ftp.prot_p()
+            self.phase = "asset_read"
             asset = self._read(ftp, "assets/kartabl-sync-v1.js")
+            self.phase = "app_read"
             app = self._read(ftp, "app.html")
         finally:
             ftp.close()
@@ -58,8 +63,9 @@ class StaffPermissionsBaseline:
 
 
 if __name__ == "__main__":
+    inspector = StaffPermissionsBaseline()
     try:
-        print(json.dumps(StaffPermissionsBaseline().inspect(), ensure_ascii=False))
+        print(json.dumps(inspector.inspect(), ensure_ascii=False))
     except error_perm as error:
         response = str(error)
         category = "ftp_auth_rejected" if response.startswith("530") else (
@@ -68,7 +74,7 @@ if __name__ == "__main__":
         print(json.dumps({"ok": False, "error": category}))
         raise SystemExit(1)
     except ssl.SSLError:
-        print(json.dumps({"ok": False, "error": "ftps_tls_failure"}))
+        print(json.dumps({"ok": False, "error": "ftps_tls_failure", "phase": inspector.phase}))
         raise SystemExit(1)
     except OSError:
         print(json.dumps({"ok": False, "error": "ftps_connection_failure"}))
