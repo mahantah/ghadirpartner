@@ -54,6 +54,10 @@ jobs:
           get "/partners/native-r54.php" -o "$INSPECT_DIR/partners/native-r54.php"
           get "/app.html" -o "$INSPECT_DIR/app.html"
           get "/partners/portal.html" -o "$INSPECT_DIR/partners/portal.html"
+          get "/lib/native-order-flow.php" -o "$INSPECT_DIR/lib/native-order-flow.php"
+          get "/lib/native-order-flow-routes.php" -o "$INSPECT_DIR/lib/native-order-flow-routes.php"
+          get "/lib/customer-credit.php" -o "$INSPECT_DIR/lib/customer-credit.php"
+          get "/lib/customer-credit-routes.php" -o "$INSPECT_DIR/lib/customer-credit-routes.php"
           bye
           EOF
           php scripts/inspect-order-release-baseline.php "$INSPECT_DIR"
