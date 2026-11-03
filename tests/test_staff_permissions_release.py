@@ -7,7 +7,6 @@ import runpy
 import unittest
 from pathlib import Path
 
-
 MODULE = runpy.run_path(
     str(Path(__file__).resolve().parents[1] / "scripts/release-staff-permissions.py")
 )
