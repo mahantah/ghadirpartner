@@ -9,12 +9,15 @@ final class GpWarehouseReadRelease
     /** @var array<string,string|null> */
     private array $rollback = [];
 
+    private string $root;
+    private string $directory;
+
     /** Load the private manifest and resolve the intended application root. */
-    public function __construct(private string $root, private string $directory)
+    public function __construct(string $root, string $directory)
     {
         $resolved = realpath($root);
         if ($resolved === false || !is_file($resolved.'/config.php')) throw new RuntimeException('application_root_missing');
-        $this->root = $resolved;
+        $this->root = $resolved; $this->directory=$directory;
         $value = json_decode((string)file_get_contents($directory.'/manifest.json'),true);
         if (!is_array($value) || !isset($value['original'],$value['candidate'],$value['support'],$value['protected_cartons']) || !is_int($value['drain_seconds']??null) || $value['drain_seconds']<1) throw new RuntimeException('release_manifest_invalid');
         $this->manifest = $value;
@@ -33,7 +36,7 @@ final class GpWarehouseReadRelease
     /** Prevent path traversal and publishing unrelated application files. */
     private function path(string $name): void
     {
-        if (str_contains($name,'..') || !preg_match('~^(?:app\.html|lib/[a-z0-9-]+\.php|config/warehouse-storage\.yaml)$~D',$name)) throw new RuntimeException('release_path_invalid');
+        if (strpos($name,'..')!==false || !preg_match('~^(?:app\.html|lib/[a-z0-9-]+\.php|config/warehouse-storage\.yaml)$~D',$name)) throw new RuntimeException('release_path_invalid');
     }
 
     /** Verify source identity and PHP syntax before loading any candidate class. */
@@ -46,7 +49,7 @@ final class GpWarehouseReadRelease
         foreach ($this->manifest['candidate']+$this->manifest['support'] as $name=>$hash) {
             $this->path($name); $file=$this->directory.'/candidate/'.$name;
             if (!is_file($file) || !hash_equals($hash,(string)hash_file('sha256',$file))) throw new RuntimeException('candidate_hash_mismatch:'.$name);
-            if (str_ends_with($name,'.php') && !token_get_all((string)file_get_contents($file),TOKEN_PARSE)) throw new RuntimeException('empty_php_candidate');
+            if (substr($name,-4)==='.php' && !token_get_all((string)file_get_contents($file),TOKEN_PARSE)) throw new RuntimeException('empty_php_candidate');
         }
     }
 

@@ -47,3 +47,19 @@ jobs:
           node --check assets/warehouse-ledger-eod-freeze-v1.js
           node tests/warehouse-ledger-history.cjs
           node tests/warehouse-ledger-anchor.js
+
+  php74-production-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Check deployed PHP syntax on the host CLI version
+        run: |
+          php -l lib/warehouse-read-service.php
+          php -l lib/warehouse-read-routes.php
+          php -l lib/warehouse-repository.php
+          php -l lib/warehouse-storage.php
+          php -l scripts/release-warehouse-indexed-reads.php

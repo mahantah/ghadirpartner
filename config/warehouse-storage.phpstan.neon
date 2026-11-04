@@ -1,5 +1,6 @@
 parameters:
     level: 6
+    phpVersion: 70433
     paths:
         - ../lib/warehouse-storage.php
         - ../lib/warehouse-repository.php

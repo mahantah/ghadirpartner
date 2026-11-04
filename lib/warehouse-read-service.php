@@ -4,8 +4,10 @@ declare(strict_types=1);
 /** Keep existing grouping semantics while delegating bounded reads to indexed storage. */
 final class GpWarehouseReadService
 {
+    private GpWarehouseRepository $repository;
+
     /** Share the facade's transaction-bound repository. */
-    public function __construct(private GpWarehouseRepository $repository) {}
+    public function __construct(GpWarehouseRepository $repository) { $this->repository=$repository; }
 
     /**
      * @param array<string,mixed> $state
