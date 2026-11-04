@@ -130,6 +130,83 @@ final class GpWarehouseRepository
         return $this->pdo->query('SELECT warehouse_id,product,COUNT(*) qty,SUM(CASE WHEN order_id>0 THEN 1 ELSE 0 END) reserved FROM ghadir_inventory_serials WHERE warehouse_id>0 GROUP BY warehouse_id,product')->fetchAll();
     }
 
+    /**
+     * @return list<array<string, mixed>> Count ownership without decoding serial payloads.
+     */
+    public function ownershipCounts(): array
+    {
+        return $this->pdo->query('SELECT order_id,order_number,COUNT(*) qty,MIN(row_position) first_position FROM ghadir_inventory_serials GROUP BY order_id,order_number ORDER BY first_position')->fetchAll();
+    }
+
+    /**
+     * @param array<int,string> $metadataMatches Legacy search text for known order IDs.
+     * @return array{sql:string,params:list<int|string>} Build parameterized legacy substring search.
+     */
+    private function searchWhere(string $query, string $filter, ?int $orderId, array $metadataMatches, bool $mobile): array
+    {
+        $clauses = []; $params = [];
+        if ($filter === 'free') $clauses[] = 'order_id=0';
+        if ($filter === 'assigned') $clauses[] = 'order_id<>0';
+        if ($orderId !== null) { $clauses[] = $orderId === 0 ? 'order_id<=0' : 'order_id=?'; if ($orderId !== 0) $params[] = $orderId; }
+        if ($query !== '') {
+            $columns = $mobile ? ['product','serial','carton_code','order_number'] : ['product','serial','imei','order_number','supplier'];
+            $expressions = [];
+            foreach ($columns as $column) $expressions[] = "CASE WHEN UPPER(JSON_TYPE(JSON_EXTRACT(record_json,'$." . $column . "')))='NULL' THEN '' ELSE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(record_json,'$." . $column . "')),'') END";
+            $needle = '%' . strtr($query, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
+            $parts = [];
+            if ($mobile) {
+                foreach ($expressions as $expression) { $parts[] = "LOWER($expression) LIKE ? ESCAPE '!'"; $params[] = $needle; }
+            } else {
+                $metadata = 'CASE';
+                foreach ($metadataMatches as $id => $text) { $metadata .= ' WHEN order_id=? THEN ?'; $params[] = $id; $params[] = $text; }
+                // Orphan labels depend on the row's original order number, not current order metadata.
+                $fallback = "CONCAT('سفارش ',order_number,'    ',order_number)";
+                $metadata = $metadataMatches ? $metadata . ' ELSE ' . $fallback . ' END' : $fallback;
+                $expressions[] = $metadata;
+                $parts[] = "LOWER(CONCAT_WS(' '," . implode(',', $expressions) . ")) LIKE ? ESCAPE '!'";
+                $params[] = $needle;
+            }
+            $clauses[] = '(' . implode(' OR ', $parts) . ')';
+        }
+        return ['sql' => $clauses ? ' WHERE ' . implode(' AND ', $clauses) : '', 'params' => $params];
+    }
+
+    /**
+     * @param array<int,string> $metadataMatches
+     * @return list<array<string, mixed>> Aggregate matched groups without materializing serials.
+     */
+    public function matchedCounts(string $query, string $filter, array $metadataMatches): array
+    {
+        $where = $this->searchWhere($query, $filter, null, $metadataMatches, false);
+        $statement = $this->pdo->prepare('SELECT order_id,order_number,COUNT(*) qty,MIN(row_position) first_position FROM ghadir_inventory_serials' . $where['sql'] . ' GROUP BY order_id,order_number ORDER BY first_position');
+        $statement->execute($where['params']);
+        return $statement->fetchAll();
+    }
+
+    /**
+     * @param array<int,string> $metadataMatches
+     * @return array{rows:list<array<string,mixed>>,total:int}
+     */
+    public function groupPage(string $query, string $filter, ?int $orderId, array $metadataMatches, int $offset, int $limit, bool $mobile = false): array
+    {
+        $where = $this->searchWhere($query, $filter, $orderId, $metadataMatches, $mobile);
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM ghadir_inventory_serials' . $where['sql']);
+        $count->execute($where['params']);
+        $statement = $this->pdo->prepare('SELECT record_json FROM ghadir_inventory_serials' . $where['sql'] . ' ORDER BY row_position DESC LIMIT ' . $limit . ' OFFSET ' . $offset);
+        $statement->execute($where['params']);
+        $rows = [];
+        while ($raw = $statement->fetchColumn()) $rows[] = $this->decode((string)$raw);
+        return ['rows' => $rows, 'total' => (int)$count->fetchColumn()];
+    }
+
+    /**
+     * @return list<array<string,mixed>> Project only dimensions needed by carton and shelf counters.
+     */
+    public function cartonCounts(): array
+    {
+        return $this->pdo->query("SELECT carton_id,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(record_json,'$.carton_code')),'') carton_code,COALESCE(JSON_EXTRACT(record_json,'$.shelf_level'),0) shelf_level,product,CASE WHEN order_id=0 THEN 1 ELSE 0 END is_free,COUNT(*) qty FROM ghadir_inventory_serials GROUP BY carton_id,carton_code,shelf_level,product,is_free")->fetchAll();
+    }
+
     /** Validate only known table names, never interpolate request input. */
     private function table(string $collection): string
     {

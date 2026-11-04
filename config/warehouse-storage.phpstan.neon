@@ -5,6 +5,7 @@ parameters:
         - ../lib/warehouse-repository.php
         - ../lib/warehouse-ledger-integrity.php
         - ../lib/warehouse-read-routes.php
+        - ../lib/warehouse-read-service.php
         - ../scripts/release-warehouse-storage.php
     stubFiles:
         - warehouse-storage.stub.php
