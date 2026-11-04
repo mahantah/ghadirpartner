@@ -45,6 +45,7 @@ verify(count($mobile['rows'])===1 && $mobile['total']===3 && $mobile['free']===2
 $compact = $facade->compactWarehouse();
 verify($compact['inventory']===[] && $compact['cartons']===$cartons, 'compact response preserves label serials without full inventory');
 verify($compact['carton_stats'][0]['total']===3 && $compact['carton_stats'][0]['free']===2, 'carton code fallback and ownership counts');
+verify($compact['supplier_hints'][0]['supplier']==='تأمین تست', 'compact metadata preserves first-row supplier hints');
 verify($compact['shelves'][2]['n']===1 && $compact['shelves'][3]['by']['I80']===1, 'shelf product counters');
 $before = GpWarehouseRepository::encode($repository->read('inventory'));
 $facade->inventoryOverview($core,'','all'); $facade->mobilePage('',1,2); $facade->compactWarehouse();

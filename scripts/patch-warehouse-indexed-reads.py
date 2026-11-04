@@ -83,6 +83,11 @@ async function openWarehouseSerials(id){
 }
 """
         source = self.replace(source, anchor, wrapper + anchor)
+        source = self.replace(
+            source,
+            "const inventory=(state&&state.inventory)||((typeof INV!=='undefined'&&Array.isArray(INV))?INV:[]);",
+            "const inventory=(state&&state.supplier_hints)||(state&&state.inventory)||((typeof INV!=='undefined'&&Array.isArray(INV))?INV:[]);",
+        )
         path.write_text(source)
 
 

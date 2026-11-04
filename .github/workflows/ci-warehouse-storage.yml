@@ -8,6 +8,7 @@ on:
       - 'scripts/patch-warehouse-indexed-reads.py'
       - 'config/warehouse-indexed-reads-release.json'
       - 'scripts/release-warehouse-storage.php'
+      - 'scripts/release-warehouse-indexed-reads.php'
       - 'assets/warehouse-ledger-eod-freeze-v1.js'
       - 'tests/warehouse-*'
       - '.github/workflows/ci-warehouse-storage.yml'
@@ -38,6 +39,7 @@ jobs:
           python3 -m mypy --strict scripts/patch-warehouse-storage.py scripts/patch-warehouse-indexed-reads.py
           phpstan analyse -c config/warehouse-storage.phpstan.neon --no-progress --memory-limit=512M
           php -l scripts/release-warehouse-storage.php
+          php -l scripts/release-warehouse-indexed-reads.php
       - name: Warehouse and historical-balance fixtures
         run: |
           php tests/warehouse-storage.php

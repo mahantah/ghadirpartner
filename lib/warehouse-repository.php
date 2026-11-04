@@ -207,6 +207,14 @@ final class GpWarehouseRepository
         return $this->pdo->query("SELECT carton_id,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(record_json,'$.carton_code')),'') carton_code,COALESCE(JSON_EXTRACT(record_json,'$.shelf_level'),0) shelf_level,product,CASE WHEN order_id=0 THEN 1 ELSE 0 END is_free,COUNT(*) qty FROM ghadir_inventory_serials GROUP BY carton_id,carton_code,shelf_level,product,is_free")->fetchAll();
     }
 
+    /**
+     * @return list<array<string,mixed>> Retain only first-row supplier metadata used by legacy decorators.
+     */
+    public function cartonSupplierHints(): array
+    {
+        return $this->pdo->query("SELECT i.carton_id,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(i.record_json,'$.carton_code')),'') carton_code,CASE WHEN UPPER(JSON_TYPE(JSON_EXTRACT(i.record_json,'$.supplier')))='NULL' THEN '' ELSE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(i.record_json,'$.supplier')),'') END supplier,i.row_position FROM ghadir_inventory_serials i INNER JOIN (SELECT MIN(row_position) position FROM ghadir_inventory_serials GROUP BY carton_id,JSON_UNQUOTE(JSON_EXTRACT(record_json,'$.carton_code'))) first_rows ON i.row_position=first_rows.position ORDER BY i.row_position")->fetchAll();
+    }
+
     /** Validate only known table names, never interpolate request input. */
     private function table(string $collection): string
     {

@@ -124,6 +124,6 @@ final class GpWarehouseReadService
             $stats[$id]['total'] += $qty;
             if ($free) { $stats[$id]['free'] += $qty; if ($level !== 0 && !in_array($level,$stats[$id]['levels'],true)) $stats[$id]['levels'][]=$level; }
         }
-        return ['cartons'=>$cartons,'inventory'=>[],'carton_stats'=>array_values($stats),'shelves'=>$shelves,'connected'=>true];
+        return ['cartons'=>$cartons,'inventory'=>[],'carton_stats'=>array_values($stats),'shelves'=>$shelves,'supplier_hints'=>$this->repository->cartonSupplierHints(),'connected'=>true];
     }
 }
