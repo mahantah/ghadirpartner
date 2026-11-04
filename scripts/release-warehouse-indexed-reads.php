@@ -97,7 +97,7 @@ final class GpWarehouseReadRelease
             $result=$storage->readCore(static fn(array $core):array=>$storage->inventoryOverview($core,$query,'all'));
             if ($result['matched']!==$matched) throw new RuntimeException('search_contract_mismatch');
         }
-        $legacy=$this->measure(fn():array=>$storage->readCore(function(array $core) use($storage):array {$storage->hydrate($core);ghadir_state_prepare($core);return ['cartons'=>$core['cartons'],'inventory'=>$core['inventory'],'connected'=>true];}));
+        $legacy=$this->measure(fn():array=>$storage->readCore(function(array $core) use($storage):array {$storage->hydrate($core);return ['cartons'=>$core['cartons'],'inventory'=>$core['inventory'],'connected'=>true];}));
         $compact=$this->measure(fn():array=>$storage->readCore(static fn(array $core):array=>$storage->compactWarehouse()));
         if ($compact['value']['cartons']!==$state['cartons']) throw new RuntimeException('carton_contract_mismatch');
         $indexed=$this->measure(fn():array=>$storage->readCore(static fn(array $core):array=>$storage->mobilePage('',1,$storage->defaultPageSize())));
@@ -170,7 +170,9 @@ if (PHP_SAPI!=='cli') { http_response_code(404);exit; }
 $release=null;
 try {
     $directory=__DIR__; $mode=$argv[2]??'check';
-    $lock=fopen($directory.'/'.$mode.'.lock','x');if ($lock===false) exit;
+    $attempt=$argv[3]??'';
+    if (!in_array($mode,['check','apply'],true) || !preg_match('/^[a-z0-9-]{0,32}$/D',$attempt)) throw new RuntimeException('release_mode_invalid');
+    $lock=fopen($directory.'/'.$mode.($attempt===''?'':'-'.$attempt).'.lock','x');if ($lock===false) exit;
     $release=new GpWarehouseReadRelease($argv[1]??'', $directory);$release->run($mode);
 } catch (Throwable $error) {
     if ($release!==null) $release->status('failed',['reason'=>$error->getMessage()]);
