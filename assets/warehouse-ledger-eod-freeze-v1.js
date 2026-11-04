@@ -1,10 +1,9 @@
 /* GP_LEDGER_EOD_FREEZE_V1_20261025 */
+/* GP_LEDGER_EVENT_HISTORY_V2_20261104: server-dated movements are authoritative. */
 (function () {
   'use strict';
   if (window.__gpLedgerEodFreezeV1) return;
   window.__gpLedgerEodFreezeV1 = true;
-
-  var STORE = 'gp-ledger-eod-v1';
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -44,41 +43,11 @@
     return q;
   }
 
-  function loadFreeze() {
-    try { return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { return {}; }
-  }
-
-  function saveFreeze(map) {
-    try { localStorage.setItem(STORE, JSON.stringify(map)); } catch (e) {}
-  }
-
-  function freezeKey(wid, product, day) {
-    return String(wid) + '|' + String(product) + '|' + String(day);
-  }
-
-  function rememberLive(wid, product, day, qty) {
-    var map = loadFreeze();
-    map[freezeKey(wid, product, day)] = { qty: Number(qty) || 0, at: Date.now() };
-    var cutoff = Date.now() - 120 * 86400000;
-    Object.keys(map).forEach(function (k) {
-      if (!map[k] || Number(map[k].at || 0) < cutoff) delete map[k];
-    });
-    saveFreeze(map);
-  }
-
-  function frozenQty(wid, product, day) {
-    var row = loadFreeze()[freezeKey(wid, product, day)];
-    return row && typeof row.qty === 'number' ? row.qty : null;
-  }
-
   function stockOnJalaliDay(state, wid, product, jday, today) {
     var live = currentQty(state, wid, product);
     if (String(jday) === String(today)) {
-      rememberLive(wid, product, today, live);
       return live;
     }
-    var snap = frozenQty(wid, product, jday);
-    if (snap !== null) return snap;
     var q = live;
     (state.movements || []).forEach(function (mv) {
       if (String(mv.product || '') !== String(product || '')) return;
