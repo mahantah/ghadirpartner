@@ -1,14 +1,18 @@
 parameters:
     level: 6
+    phpVersion: 70433
     paths:
         - ../lib/warehouse-storage.php
         - ../lib/warehouse-repository.php
         - ../lib/warehouse-ledger-integrity.php
         - ../lib/warehouse-read-routes.php
+        - ../lib/warehouse-read-service.php
         - ../scripts/release-warehouse-storage.php
+        - ../scripts/release-warehouse-indexed-reads.php
     stubFiles:
         - warehouse-storage.stub.php
     scanFiles:
+        - warehouse-storage.stub.php
         - ../lib/storage.php
         - ../lib/preswitch-carton-integrity.php
         - ../index.php

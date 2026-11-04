@@ -5,7 +5,10 @@ on:
       - 'lib/warehouse-*.php'
       - 'config/warehouse-storage*'
       - 'scripts/patch-warehouse-storage.py'
+      - 'scripts/patch-warehouse-indexed-reads.py'
+      - 'config/warehouse-indexed-reads-release.json'
       - 'scripts/release-warehouse-storage.php'
+      - 'scripts/release-warehouse-indexed-reads.php'
       - 'assets/warehouse-ledger-eod-freeze-v1.js'
       - 'tests/warehouse-*'
       - '.github/workflows/ci-warehouse-storage.yml'
@@ -25,20 +28,38 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo_sqlite
+          extensions: pdo_sqlite, mbstring
           tools: phpstan:2.1.30
           coverage: none
       - name: Strict Python and PHP checks
         run: |
           python3 -m pip install ruff mypy
-          python3 -m ruff check scripts/patch-warehouse-storage.py
-          python3 -m ruff format --check scripts/patch-warehouse-storage.py
-          python3 -m mypy --strict scripts/patch-warehouse-storage.py
+          python3 -m ruff check scripts/patch-warehouse-storage.py scripts/patch-warehouse-indexed-reads.py
+          python3 -m ruff format --check scripts/patch-warehouse-storage.py scripts/patch-warehouse-indexed-reads.py
+          python3 -m mypy --strict scripts/patch-warehouse-storage.py scripts/patch-warehouse-indexed-reads.py
           phpstan analyse -c config/warehouse-storage.phpstan.neon --no-progress --memory-limit=512M
           php -l scripts/release-warehouse-storage.php
+          php -l scripts/release-warehouse-indexed-reads.php
       - name: Warehouse and historical-balance fixtures
         run: |
           php tests/warehouse-storage.php
+          php tests/warehouse-indexed-reads.php
           node --check assets/warehouse-ledger-eod-freeze-v1.js
           node tests/warehouse-ledger-history.cjs
           node tests/warehouse-ledger-anchor.js
+
+  php74-production-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Check deployed PHP syntax on the host CLI version
+        run: |
+          php -l lib/warehouse-read-service.php
+          php -l lib/warehouse-read-routes.php
+          php -l lib/warehouse-repository.php
+          php -l lib/warehouse-storage.php
+          php -l scripts/release-warehouse-indexed-reads.php

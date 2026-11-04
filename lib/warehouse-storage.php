@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/warehouse-repository.php';
 require_once __DIR__ . '/warehouse-ledger-integrity.php';
+require_once __DIR__ . '/warehouse-read-service.php';
 
 /** Single facade for legacy callbacks, indexed inventory and safe warehouse migration. */
 final class GpWarehouseStorage
@@ -51,6 +52,39 @@ final class GpWarehouseStorage
 
     /** Configured default number of serials for the opt-in paginated API. */
     public function defaultPageSize(): int { return $this->policy['page_size']; }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed> Serve the existing web overview from SQL aggregates.
+     */
+    public function inventoryOverview(array $state, string $query, string $filter): array
+    {
+        return (new GpWarehouseReadService($this->repository))->overview($state, $query, $filter);
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed> Serve a bounded legacy group without hydrating all collections.
+     */
+    public function inventoryGroup(array $state, string $key, string $query, string $filter, int $offset, int $limit): array
+    {
+        if ($offset < 0 || $limit < 1 || $limit > $this->policy['max_page_size']) throw new InvalidArgumentException('invalid_inventory_page');
+        return (new GpWarehouseReadService($this->repository))->group($state, $key, $query, $filter, $offset, $limit);
+    }
+
+    /**
+     * @return array<string,mixed> Return a mobile page and global counters in the same snapshot.
+     */
+    public function mobilePage(string $query, int $page, int $limit): array
+    {
+        if ($page < 1 || $limit < 1 || $limit > $this->policy['max_page_size'] || $page > intdiv(PHP_INT_MAX, $limit)) throw new InvalidArgumentException('invalid_inventory_page');
+        return (new GpWarehouseReadService($this->repository))->mobilePage($query, $page, $limit);
+    }
+
+    /**
+     * @return array<string,mixed> Read carton and shelf summaries without serial payloads.
+     */
+    public function compactWarehouse(): array { return (new GpWarehouseReadService($this->repository))->compact(); }
 
     /**
      * @param array<string, mixed> $state
