@@ -7,6 +7,7 @@ final class GpWarehouseRelease
     private string $root;
     private string $stage;
     private string $report;
+    private string $phase = 'preflight';
     /**
      * @var array<string, mixed> */
     private array $manifest;
@@ -24,6 +25,9 @@ final class GpWarehouseRelease
         if (!is_array($manifest) || !isset($manifest['original'], $manifest['candidate'], $manifest['protected_cartons'], $manifest['drain_seconds'])) throw new RuntimeException('release_manifest_invalid');
         $this->manifest = $manifest;
     }
+
+    /** Identify the failed operation without disclosing record content. */
+    public function phase(): string { return $this->phase; }
 
     /** Record fixed status and aggregate counts only, never customer, serial or credential values.
      *
@@ -106,7 +110,7 @@ final class GpWarehouseRelease
     /** Execute a check or one atomic migration; report aggregate evidence only. */
     public function run(string $mode): void
     {
-        if (!in_array($mode, ['check', 'apply'], true)) throw new RuntimeException('release_mode_invalid');
+        if (!in_array($mode, ['check', 'probe', 'apply'], true)) throw new RuntimeException('release_mode_invalid');
         $this->verifyFiles();
         global $cfg;
         $cfg = require $this->root . '/config.php';
@@ -124,7 +128,23 @@ final class GpWarehouseRelease
         if ($originalSerials !== hash('sha256', GpWarehouseRepository::encode($state['inventory']))) throw new RuntimeException('repair_changed_inventory');
         $counts = ['serials' => count($state['inventory']), 'cartons' => count($state['cartons']), 'movements' => count($state['warehouse_movements']), 'repair' => $repair, 'core_bytes_before' => strlen((string)$row['state_json'])];
         if ($mode === 'check') { $this->status('preflight_passed', $counts); return; }
+        $this->phase = 'prepare_schema';
         $storage->prepareMigration();
+        if ($mode === 'probe') {
+            $this->phase = 'probe_migration';
+            $pdo->beginTransaction();
+            try {
+                $row = $pdo->query('SELECT state_json,revision,checksum FROM ghadir_state WHERE id=1 FOR UPDATE')->fetch();
+                if (!is_array($row)) throw new RuntimeException('state_missing');
+                $state = $this->state($row); $this->integrity($state);
+                $storage->repairHistory($state);
+                $storage->migrate($state);
+                $this->status('probe_passed', $counts);
+            } finally {
+                $pdo->rollBack();
+            }
+            return;
+        }
         $maintenance = $this->root . '/.htaccess';
         $originalHtaccess = (string)file_get_contents($maintenance);
         $maintenanceActive = false; $committed = false;
@@ -132,7 +152,17 @@ final class GpWarehouseRelease
             if (file_put_contents($maintenance, "# GP_WAREHOUSE_MAINTENANCE\nRewriteEngine On\nRewriteRule ^ - [R=503,L]\nErrorDocument 503 \"Warehouse upgrade in progress. Please retry shortly.\"\n" . $originalHtaccess, LOCK_EX) === false) throw new RuntimeException('maintenance_failed');
             $maintenanceActive = true;
             $this->status('maintenance', $counts);
-            sleep((int)$this->manifest['drain_seconds']);
+            // Shared hosts can close idle MySQL sessions during the HTTP drain.
+            $remaining = (int)$this->manifest['drain_seconds'];
+            $timeout = (int)$pdo->query('SELECT @@wait_timeout')->fetchColumn();
+            $heartbeat = max(1, intdiv($timeout, 2));
+            while ($remaining > 0) {
+                $pause = min($remaining, $heartbeat);
+                sleep($pause);
+                $pdo->query('SELECT 1')->fetchColumn();
+                $remaining -= $pause;
+            }
+            $this->phase = 'lock_core';
             $this->verifyFiles();
             $pdo->beginTransaction();
             $row = $pdo->query('SELECT state_json,revision,checksum FROM ghadir_state WHERE id=1 FOR UPDATE')->fetch();
@@ -142,10 +172,13 @@ final class GpWarehouseRelease
             $cartonHash = hash('sha256', GpWarehouseRepository::encode($state['cartons']));
             $repair = $storage->repairHistory($state);
             if ($serialHash !== hash('sha256', GpWarehouseRepository::encode($state['inventory'])) || $cartonHash !== hash('sha256', GpWarehouseRepository::encode($state['cartons']))) throw new RuntimeException('repair_changed_inventory');
+            $this->phase = 'migrate_collections';
             $core = $storage->migrate($state);
             $roundtrip = $core; $storage->hydrate($roundtrip); $this->integrity($roundtrip);
             if ($serialHash !== hash('sha256', GpWarehouseRepository::encode($roundtrip['inventory'])) || $cartonHash !== hash('sha256', GpWarehouseRepository::encode($roundtrip['cartons']))) throw new RuntimeException('migration_hash_mismatch');
+            $this->phase = 'publish_files';
             foreach (array_keys($this->manifest['candidate']) as $name) $this->publish($name);
+            $this->phase = 'commit_core';
             $encoded = GpWarehouseRepository::encode($core); $checksum = hash('sha256', $encoded); $revision = (int)$row['revision'] + 1;
             $pdo->prepare('UPDATE ghadir_state SET state_json=?,checksum=?,revision=?,updated_at=NOW() WHERE id=1')->execute([$encoded, $checksum, $revision]);
             $pdo->prepare('INSERT INTO ghadir_state_audit (revision,checksum,bytes) VALUES (?,?,?)')->execute([$revision, $checksum, strlen($encoded)]);
@@ -176,8 +209,8 @@ try {
     $release = new GpWarehouseRelease((string)($argv[2] ?? dirname(__DIR__) . '/public_html'), __DIR__);
     $release->run($mode);
 } catch (Throwable $error) {
-    $safe = ['application_root_missing','release_manifest_invalid','source_hash_mismatch','candidate_hash_mismatch','release_path_invalid','protected_carton_state_mismatch','state_checksum_mismatch','legacy_state_shape_mismatch','state_missing','repair_changed_inventory','maintenance_failed','publish_failed','publish_readback_failed','rollback_failed','maintenance_restore_failed','warehouse_already_split','warehouse_shadow_tables_not_empty','warehouse_roundtrip_mismatch','warehouse_guard_definition_mismatch','invalid_or_duplicate_warehouse_id','invalid_or_duplicate_serial','product_index_too_long','warehouse_activation_date_missing'];
+    $safe = ['application_root_missing','release_manifest_invalid','source_hash_mismatch','candidate_hash_mismatch','release_path_invalid','protected_carton_state_mismatch','state_checksum_mismatch','legacy_state_shape_mismatch','state_missing','repair_changed_inventory','maintenance_failed','publish_failed','publish_readback_failed','rollback_failed','maintenance_restore_failed','warehouse_already_split','warehouse_shadow_tables_not_empty','warehouse_roundtrip_mismatch','warehouse_guard_definition_mismatch','invalid_or_duplicate_warehouse_id','invalid_or_duplicate_serial','product_index_too_long','warehouse_activation_date_missing','empty_inventory_serial','warehouse_transaction_required','invalid_warehouse_record','warehouse_json_encode_failed','migration_hash_mismatch'];
     $reason = in_array($error->getMessage(), $safe, true) ? $error->getMessage() : 'release_failed';
-    if ($release instanceof GpWarehouseRelease) $release->status('blocked', ['error' => $reason]);
+    if ($release instanceof GpWarehouseRelease) $release->status('blocked', ['error' => $reason, 'phase' => $release->phase(), 'exception' => get_class($error), 'sqlstate' => $error instanceof PDOException ? (string)($error->errorInfo[0] ?? '') : null, 'driver_code' => $error instanceof PDOException ? (int)($error->errorInfo[1] ?? 0) : null]);
     fwrite(STDERR, $reason . "\n"); exit(1);
 }
