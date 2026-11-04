@@ -1,0 +1,14 @@
+parameters:
+    level: 6
+    paths:
+        - ../lib/warehouse-storage.php
+        - ../lib/warehouse-repository.php
+        - ../lib/warehouse-ledger-integrity.php
+        - ../lib/warehouse-read-routes.php
+        - ../scripts/release-warehouse-storage.php
+    stubFiles:
+        - warehouse-storage.stub.php
+    scanFiles:
+        - ../lib/storage.php
+        - ../lib/preswitch-carton-integrity.php
+        - ../index.php
