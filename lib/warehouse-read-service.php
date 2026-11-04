@@ -117,8 +117,11 @@ final class GpWarehouseReadService
         }
         $shelves = [];
         for ($level=1; $level<=5; $level++) $shelves[$level] = ['n'=>0,'by'=>[]];
-        foreach ($this->repository->cartonCounts() as $row) {
-            $level = (int)$row['shelf_level']; $qty = (int)$row['qty']; $free = (int)$row['is_free'] === 1;
+        $hints=[];
+        foreach ($this->repository->cartonDimensions() as $row) {
+            $key=$row['carton_id']."\0".$row['carton_code'];
+            if (!isset($hints[$key])) $hints[$key]=['carton_id'=>$row['carton_id'],'carton_code'=>$row['carton_code'],'supplier'=>$row['supplier']];
+            $level = $row['shelf_level']; $qty = 1; $free = $row['is_free'];
             if ($free && isset($shelves[$level])) { $shelves[$level]['n'] += $qty; $product=(string)$row['product']; $shelves[$level]['by'][$product]=($shelves[$level]['by'][$product]??0)+$qty; }
             $id = (int)$row['carton_id'];
             if (!isset($stats[$id])) $id = $byCode[(string)$row['carton_code']] ?? 0;
@@ -126,6 +129,6 @@ final class GpWarehouseReadService
             $stats[$id]['total'] += $qty;
             if ($free) { $stats[$id]['free'] += $qty; if ($level !== 0 && !in_array($level,$stats[$id]['levels'],true)) $stats[$id]['levels'][]=$level; }
         }
-        return ['cartons'=>$cartons,'inventory'=>[],'carton_stats'=>array_values($stats),'shelves'=>$shelves,'supplier_hints'=>$this->repository->cartonSupplierHints(),'connected'=>true];
+        return ['cartons'=>$cartons,'inventory'=>[],'carton_stats'=>array_values($stats),'shelves'=>$shelves,'supplier_hints'=>array_values($hints),'connected'=>true];
     }
 }
