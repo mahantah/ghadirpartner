@@ -1,0 +1,815 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "index.php",
+      "before_sha256": "0e068f1e62ae0fe3a71a1d54e7ea43880370a9199419dd49920bdbf3569c518a",
+      "after_sha256": "e11b6ff2e2443e3940372f74da0c9ee6b0b6e707dedef969eb6260c59e75d724",
+      "edits": [
+        {
+          "offset": 141101,
+          "delete": 0,
+          "insert": "// Validate and deduplicate the import inside one warehouse transaction.\n db(true,function(&$s)use($rs,$uu,&$added){\n  $known=[];foreach($s['inventory'] as $v)$known[strtoupper(trim((string)$v['serial']))]=true;\n  "
+        },
+        {
+          "offset": 141174,
+          "delete": 0,
+          "insert": "\n   "
+        },
+        {
+          "offset": 141207,
+          "delete": 0,
+          "insert": "||isset($known[$sn])"
+        },
+        {
+          "offset": 141217,
+          "delete": 71,
+          "insert": "\n"
+        },
+        {
+          "offset": 141289,
+          "delete": 2,
+          "insert": ""
+        },
+        {
+          "offset": 141292,
+          "delete": 46,
+          "insert": " "
+        },
+        {
+          "offset": 141494,
+          "delete": 0,
+          "insert": "\n   $known[$sn]=true;"
+        },
+        {
+          "offset": 141503,
+          "delete": 0,
+          "insert": "\n  }\n "
+        },
+        {
+          "offset": 141506,
+          "delete": 1,
+          "insert": ""
+        }
+      ]
+    },
+    {
+      "path": "partners/native-r54.php",
+      "before_sha256": "6c1fd2b2f82ce15afc24aff31160c96cab0896b7b3beb15b6f4307d50bd79d4b",
+      "after_sha256": "21948f2bdc8e310f363c1437c0310e3f0864d94d47442cb692cb75f87f699aff",
+      "edits": [
+        {
+          "offset": 1082,
+          "delete": 0,
+          "insert": " // Preserve both payment proofs; the old single-image field remains a fallback.\n"
+        },
+        {
+          "offset": 1084,
+          "delete": 3,
+          "insert": "pr"
+        },
+        {
+          "offset": 1088,
+          "delete": 0,
+          "insert": "ofs=[];$vali"
+        },
+        {
+          "offset": 1089,
+          "delete": 0,
+          "insert": "at"
+        },
+        {
+          "offset": 1092,
+          "delete": 0,
+          "insert": "[];\n $images=['cash'=>"
+        },
+        {
+          "offset": 1100,
+          "delete": 0,
+          "insert": "($d['cash_image_base64']??''),'check'=>(string)($d['check_image_base64']??'')];\n if($images['cash']===''&&$images['check']===''&&!empty"
+        },
+        {
+          "offset": 1119,
+          "delete": 1,
+          "insert": "))$images[$method==='check'"
+        },
+        {
+          "offset": 1122,
+          "delete": 0,
+          "insert": "check"
+        },
+        {
+          "offset": 1123,
+          "delete": 0,
+          "insert": ":'cash']=(string"
+        },
+        {
+          "offset": 1124,
+          "delete": 0,
+          "insert": "$d['image_base64']"
+        },
+        {
+          "offset": 1126,
+          "delete": 0,
+          "insert": " foreach($images as $kind=>$encoded){\n "
+        },
+        {
+          "offset": 1138,
+          "delete": 1,
+          "insert": "="
+        },
+        {
+          "offset": 1144,
+          "delete": 1,
+          "insert": "continue;"
+        },
+        {
+          "offset": 1497,
+          "delete": 0,
+          "insert": "  $validated[]=['kind'=>$kind,'bytes'=>$bytes,'mime'=>$info['mime']];\n }\n foreach($validated as $image){\n  $kind=$image['kind'];$bytes=$image['bytes'];\n"
+        },
+        {
+          "offset": 1880,
+          "delete": 4,
+          "insert": "proofs[]=['ki"
+        },
+        {
+          "offset": 1885,
+          "delete": 1,
+          "insert": "d'=>$kind,"
+        },
+        {
+          "offset": 1899,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 1901,
+          "delete": 0,
+          "insert": ">"
+        },
+        {
+          "offset": 1907,
+          "delete": 8,
+          "insert": ","
+        },
+        {
+          "offset": 1927,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 1929,
+          "delete": 0,
+          "insert": ">"
+        },
+        {
+          "offset": 1931,
+          "delete": 3,
+          "insert": "mage"
+        },
+        {
+          "offset": 1942,
+          "delete": 0,
+          "insert": "]"
+        },
+        {
+          "offset": 1947,
+          "delete": 0,
+          "insert": " if($proofs){$clean['proofs']=$proofs;$clean['proof_token']=$proofs[0]['proof_token'];$clean['proof_mime']=$proofs[0]['proof_mime'];}\n"
+        },
+        {
+          "offset": 3253,
+          "delete": 0,
+          "insert": "$match=null;foreach(array_merge([$d],$d['proofs']??[]) as $item){"
+        },
+        {
+          "offset": 3258,
+          "delete": 1,
+          "insert": "item"
+        },
+        {
+          "offset": 3279,
+          "delete": 1,
+          "insert": "="
+        },
+        {
+          "offset": 3288,
+          "delete": 0,
+          "insert": "){$match=$item;break;}}if($match===null"
+        },
+        {
+          "offset": 3533,
+          "delete": 1,
+          "insert": "match"
+        }
+      ]
+    },
+    {
+      "path": "lib/warehouse-storage.php",
+      "before_sha256": "346c91991387fcc6f6ba0f659a965cc87b622ba993eeca170a149cb1c3d13477",
+      "after_sha256": "1733481116db77862ddae644c37931ae2ccb0b0f4c200b68bcff2f74341260af",
+      "edits": [
+        {
+          "offset": 6841,
+          "delete": 0,
+          "insert": "        // Legacy callbacks often change only one collection. Avoid re-encoding untouched tables.\n"
+        },
+        {
+          "offset": 6892,
+          "delete": 0,
+          "insert": "{\n            $old = $before[$collection] ?? []; $new = $after[$collection] ?? [];\n            if ($old === $new) continue;\n            "
+        },
+        {
+          "offset": 6930,
+          "delete": 9,
+          "insert": ""
+        },
+        {
+          "offset": 6941,
+          "delete": 14,
+          "insert": "d"
+        },
+        {
+          "offset": 6958,
+          "delete": 3,
+          "insert": "n"
+        },
+        {
+          "offset": 6962,
+          "delete": 20,
+          "insert": "w"
+        },
+        {
+          "offset": 6985,
+          "delete": 0,
+          "insert": "        }\n"
+        }
+      ]
+    },
+    {
+      "path": "assets/nav-restructure-v1.js",
+      "before_sha256": "a4de44c9901716efbbb3fc5bdedcaf9bde222adbe16f4224328ac0927550c552",
+      "after_sha256": "d9a8c661aefd21461bc58d46e286dbf204413768ebdbeadcdcee8d09f9237096",
+      "edits": [
+        {
+          "offset": 5568,
+          "delete": 36,
+          "insert": ""
+        },
+        {
+          "offset": 5620,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 5622,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 5636,
+          "delete": 51,
+          "insert": ","
+        },
+        {
+          "offset": 5692,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 5694,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 5727,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 5731,
+          "delete": 83,
+          "insert": ""
+        },
+        {
+          "offset": 5821,
+          "delete": 1,
+          "insert": ")return"
+        },
+        {
+          "offset": 5828,
+          "delete": 2,
+          "insert": "if(panel){while("
+        },
+        {
+          "offset": 5836,
+          "delete": 3,
+          "insert": "fir"
+        },
+        {
+          "offset": 5840,
+          "delete": 9,
+          "insert": "tC"
+        },
+        {
+          "offset": 5851,
+          "delete": 0,
+          "insert": "l"
+        },
+        {
+          "offset": 5852,
+          "delete": 0,
+          "insert": ")pro"
+        },
+        {
+          "offset": 5853,
+          "delete": 17,
+          "insert": ""
+        },
+        {
+          "offset": 5871,
+          "delete": 0,
+          "insert": "ct"
+        },
+        {
+          "offset": 5872,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 5891,
+          "delete": 67,
+          "insert": ""
+        },
+        {
+          "offset": 5971,
+          "delete": 0,
+          "insert": "panel.remove();}"
+        },
+        {
+          "offset": 5980,
+          "delete": 1,
+          "insert": "ol"
+        },
+        {
+          "offset": 5982,
+          "delete": 5,
+          "insert": ""
+        },
+        {
+          "offset": 5988,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 6010,
+          "delete": 5,
+          "insert": ""
+        },
+        {
+          "offset": 6017,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 6019,
+          "delete": 2,
+          "insert": "ol"
+        },
+        {
+          "offset": 6022,
+          "delete": 0,
+          "insert": ")ol"
+        },
+        {
+          "offset": 6023,
+          "delete": 30,
+          "insert": ""
+        },
+        {
+          "offset": 6054,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 6057,
+          "delete": 6,
+          "insert": ""
+        },
+        {
+          "offset": 6064,
+          "delete": 9,
+          "insert": ""
+        },
+        {
+          "offset": 6074,
+          "delete": 246,
+          "insert": ""
+        },
+        {
+          "offset": 6322,
+          "delete": 9,
+          "insert": ""
+        },
+        {
+          "offset": 6335,
+          "delete": 492,
+          "insert": ""
+        },
+        {
+          "offset": 15147,
+          "delete": 5,
+          "insert": "va"
+        },
+        {
+          "offset": 15153,
+          "delete": 43,
+          "insert": " "
+        },
+        {
+          "offset": 15204,
+          "delete": 2,
+          "insert": "=$('gpNavProducts"
+        },
+        {
+          "offset": 15208,
+          "delete": 0,
+          "insert": ";\n    if(!products){\n      products=makeItem('gpNavProducts'"
+        },
+        {
+          "offset": 15209,
+          "delete": 0,
+          "insert": "'محصولات',sample);\n"
+        },
+        {
+          "offset": 15210,
+          "delete": 0,
+          "insert": "     products.dataset.tab='products';products.dataset.gpNavKeep='1';\n      products.classList.add('adminOnly');\n      bindOnce(products,function(){if(typeof show==='function')show('products');});\n    }\n    products.classList.toggle('"
+        },
+        {
+          "offset": 15213,
+          "delete": 0,
+          "insert": "d"
+        },
+        {
+          "offset": 15214,
+          "delete": 1,
+          "insert": "n',typeof h"
+        },
+        {
+          "offset": 15216,
+          "delete": 1,
+          "insert": "s==='function'&&!has('admin')"
+        },
+        {
+          "offset": 15219,
+          "delete": 0,
+          "insert": "\n"
+        },
+        {
+          "offset": 15292,
+          "delete": 0,
+          "insert": "products, "
+        }
+      ]
+    },
+    {
+      "path": "assets/menu-live-v3.js",
+      "before_sha256": "157122a0a899efeb15c622aea4dd9e8d2d069c09a8dc039e32d3540fe953eee8",
+      "after_sha256": "12ee17deb01b3121a400ec4c4f2549d5e9f4126adc5d83b2ac5186a567a7aebb",
+      "edits": [
+        {
+          "offset": 16895,
+          "delete": 36,
+          "insert": ""
+        },
+        {
+          "offset": 16947,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 16949,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 16963,
+          "delete": 51,
+          "insert": ","
+        },
+        {
+          "offset": 17019,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 17021,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 17054,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 17058,
+          "delete": 83,
+          "insert": ""
+        },
+        {
+          "offset": 17148,
+          "delete": 1,
+          "insert": ")return"
+        },
+        {
+          "offset": 17155,
+          "delete": 2,
+          "insert": "if(panel){while("
+        },
+        {
+          "offset": 17163,
+          "delete": 3,
+          "insert": "fir"
+        },
+        {
+          "offset": 17167,
+          "delete": 9,
+          "insert": "tC"
+        },
+        {
+          "offset": 17178,
+          "delete": 0,
+          "insert": "l"
+        },
+        {
+          "offset": 17179,
+          "delete": 0,
+          "insert": ")pro"
+        },
+        {
+          "offset": 17180,
+          "delete": 17,
+          "insert": ""
+        },
+        {
+          "offset": 17198,
+          "delete": 0,
+          "insert": "ct"
+        },
+        {
+          "offset": 17199,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 17218,
+          "delete": 67,
+          "insert": ""
+        },
+        {
+          "offset": 17298,
+          "delete": 0,
+          "insert": "panel.remove();}"
+        },
+        {
+          "offset": 17307,
+          "delete": 1,
+          "insert": "ol"
+        },
+        {
+          "offset": 17309,
+          "delete": 5,
+          "insert": ""
+        },
+        {
+          "offset": 17315,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 17337,
+          "delete": 5,
+          "insert": ""
+        },
+        {
+          "offset": 17344,
+          "delete": 1,
+          "insert": ""
+        },
+        {
+          "offset": 17346,
+          "delete": 2,
+          "insert": "ol"
+        },
+        {
+          "offset": 17349,
+          "delete": 0,
+          "insert": ")ol"
+        },
+        {
+          "offset": 17350,
+          "delete": 380,
+          "insert": ""
+        },
+        {
+          "offset": 17738,
+          "delete": 8,
+          "insert": ""
+        },
+        {
+          "offset": 17749,
+          "delete": 762,
+          "insert": ""
+        }
+      ]
+    },
+    {
+      "path": "assets/order-details-v2-approved-20261024.js",
+      "before_sha256": "bf1904cfd275d0a78bc383b7a8575dbeee9aad66f48d765cdebaac7ebfb73930",
+      "after_sha256": "7ee97c35f70d454fa7ccd2933b9f1adbe77586272840bfad586e77ea1faa9ae5",
+      "edits": [
+        {
+          "offset": 431,
+          "delete": 0,
+          "insert": "(o.native_settlement||"
+        },
+        {
+          "offset": 451,
+          "delete": 0,
+          "insert": ")"
+        },
+        {
+          "offset": 508,
+          "delete": 0,
+          "insert": "/** Resolve only validated same-origin proof tokens; retain legacy inline image support. */\nfunction gpOdProofImages(o){\n  const d=gpOdDetails(o),proofs=Array.isArray(d.proofs)&&d.proofs.length?d.proofs:[d];\n  const seen=new Set(),images=[];\n  proofs.forEach(function(proof){\n    const token=proof&&proof.proof_token;\n    if(typeof token!=='string'||!/^[a-f0-9]{48}$/.test(token)||seen.has(token))return;\n    seen.add(token);\n    images.push({src:'/partners/api/native/proof?token='+token,extension:proof.proof_mime==='image/png'?'png':'jpg',label:proof.kind==='check'||(!proof.kind&&o.requested_payment_method==='check')?'تصویر چک':'تصویر فیش بانکی'});\n  });\n  if(!images.length){const legacy=gpOdImage(d.image_base64);if(legacy)images.push(Object.assign(legacy,{label:o.requested_payment_method==='check'?'تصویر چک':'تصویر فیش بانکی'}));}\n  return images;\n}\n"
+        },
+        {
+          "offset": 3386,
+          "delete": 0,
+          "insert": "ی',mixed:'ترکیب"
+        },
+        {
+          "offset": 5083,
+          "delete": 0,
+          "insert": "s"
+        },
+        {
+          "offset": 5088,
+          "delete": 0,
+          "insert": "Proof"
+        },
+        {
+          "offset": 5093,
+          "delete": 0,
+          "insert": "s"
+        },
+        {
+          "offset": 5094,
+          "delete": 14,
+          "insert": "o"
+        },
+        {
+          "offset": 5166,
+          "delete": 0,
+          "insert": "ی',mixed:'ترکیب"
+        },
+        {
+          "offset": 6078,
+          "delete": 0,
+          "insert": "s.length"
+        },
+        {
+          "offset": 6079,
+          "delete": 0,
+          "insert": "images.map(function(image,index){\n    const label=image.label;\n    return "
+        },
+        {
+          "offset": 6170,
+          "delete": 0,
+          "insert": "=\"'+index+'\""
+        },
+        {
+          "offset": 6464,
+          "delete": 0,
+          "insert": "-'+index+'"
+        },
+        {
+          "offset": 6523,
+          "delete": 1,
+          "insert": ";"
+        },
+        {
+          "offset": 6527,
+          "delete": 2,
+          "insert": "}).join(''):"
+        },
+        {
+          "offset": 6551,
+          "delete": 125,
+          "insert": ""
+        },
+        {
+          "offset": 6763,
+          "delete": 4,
+          "insert": ""
+        },
+        {
+          "offset": 12369,
+          "delete": 0,
+          "insert": "Proof"
+        },
+        {
+          "offset": 12374,
+          "delete": 11,
+          "insert": ""
+        },
+        {
+          "offset": 12389,
+          "delete": 0,
+          "insert": "[Number(trigger"
+        },
+        {
+          "offset": 12390,
+          "delete": 0,
+          "insert": "getAttribute('data-od2-"
+        },
+        {
+          "offset": 12395,
+          "delete": 7,
+          "insert": "'"
+        },
+        {
+          "offset": 12403,
+          "delete": 0,
+          "insert": ")||0]"
+        },
+        {
+          "offset": 18724,
+          "delete": 0,
+          "insert": "gpOdProofImages,"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "a332d3de13b9b8e6fb6f276339bdee65bddaf7d63493b1e648c36641aeb71c18",
+      "after_sha256": "b698b0913eb7aa5c177ee9732c9c3ade7fc97731f80bbbd73c7934777956eaa1",
+      "edits": [
+        {
+          "offset": 321266,
+          "delete": 0,
+          "insert": "2026"
+        },
+        {
+          "offset": 321267,
+          "delete": 0,
+          "insert": "106proofs-products"
+        },
+        {
+          "offset": 321890,
+          "delete": 0,
+          "insert": "1"
+        },
+        {
+          "offset": 321891,
+          "delete": 3,
+          "insert": "6pr"
+        },
+        {
+          "offset": 321896,
+          "delete": 1,
+          "insert": "fs-product"
+        },
+        {
+          "offset": 322003,
+          "delete": 0,
+          "insert": "1"
+        },
+        {
+          "offset": 322004,
+          "delete": 3,
+          "insert": "6pr"
+        },
+        {
+          "offset": 322009,
+          "delete": 1,
+          "insert": "fs-product"
+        }
+      ]
+    }
+  ]
+}

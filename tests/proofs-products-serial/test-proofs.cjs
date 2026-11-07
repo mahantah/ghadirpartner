@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+global.has=()=>true;global.jalaliDateTime=x=>x;
+const p=require('./candidate/assets/order-details-v2-approved-20261024.js');
+const a='a'.repeat(48),b='b'.repeat(48);
+const order={id:7,requested_payment_method:'mixed',native_settlement:{bank_name:'ملت',proofs:[{kind:'cash',proof_token:a,proof_mime:'image/jpeg'},{kind:'check',proof_token:b,proof_mime:'image/png'}]}};
+assert.equal(p.gpOdProofImages(order).length,2);
+const html=p.gpOdPaymentHtml(order);assert(html.includes(a)&&html.includes(b)&&html.includes('ملت')&&html.includes('ترکیبی'));
+assert.equal(p.gpOdProofImages({native_settlement:{proof_token:'https://evil.invalid/a'}}).length,0);
+assert.equal(p.gpOdProofImages({native_settlement:{proof_token:a}}).length,1);
+global.has=()=>false;assert(!p.gpOdPaymentHtml(order).includes(a));
+console.log('PASS: both proofs, native metadata, legacy tokens, token validation, finance gate');
