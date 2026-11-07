@@ -1,0 +1,50 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "assets/ui-v53435-menu2.js",
+      "before_sha256": "7b48983bdbfdba415719c1d9174c3ecf2e592dce47de86d6215e5450767a2fa0",
+      "after_sha256": "8627d7442b386ef35dd63fd9e79677d626cf262b98129a1b5542df0f422aea64",
+      "edits": [
+        {
+          "offset": 3615,
+          "delete": 0,
+          "insert": " || el.dataset.gpNavKeep === '1'"
+        },
+        {
+          "offset": 5791,
+          "delete": 0,
+          "insert": ":not([data-gp-nav-keep=\"1\"])"
+        },
+        {
+          "offset": 16769,
+          "delete": 0,
+          "insert": ", 'products'"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "b698b0913eb7aa5c177ee9732c9c3ade7fc97731f80bbbd73c7934777956eaa1",
+      "after_sha256": "3e1c08e52be585f4e5ae06651e949f82c43e0fcb4175812c1275024d62311339",
+      "edits": [
+        {
+          "offset": 290715,
+          "delete": 1,
+          "insert": "20261107products"
+        }
+      ]
+    }
+  ]
+}

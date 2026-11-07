@@ -13,4 +13,15 @@ const btn=w.document.getElementById('gpNavProducts');assert(btn&&!btn.hidden&&!b
 w.eval(fs.readFileSync(__dirname+'/menu-live-v4.js','utf8'));assert(w.document.querySelector('#warehouseNavGroup #gpNavProducts'));
 w.navQA.fillWarehouseNav();assert.equal(w.document.querySelectorAll('#gpNavProducts').length,1);
 w.has=()=>false;w.navQA.fillWarehouseNav();assert(btn.classList.contains('hidden'));
+const legacyPath=__dirname+'/candidate/assets/ui-v53435-menu2.js';
+if(fs.existsSync(legacyPath)){
+ const legacy=fs.readFileSync(legacyPath,'utf8').replace('\n  fillWarehouse();','\n  window.menu2QA={fillWarehouse};\n  fillWarehouse();');
+ w.eval(legacy);
+ w.has=()=>true;w.navQA.fillWarehouseNav();
+ w.menu2QA.fillWarehouse();
+ assert(!btn.hidden&&!btn.classList.contains('gp-nav-retired'),'legacy sweep must preserve the restored products item');
+ assert.notEqual(w.getComputedStyle(btn).display,'none','legacy CSS must not hide the restored products item');
+ btn.click();assert.equal(selected,'products');
+ w.has=()=>false;w.navQA.fillWarehouseNav();assert(btn.classList.contains('hidden'),'admin access remains required');
+}
 console.log('PASS: products content restored, explicit menu survives v4, click routes correctly, admin visibility preserved');dom.window.close();

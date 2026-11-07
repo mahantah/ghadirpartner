@@ -102,7 +102,7 @@ class Settings:
 
     @classmethod
     def load(cls, path: Path) -> Settings:
-        """Load seven approved paths and resolve environment credentials."""
+        """Load an approved release scope and resolve environment credentials."""
         data = mapping(json.loads(path.read_text()))
         ftp, health = mapping(data.get("ftps")), mapping(data.get("health"))
         host = string(ftp, "host")
@@ -149,6 +149,10 @@ class Settings:
             "assets/menu-live-v3.js",
             "assets/order-details-v2-approved-20261024.js",
         }
+        if path.name == "products-menu-visibility-release.yaml":
+            allowed = {"assets/ui-v53435-menu2.js", "app.html"}
+        elif path.name != "proofs-products-serial-release.yaml":
+            raise ValueError("unknown_release_configuration")
         if (
             len(targets) != len(allowed)
             or {t.path for t in targets} != allowed
@@ -271,12 +275,15 @@ class Validator:
                 if fixture_path.is_file():
                     shutil.copyfile(fixture_path, root / fixture_path.name)
             (root / "menu-live-v4.js").write_bytes(menu_v4)
-            for fixture in (
+            fixtures: tuple[str, ...] = (
                 "test-proofs.php",
                 "test-warehouse.php",
                 "test-proofs.cjs",
                 "test-menu.cjs",
-            ):
+            )
+            if "assets/ui-v53435-menu2.js" in candidates:
+                fixtures = ("test-menu.cjs",)
+            for fixture in fixtures:
                 subprocess.run(
                     [
                         "php" if fixture.endswith(".php") else "node",
@@ -316,12 +323,18 @@ class Release:
         )
 
     def prepare(self) -> tuple[dict[str, bytes], dict[str, bytes]]:
-        """Read only the seven source files and validate the exact planned output."""
+        """Read approved source files and validate the exact planned output."""
         before = {t.path: self.remote.download(t.path) for t in self.settings.targets}
         if all(digest(before[t.path]) == t.after for t in self.settings.targets):
             return before, before
         planned = {t.path: t.apply(before[t.path]) for t in self.settings.targets}
-        self.validator.validate(planned, self.remote.download("assets/menu-live-v4.js"))
+        validation = dict(planned)
+        if "assets/ui-v53435-menu2.js" in planned:
+            for path in ("assets/nav-restructure-v1.js", "assets/menu-live-v3.js"):
+                validation[path] = self.remote.download(path)
+        self.validator.validate(
+            validation, self.remote.download("assets/menu-live-v4.js")
+        )
         return before, planned
 
     def run(self, apply: bool) -> dict[str, object]:
@@ -423,12 +436,18 @@ class Entry:
         """Execute the requested approved mode and emit source-free status only."""
         parser = argparse.ArgumentParser()
         parser.add_argument("--mode", choices=("inspect", "apply"), required=True)
+        parser.add_argument(
+            "--config",
+            choices=(
+                "proofs-products-serial-release.yaml",
+                "products-menu-visibility-release.yaml",
+            ),
+            default="proofs-products-serial-release.yaml",
+        )
         args = parser.parse_args()
         project = Path(__file__).resolve().parent.parent
         try:
-            settings = Settings.load(
-                project / "config/proofs-products-serial-release.yaml"
-            )
+            settings = Settings.load(project / "config" / args.config)
             remote = FtpsRemote(settings)
             try:
                 print(
