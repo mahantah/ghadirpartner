@@ -1,0 +1,40 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "assets/warehouse-ui-refine-v53438.js",
+      "before_sha256": "720d56a67a3f86e64502a52f761161d500201305c5fac7dca68ce7450b6d7bb1",
+      "after_sha256": "fc03db800354439eaf30da584406b8970259adf9a909098837d96a92cc6228a3",
+      "edits": [
+        {
+          "offset": 27660,
+          "delete": 69,
+          "insert": "  // Indexed warehouse summaries omit inventory; preserve their async detail loader.\n  if(typeof gpOpenWarehouseSerialsLoaded==='function'){\n    if(!gpOpenWarehouseSerialsLoaded.__gpInvSerials){\n      gpOpenWarehouseSerialsLoaded=gpOpenWarehouseSerialsFromInventory;\n      gpOpenWarehouseSerialsLoaded.__gpInvSerials=true;\n    }\n  }else if(typeof openWarehouseSerials==='function'&&!openWarehouseSerials.__gpInvSerials){\n"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "5bf20019c573cd4631f307431da62e08b3bdecbc4537061bed527d73fdfccbfe",
+      "after_sha256": "007b8a0fc3750a8edaec553b22cedb0fe4664acea34c7c06c19ef0829e0b288c",
+      "edits": [
+        {
+          "offset": 291326,
+          "delete": 89,
+          "insert": "<script src=\"/assets/warehouse-ui-refine-v53438.js?v=20261107serialdetail&whfix=20261028a\"></script>\n"
+        }
+      ]
+    }
+  ]
+}

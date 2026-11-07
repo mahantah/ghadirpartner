@@ -1,0 +1,54 @@
+'use strict';
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+
+/** Execute the real indexed loader and production serial renderer with synthetic data. */
+async function main(){
+ const root=__dirname+'/candidate/';
+ const app=fs.readFileSync(root+'app.html','utf8');
+ const source=fs.readFileSync(root+'assets/warehouse-ui-refine-v53438.js','utf8');
+ const dom=new JSDOM('<div id="modal" class="hidden"><div id="modalbody"></div></div>',{runScripts:'outside-only',url:'https://fixture.invalid'});
+ const w=dom.window;w.$=id=>w.document.getElementById(id);
+ w.WH={cartons:[{id:1,code:'FIXTURE-1'},{id:2,code:'FIXTURE-2'}],inventory:[]};
+ w.esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ w.modal=html=>{w.document.getElementById('modalbody').innerHTML=html;w.document.getElementById('modal').classList.remove('hidden');};
+ w.gpOpenWarehouseSerialsLoaded=()=>{throw new Error('legacy renderer should be replaced, not the async loader');};
+ w.eval(app.slice(app.indexOf('let GP_WH_DETAIL_SEQ=0;'),app.indexOf('async function deleteWarehouseSerial(')));
+ w.eval(source.slice(source.indexOf('function gpCartonInventorySerials('),source.indexOf('function installWholesaleOnlyLedgerUI(')));
+ const marker=source.includes('// Indexed warehouse summaries')?'  // Indexed warehouse summaries':'  if(!openWarehouseSerials';
+ const start=source.indexOf(marker),end=source.indexOf('\n}\n\n\nwindow.GP_STOCKTAKE',start);
+ assert(start>=0&&end>start,'production detail binding anchors must exist');
+ const loader=w.openWarehouseSerials;
+ w.eval('function installDetailFixture(){'+source.slice(start,end)+'}');
+ w.installDetailFixture();w.installDetailFixture();
+ assert.equal(w.openWarehouseSerials,loader,'refine must preserve the indexed async loader');
+ let calls=[];
+ w.req=async url=>{calls.push(url);return calls.length===1?{rows:[{serial:'SERIAL-FREE',carton_id:1,order_id:0}],total:2,limit:1}:{rows:[{serial:'SERIAL-ASSIGNED',carton_id:1,order_id:9}],total:2,limit:1};};
+ await w.openWarehouseSerials(1);
+ assert.equal(calls.length,2,'all detail pages must be fetched on demand');
+ let html=w.document.getElementById('modalbody').innerHTML;
+ assert(html.includes('SERIAL-FREE')&&html.includes('SERIAL-ASSIGNED'));
+ assert.equal(w.document.querySelectorAll('#modalbody .danger').length,1,'only free serials offer deletion');
+ assert(html.includes('تخصیص‌یافته'));
+ assert.equal(w.WH.inventory.length,2);
+ let finish;
+ w.req=()=>new Promise(resolve=>{finish=resolve;});
+ const pending=w.openWarehouseSerials(1);
+ w.document.getElementById('modal').classList.add('hidden');
+ finish({rows:[{serial:'CLOSED-MODAL',carton_id:1}],total:1,limit:1});await pending;
+ assert(!w.document.getElementById('modalbody').innerHTML.includes('CLOSED-MODAL'),'closing cancels rendering');
+ const resolvers=[];w.req=()=>new Promise(resolve=>resolvers.push(resolve));
+ const first=w.openWarehouseSerials(1),second=w.openWarehouseSerials(2);
+ resolvers[1]({rows:[{serial:'CURRENT-BOX',carton_id:2,order_id:0}],total:1,limit:1});await second;
+ resolvers[0]({rows:[{serial:'STALE-BOX',carton_id:1,order_id:0}],total:1,limit:1});await first;
+ html=w.document.getElementById('modalbody').innerHTML;
+ assert(html.includes('CURRENT-BOX')&&!html.includes('STALE-BOX'),'latest carton request owns the modal');
+ w.req=async()=>{throw new Error('fixture network failure');};await w.openWarehouseSerials(1);
+ html=w.document.getElementById('modalbody').innerHTML;
+ assert(html.includes('fixture network failure')&&!html.includes('inventory ثبت نشده'),'request errors must not masquerade as an empty carton');
+ w.req=async()=>({rows:[],total:0,limit:100});await w.openWarehouseSerials(1);
+ assert(w.document.getElementById('modalbody').textContent.includes('inventory ثبت نشده'),'verified empty carton still reports empty');
+ dom.window.close();console.log('PASS: lazy loading, pagination, delete permissions, cancellation, latest request, failure and verified-empty states');
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});
