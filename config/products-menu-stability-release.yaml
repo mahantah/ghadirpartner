@@ -1,0 +1,57 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "assets/nav-restructure-v1.js",
+      "before_sha256": "d9a8c661aefd21461bc58d46e286dbf204413768ebdbeadcdcee8d09f9237096",
+      "after_sha256": "95433e4406c04c65b1153f837498029e46056bd9010136c9914fba06da3f0f8d",
+      "edits": [
+        {
+          "offset": 14119,
+          "delete": 325,
+          "insert": "    // Reuse the legacy item so the warehouse deduper never sees two products tabs.\n    var products=$('gpNavProducts')||sub.querySelector('[data-tab=\"products\"]');\n    if(products)products.id='gpNavProducts';\n    products=makeItem('gpNavProducts','محصولات',sample);\n    products.dataset.tab='products';products.dataset.gpNavKeep='1';\n    products.classList.add('adminOnly');\n    bindOnce(products,function(){if(typeof show==='function')show('products');});\n"
+        }
+      ]
+    },
+    {
+      "path": "assets/ui-v53435-menu2.js",
+      "before_sha256": "8627d7442b386ef35dd63fd9e79677d626cf262b98129a1b5542df0f422aea64",
+      "after_sha256": "194bafd2ce85faf29e57c86722d27534910e26c793da16226659dcac0f3eee83",
+      "edits": [
+        {
+          "offset": 14009,
+          "delete": 83,
+          "insert": "    // Match the current warehouse ordering to avoid reciprocal observer mutations.\n    const products = sub.querySelector('[data-tab=\"products\"][data-gp-nav-keep=\"1\"]');\n    setChildrenOrder(sub, [daily, reports, stocktake, vault, inventory, products, scanBtn]);\n"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "3e1c08e52be585f4e5ae06651e949f82c43e0fcb4175812c1275024d62311339",
+      "after_sha256": "5bf20019c573cd4631f307431da62e08b3bdecbc4537061bed527d73fdfccbfe",
+      "edits": [
+        {
+          "offset": 290522,
+          "delete": 664,
+          "insert": "</script><script src=\"/assets/redesign-v5348.js?v=5348&whfix=20261028a\"></script><script src=\"/assets/bugfix-v5349.js?v=5349&whfix=20261028a\"></script><script src=\"/assets/ui-v53435-menu2.js?v=20261107stable&whfix=20261028a\"></script><script src=\"/assets/partial-exit-v53422.js?v=53426&whfix=20261028a&serialentry=1\"></script><script src=\"/assets/warehouse-select-v53423.js?v=53426&whfix=20261028a\"></script><script src=\"/assets/business-v53437.js?v=53437&whfix=20261028a\"></script><script src=\"/assets/ops-v53434.js?v=53434&whfix=20261028a&serialentry=1\"></script><script src=\"/assets/warehouse-v53438.js?v=53438wh1&whfix=20261028a&supplier=20261031\"></script>\n"
+        },
+        {
+          "offset": 321838,
+          "delete": 135,
+          "insert": "<!-- GP_NAV_RESTRUCTURE_V1_20261025 --><script src=\"/assets/nav-restructure-v1.js?v=20261107stable&whfix=20261028a\"></script>\n"
+        }
+      ]
+    }
+  ]
+}
