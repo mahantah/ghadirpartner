@@ -1,0 +1,61 @@
+name: Release shared carton selection for Excel and label printing
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-carton-export-selection-sync.yml'
+      - 'config/carton-export-selection-sync-release.yaml'
+      - 'scripts/release-carton-export-selection-sync.py'
+      - 'tests/test_carton_export_selection_sync_release.py'
+      - 'tests/carton-export-selection-sync/**'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-carton-export-selection-sync.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check release policy and rollback fixtures
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          python3 -m ruff check --select E,F,I,UP scripts/release-carton-export-selection-sync.py tests/test_carton_export_selection_sync_release.py
+          python3 -m ruff format --check scripts/release-carton-export-selection-sync.py tests/test_carton_export_selection_sync_release.py
+          python3 -m mypy --strict scripts/release-carton-export-selection-sync.py
+          python3 -m unittest discover -s tests -p 'test_carton_export_selection_sync_release.py' -v
+          python3 -m json.tool config/carton-export-selection-sync-release.yaml >/dev/null
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    env:
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      NODE_PATH: /tmp/gp-reviewed-node/node_modules
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install fixture-only DOM dependency
+        run: npm install --prefix /tmp/gp-reviewed-node --ignore-scripts --no-audit --no-fund jsdom@26.1.0
+      - name: Read-only two-file preflight and private-source regression checks
+        run: python3 scripts/release-carton-export-selection-sync.py --config carton-export-selection-sync-release.yaml --mode inspect
+      - name: Apply the approved two-file release with protected rollback copies
+        if: github.event_name != 'pull_request'
+        run: python3 scripts/release-carton-export-selection-sync.py --config carton-export-selection-sync-release.yaml --mode apply

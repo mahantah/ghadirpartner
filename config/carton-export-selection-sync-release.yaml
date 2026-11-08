@@ -1,0 +1,85 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "assets/warehouse-carton-multilabel-v53438.js",
+      "before_sha256": "617d5c64b37434368938f7791cc8ddc436f3318cfba96eb5fd600acce21a1df4",
+      "after_sha256": "3395a014accc6ba3c852647245e134db9b818eac2fc3807191be69e56a8e2e83",
+      "edits": [
+        {
+          "offset": 360,
+          "delete": 15,
+          "insert": "// Printing and Excel share the existing carton selection.\nconst selected=window.gpWarehouseCartonLabelSelection||"
+        },
+        {
+          "offset": 2186,
+          "delete": 0,
+          "insert": "  if(typeof window.gpUpdateCartonExportSelection==='function')window.gpUpdateCartonExportSelection();\n"
+        },
+        {
+          "offset": 8019,
+          "delete": 0,
+          "insert": "window.gpSyncWarehouseCartonSelection=sync;\n"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "9d0590684395f199ebe058497b06dccc7497706229878ecae644df8a0717d132",
+      "after_sha256": "2285553160bf7141c1e9e20c6fac701e6ea0d2b3a59a9eb31393a4adebe67af5",
+      "edits": [
+        {
+          "offset": 202349,
+          "delete": 9,
+          "insert": "window.gpWarehouseCartonLabelSelection||new Set();\nwindow.gpWarehouseCartonLabelSelection=GP_CARTON_EXPORT_SELECTION"
+        },
+        {
+          "offset": 202667,
+          "delete": 173,
+          "insert": "inputs=Array.from(document.querySelectorAll('#warehouseBody .gp-wh-carton-label-check'));\n inputs.forEach(el=>{el.checked=GP_CARTON_EXPORT_SELECTION.has(Number(el.dataset.cartonId));});\n const visible=inputs.filter(el=>el.closest('tr')?.style.display!=='none'"
+        },
+        {
+          "offset": 203464,
+          "delete": 310,
+          "insert": ""
+        },
+        {
+          "offset": 203912,
+          "delete": 109,
+          "insert": "Array.from(document.querySelectorAll('#warehouseBody .gp-wh-carton-label-check')).filter(el=>el.closest('tr')?.style.display!=='none').forEach(el=>{\n  const id=Number(el.dataset.cartonId"
+        },
+        {
+          "offset": 204120,
+          "delete": 0,
+          "insert": "if(typeof window.gpSyncWarehouseCartonSelection==='function')window.gpSyncWarehouseCartonSelection();else "
+        },
+        {
+          "offset": 204310,
+          "delete": 0,
+          "insert": "if(typeof window.gpSyncWarehouseCartonSelection==='function')window.gpSyncWarehouseCartonSelection();else "
+        },
+        {
+          "offset": 206312,
+          "delete": 366,
+          "insert": "b class=\"code\">${esc(c.code)}</b"
+        },
+        {
+          "offset": 324295,
+          "delete": 13,
+          "insert": "20261108excelshared"
+        }
+      ]
+    }
+  ]
+}
