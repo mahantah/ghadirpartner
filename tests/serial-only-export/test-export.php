@@ -13,7 +13,7 @@ if(($argv[1]??'')==='--xlsx'){
  $a=strpos($source,'function xlsx_out(');$b=strpos($source,'function product_manufacturer_from_state(',$a);eval(substr($source,$a,$b-$a));$_GET=['ids'=>'11,12','serial_only'=>'1'];eval($route);exit;
 }
 if(($argv[1]??'')!=='--xlsx'){function xlsx_out($filename,$rows){global $captured;$captured=['filename'=>$filename,'rows'=>$rows];throw new RuntimeException('captured',299);}}
-function run_export($query){global $_GET,$route,$captured;$_GET=$query;try{eval($route);}catch(RuntimeException $e){if($e->getCode()!==299)throw $e;}return $captured;}
+function run_export($query){global $_GET,$route,$captured,$p;$_GET=$query;try{eval($route);}catch(RuntimeException $e){if($e->getCode()!==299)throw $e;}return $captured;}
 $result=run_export(['ids'=>'11,12,11','serial_only'=>'1']);if($result['rows']!==[['00001234567890123456'],['A-02']])throw new RuntimeException('serial-only cells mismatch');
 if($roles!==['admin','sales','prep','viewer'])throw new RuntimeException('access contract changed');
 $result=run_export(['ids'=>'12']);if(count($result['rows'][0])!==6||count($result['rows'])!==2)throw new RuntimeException('legacy export changed');
