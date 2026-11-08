@@ -8,12 +8,13 @@ const dom = new JSDOM(
   { runScripts: "outside-only" },
 );
 const w = dom.window;
-for (const id of ["gp-order-panel-serials-v1", "gp-order-panel-rows-v1"])
-  w.eval(
-    source.match(
-      new RegExp('<script id="' + id + '">([\\s\\S]*?)<\\/script>'),
-    )[1],
-  );
+w.eval(
+  source.match(/<script id="gp-order-panel-rows-v1">([\s\S]*?)<\/script>/)[1],
+);
+const statusStyle = w.document.createElement("style");
+statusStyle.textContent =
+  "#otbody>tr:nth-child(2)>td{background:#e6f2ff!important;color:#0057a7!important}#otbody>tr:nth-child(1)>td{background:#e4f7e9!important;color:#126b36!important}";
+w.document.head.appendChild(statusStyle);
 w.eval(`var ORDER_PAGE=1;
 function $(id){return document.getElementById(id)}
 function orderFiltered(){return window.fixtureOrders}
@@ -69,11 +70,20 @@ assert.equal(rows.length, 4);
 for (const row of rows.slice(0, 2)) {
   assert.equal(row.dataset.gpPanelOrder, "true");
   assert.equal(row.cells.length, 7);
-  for (const cell of row.cells)
-    assert.equal(
-      w.getComputedStyle(cell).backgroundColor,
-      "rgb(255, 241, 220)",
-    );
+  for (const cell of row.cells) {
+    const shadow = w.getComputedStyle(cell).boxShadow;
+    assert.ok(shadow.includes("#f58220"), shadow);
+    assert.ok(shadow.includes("inset 0 3px"), shadow);
+    assert.ok(shadow.includes("inset 0 -3px"), shadow);
+  }
+  assert.ok(
+    w.getComputedStyle(row.cells[0]).boxShadow.includes("inset -3px 0"),
+  );
+  assert.ok(
+    w
+      .getComputedStyle(row.cells[row.cells.length - 1])
+      .boxShadow.includes("inset 3px 0"),
+  );
   assert.ok(
     row
       .querySelector(".dots-btn")
@@ -82,8 +92,25 @@ for (const row of rows.slice(0, 2)) {
   );
   assert.ok(row.querySelector(".badge"));
 }
-for (const row of rows.slice(2))
+for (const row of rows.slice(2)) {
   assert.equal(row.hasAttribute("data-gp-panel-order"), false);
+  assert.equal(w.getComputedStyle(row.cells[0]).boxShadow, "");
+}
+assert.equal(
+  w.getComputedStyle(rows[0].cells[0]).backgroundColor,
+  "rgb(228, 247, 233)",
+);
+assert.equal(
+  w.getComputedStyle(rows[1].cells[0]).backgroundColor,
+  "rgb(230, 242, 255)",
+);
+assert.equal(w.getComputedStyle(rows[1].cells[0]).color, "rgb(0, 87, 167)");
+const outlineStyle = w.document.querySelector(
+  "#gp-panel-order-colors-v1",
+).textContent;
+assert.ok(!/background|border-right|\.order-no/.test(outlineStyle));
+assert.ok(!source.includes('id="gp-order-panel-serials-v1"'));
+assert.ok(!source.includes("gpPanelSerialPresentation"));
 assert.ok(rows[1].classList.contains("fros-row"));
 assert.equal(JSON.stringify(w.fixtureOrders), before);
 w.fixtureOrders[0].panels = [];
@@ -92,7 +119,30 @@ assert.equal(
   w.document.querySelector("#otbody tr").hasAttribute("data-gp-panel-order"),
   false,
 );
+w.fixtureOrders[0].panels = ["سپهر"];
+w.renderOrders();
+const browserCheck = `<output id="outline-browser-result">pending</output><script>
+try {
+ const rows=document.querySelectorAll('#otbody tr');
+ const green=getComputedStyle(rows[0].cells[0]);
+ const blue=getComputedStyle(rows[1].cells[0]);
+ if(green.backgroundColor!=='rgb(228, 247, 233)'||blue.backgroundColor!=='rgb(230, 242, 255)')throw Error('status_background_changed');
+ for(const row of [rows[0],rows[1]])for(const cell of row.cells)if(!getComputedStyle(cell).boxShadow.includes('rgb(245, 130, 32)'))throw Error('missing_outline');
+ if(!getComputedStyle(rows[0].cells[0]).boxShadow.includes('-3px 0px'))throw Error('missing_right_edge');
+ if(!getComputedStyle(rows[0].cells[6]).boxShadow.includes('3px 0px'))throw Error('missing_left_edge');
+ document.querySelector('#outline-browser-result').textContent='GP_PANEL_OUTLINE_PASS';
+} catch(error) {document.querySelector('#outline-browser-result').textContent='GP_PANEL_OUTLINE_FAIL:'+error.message;}
+</script>`;
+fs.writeFileSync(
+  __dirname + "/outline-browser.html",
+  "<!doctype html>" +
+    w.document.documentElement.outerHTML.replace(
+      "</body>",
+      browserCheck + "</body>",
+    ),
+);
+
 w.close();
 console.log(
-  "ok: all seven cells highlighted; normal rows unaffected; action/status/priority/data preserved; rerenders reflect panel changes",
+  "ok: all row edges outlined; status backgrounds/text preserved; obsolete serial coloring removed; actions/data unchanged",
 );

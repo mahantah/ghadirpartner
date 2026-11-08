@@ -1,0 +1,55 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "assets/order-details-v2-approved-20261024.js",
+      "before_sha256": "e3201bec3126799b63ce122f7aa149d774e8634bf5726036775c09e5e459123f",
+      "after_sha256": "7ee97c35f70d454fa7ccd2933b9f1adbe77586272840bfad586e77ea1faa9ae5",
+      "edits": [
+        {
+          "offset": 8335,
+          "delete": 67,
+          "insert": "'<li><span"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "cdffd3dd2a49dd832e188c77898b57a7bb4e4d94fa407e8b8d2d7de1281659e6",
+      "after_sha256": "94dc0830a4be3da2271121e79f46f6df3b16b7a9f378099d011b79b5e1223507",
+      "edits": [
+        {
+          "offset": 113155,
+          "delete": 5151,
+          "insert": "{{GP_PANEL_OUTLINE_PAYLOAD}}"
+        },
+        {
+          "offset": 164506,
+          "delete": 83,
+          "insert": "<div class=\"detail-serial\">"
+        },
+        {
+          "offset": 190845,
+          "delete": 82,
+          "insert": "<span class=\"serial-chip\">"
+        },
+        {
+          "offset": 330074,
+          "delete": 60,
+          "insert": "order-details-v2-approved-20261024.js?v=20261108paneloutline"
+        }
+      ]
+    }
+  ]
+}

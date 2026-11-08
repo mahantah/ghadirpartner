@@ -1,18 +1,19 @@
-interface PanelSerialPolicy {
-  background: string;
+interface PanelOrderOutlinePolicy {
   border: string;
-  foreground: string;
+  width: number;
   label: string;
 }
 
 /** Distinguish entire order rows using the existing panel selection. */
 class OrderPanelRowPresentation {
-  constructor(private readonly policy: PanelSerialPolicy) {
-    for (const color of [policy.background, policy.border, policy.foreground]) {
+  constructor(private readonly policy: PanelOrderOutlinePolicy) {
+    for (const color of [policy.border]) {
       if (!/^#[0-9a-f]{6}$/i.test(color))
         throw new Error("invalid_panel_color");
     }
     if (policy.label !== "ثبت در پنل") throw new Error("invalid_panel_label");
+    if (!Number.isInteger(policy.width) || policy.width < 2 || policy.width > 4)
+      throw new Error("invalid_panel_border_width");
   }
 
   /** Mark only orders with a selected PSP; never infer registration completion. */
@@ -32,41 +33,41 @@ class OrderPanelRowPresentation {
       : "";
   }
 
-  /** Color every cell of the marked order row while preserving badges and actions. */
+  /** Outline the complete row without overriding status backgrounds or text colors. */
   start(dom: Document): void {
     const style = dom.createElement("style");
     style.id = "gp-panel-order-colors-v1";
-    style.textContent = `tr[data-gp-panel-order="true"]>td{background:${this.policy.background}!important}tr[data-gp-panel-order="true"]>td:first-child{border-right:4px solid ${this.policy.border}!important}tr[data-gp-panel-order="true"] .order-no{color:${this.policy.foreground}!important}`;
+    const edge = this.policy.width;
+    const color = this.policy.border;
+    const horizontal = `inset 0 ${edge}px 0 ${color},inset 0 -${edge}px 0 ${color}`;
+    style.textContent = `#otbody>tr[data-gp-panel-order="true"]>td{box-shadow:${horizontal}!important}#otbody>tr[data-gp-panel-order="true"]>td:first-child{box-shadow:${horizontal},inset -${edge}px 0 0 ${color}!important}#otbody>tr[data-gp-panel-order="true"]>td:last-child{box-shadow:${horizontal},inset ${edge}px 0 0 ${color}!important}`;
     dom.head.appendChild(style);
   }
 }
 
 interface Window {
-  GP_PANEL_SERIAL_POLICY?: unknown;
+  GP_PANEL_ORDER_POLICY?: unknown;
   gpPanelOrderPresentation?: OrderPanelRowPresentation;
 }
 
 (() => {
   const view: Window = window;
-  const raw = view.GP_PANEL_SERIAL_POLICY;
+  const raw = view.GP_PANEL_ORDER_POLICY;
   if (typeof raw !== "object" || raw === null)
     throw new Error("invalid_panel_policy");
   const policy = raw as Record<string, unknown>;
-  const background = policy["background"];
   const border = policy["border"];
-  const foreground = policy["foreground"];
+  const width = policy["width"];
   const label = policy["label"];
   if (
-    typeof background !== "string" ||
     typeof border !== "string" ||
-    typeof foreground !== "string" ||
+    typeof width !== "number" ||
     typeof label !== "string"
   )
     throw new Error("invalid_panel_policy");
   const presentation = new OrderPanelRowPresentation({
-    background,
     border,
-    foreground,
+    width,
     label,
   });
   presentation.start(document);
