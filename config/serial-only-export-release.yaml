@@ -1,0 +1,67 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "index.php",
+      "before_sha256": "e11b6ff2e2443e3940372f74da0c9ee6b0b6e707dedef969eb6260c59e75d724",
+      "after_sha256": "072de218ee753936d5e91e481f6ec5ddd0733f2dbe6046342a085636e037e8d8",
+      "edits": [
+        {
+          "offset": 185621,
+          "delete": 0,
+          "insert": "\n // Export text-only serial cells without customer, order, model or header rows.\n if(($_GET['serial_only']??'')==='1')xlsx_out('selected-serials-only.xlsx',array_map(static fn($row)=>[(string)$row[2]],array_slice($rows,1)));\n "
+        }
+      ]
+    },
+    {
+      "path": "assets/warehouse-ui-refine-v53438.js",
+      "before_sha256": "fc03db800354439eaf30da584406b8970259adf9a909098837d96a92cc6228a3",
+      "after_sha256": "280d8f221d7dc2f3a1def755adf9d7f4e24992a76aebf9a204eb7c8130e58311",
+      "edits": [
+        {
+          "offset": 23940,
+          "delete": 0,
+          "insert": "/** Keep selection scoped to the currently open carton, including allocated serials. */\nfunction gpWarehouseSerialExportUrl(){\n  const ids=Array.from(document.querySelectorAll('#modalbody .gp-carton-serial-select:checked'))\n    .map(el=>Number(el.value)).filter(id=>Number.isSafeInteger(id)&&id>0);\n  return ids.length?'/export/selected-serials.xlsx?serial_only=1&ids='+encodeURIComponent(Array.from(new Set(ids)).join(',')):'';\n}\n/** Synchronize the action count and select-all state after each selection. */\nfunction gpUpdateWarehouseSerialSelection(){\n  const rows=Array.from(document.querySelectorAll('#modalbody .gp-carton-serial-select:not(:disabled)'));\n  const count=rows.filter(el=>el.checked).length;\n  const all=document.getElementById('gpWarehouseSerialSelectAll');\n  if(all){all.checked=rows.length>0&&count===rows.length;all.indeterminate=count>0&&count<rows.length;all.disabled=!rows.length;}\n  const button=document.getElementById('gpWarehouseSerialExport');\n  if(button){button.disabled=!count;button.textContent='خروجی اکسل انتخاب‌شده‌ها ('+count.toLocaleString('fa-IR')+')';}\n}\n/** Select or clear only the serials belonging to the open carton. */\nfunction gpToggleWarehouseSerialSelection(checked){\n  document.querySelectorAll('#modalbody .gp-carton-serial-select:not(:disabled)').forEach(el=>{el.checked=checked;});\n  gpUpdateWarehouseSerialSelection();\n}\n/** Download through the existing authenticated export route without changing inventory. */\nfunction gpExportWarehouseSelectedSerials(){\n  const url=gpWarehouseSerialExportUrl();\n  if(url)window.location.href=url;\n}\n\n"
+        },
+        {
+          "offset": 24585,
+          "delete": 106,
+          "insert": "const inventoryId=Number(iv&&iv.id||0);\n    const selectable=Number.isSafeInteger(inventoryId)&&inventoryId>0;\n    return '<div class=\"inv-serial-row\" style=\"grid-template-columns:1fr auto\"><label style=\"display:flex;align-items:center;gap:8px\"><input type=\"checkbox\" class=\"gp-carton-serial-select\" style=\"width:auto\" value=\"'+(selectable?inventoryId:'')+'\" '+(selectable?'':'disabled')+' onchange=\"gpUpdateWarehouseSerialSelection()\" aria-label=\"انتخاب سریال '+escFn(s)+'\"><b class=\"code\">'+escFn(s)+'</b></label"
+        },
+        {
+          "offset": 25113,
+          "delete": 258,
+          "insert": " فایل اکسل فقط سریال‌های انتخاب‌شده را دارد.</p><div class=\"toolbar\" style=\"margin-bottom:10px\"><label><input id=\"gpWarehouseSerialSelectAll\" type=\"checkbox\" style=\"width:auto\" onchange=\"gpToggleWarehouseSerialSelection(this.checked)\"> انتخاب همه</label><button id=\"gpWarehouseSerialExport\" class=\"btn2\" onclick=\"gpExportWarehouseSelectedSerials()\" disabled>خروجی اکسل انتخاب‌شده‌ها (۰)</button></div><div style=\"max-height:55vh;overflow:auto\">'+(body||'<div class=\"small\">برای این باکس سریالی در inventory ثبت نشده است.</div>')+'</div><button class=\"btnlight\" onclick=\"closeModal()\" style=\"margin-top:10px\">بستن</button>');\n  gpUpdateWarehouseSerialSelection("
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "007b8a0fc3750a8edaec553b22cedb0fe4664acea34c7c06c19ef0829e0b288c",
+      "after_sha256": "6b01b1d43f7fdc44a1a3e9869a88090c264d8e8f04d79f0b7f90da8395e27016",
+      "edits": [
+        {
+          "offset": 289484,
+          "delete": 0,
+          "insert": "serial_only=1&"
+        },
+        {
+          "offset": 291386,
+          "delete": 13,
+          "insert": "8serialexport"
+        }
+      ]
+    }
+  ]
+}
