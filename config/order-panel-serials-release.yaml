@@ -27,7 +27,7 @@
     {
       "path": "app.html",
       "before_sha256": "fe035ab5371ee3e2d7d741b4e0e4260651195f5a9602e97efcef584d6c80c5ca",
-      "after_sha256": "be3e5c00411ef237120ea9b4d0ff03e0a6df1c47b89c4beaf536a4a2a3efd80d",
+      "after_sha256": "8ab486a2182ccc0935b270c6f90f54bc743c8fbddaac5c9200dc3824a96aa531",
       "edits": [
         {
           "offset": 113155,
@@ -43,6 +43,11 @@
           "offset": 185581,
           "delete": 46,
           "insert": "<span class=\"serial-chip\"${(window.gpPanelSerialPresentation?.attributes(o)||'')}><span>${esc(s)}${im}"
+        },
+        {
+          "offset": 324746,
+          "delete": 71,
+          "insert": "/assets/order-details-v2-approved-20261024.js?v=20261108panelserials"
         }
       ]
     }
