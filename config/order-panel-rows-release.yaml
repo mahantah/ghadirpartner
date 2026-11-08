@@ -1,0 +1,33 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "app.html",
+      "before_sha256": "8ab486a2182ccc0935b270c6f90f54bc743c8fbddaac5c9200dc3824a96aa531",
+      "after_sha256": "cdffd3dd2a49dd832e188c77898b57a7bb4e4d94fa407e8b8d2d7de1281659e6",
+      "edits": [
+        {
+          "offset": 115824,
+          "delete": 0,
+          "insert": "{{GP_PANEL_ROW_PAYLOAD}}"
+        },
+        {
+          "offset": 155929,
+          "delete": 63,
+          "insert": "<tr class=\"${o.fros?'fros-row':''}\"${(window.gpPanelOrderPresentation?.attributes(o)||'')}><td><span class=\"order-no\">"
+        }
+      ]
+    }
+  ]
+}

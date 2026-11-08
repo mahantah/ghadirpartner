@@ -1,0 +1,72 @@
+name: Release full orange rows for panel orders
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-order-panel-rows.yml'
+      - 'config/order-panel-rows-release.yaml'
+      - 'scripts/release-order-panel-rows.py'
+      - 'tests/test_order_panel_rows_release.py'
+      - 'tests/order-panel-rows-v1/**'
+      - 'scripts/order-panel-rows-v1.ts'
+      - 'config/order-panel-rows*'
+      - 'assets/order-panel-rows-v1/**'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-order-panel-rows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check release policy and rollback fixtures
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          python3 -m ruff check --select E,F,I,UP scripts/release-order-panel-rows.py tests/test_order_panel_rows_release.py
+          python3 -m ruff format --check scripts/release-order-panel-rows.py tests/test_order_panel_rows_release.py
+          python3 -m mypy --strict scripts/release-order-panel-rows.py
+          python3 -m unittest discover -s tests -p 'test_order_panel_rows_release.py' -v
+          python3 -m json.tool config/order-panel-rows-release.yaml >/dev/null
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    env:
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      NODE_PATH: /tmp/gp-reviewed-node/node_modules
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned validation dependencies
+        run: |
+          npm install --prefix /tmp/gp-reviewed-node --ignore-scripts --no-audit --no-fund jsdom@26.1.0 typescript@5.7.3 prettier@3.4.2 eslint@9.17.0 typescript-eslint@8.18.0
+      - name: Check typing, lint, formatting and reproducible browser source
+        run: |
+          set -euo pipefail
+          /tmp/gp-reviewed-node/node_modules/.bin/tsc -p config/order-panel-rows.tsconfig.json
+          git diff --exit-code -- assets/order-panel-rows-v1/display.js
+          /tmp/gp-reviewed-node/node_modules/.bin/eslint --config config/order-panel-rows-eslint.cjs scripts/order-panel-rows-v1.ts --max-warnings 0
+          /tmp/gp-reviewed-node/node_modules/.bin/prettier --check scripts/order-panel-rows-v1.ts config/order-panel-rows.tsconfig.json config/order-panel-rows-eslint.cjs tests/order-panel-rows-v1/test-rows.cjs
+      - name: Read-only preflight with panel-order serial regression checks
+        run: python3 scripts/release-order-panel-rows.py --config order-panel-rows-release.yaml --mode inspect
+      - name: Apply the approved display release with protected rollback copies
+        if: github.event_name != 'pull_request'
+        run: python3 scripts/release-order-panel-rows.py --config order-panel-rows-release.yaml --mode apply
