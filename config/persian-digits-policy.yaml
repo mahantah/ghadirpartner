@@ -1,0 +1,7 @@
+{
+  "font_family": "GP Persian Digits",
+  "serial_selector": ".serial-chip,.serial-list,.detail-serial,.inv-code,.od2-serials li,.inv-serial-row b.code,[data-serial],[data-sn],[data-field=serial]",
+  "serial_field_ids": ["whScan", "whSerials", "eisn", "eserial", "eimei"],
+  "serial_header_pattern": "سریال|serial|imei",
+  "count_header_pattern": "تعداد|ظرفیت|شمارش|عملیات|count|qty|total|action"
+}
