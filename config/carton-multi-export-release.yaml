@@ -1,0 +1,55 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "index.php",
+      "before_sha256": "072de218ee753936d5e91e481f6ec5ddd0733f2dbe6046342a085636e037e8d8",
+      "after_sha256": "77fcbbc1c2dd1e04e8069c1d7b9deec1eb84310b90048a4c331111fedf6f2bb2",
+      "edits": [
+        {
+          "offset": 184719,
+          "delete": 0,
+          "insert": "/* Selected carton export is read-only and uses the same inventory export roles. */\nif($p==='/export/carton-serials.xlsx'){\n auth(['admin','sales','prep','viewer']);\n $raw=trim((string)($_POST['carton_ids']??$_GET['carton_ids']??''));\n $ids=array_values(array_unique(array_filter(array_map('intval',preg_split('/[,\\s]+/',$raw)),static fn($id)=>$id>0)));\n if(!$ids)fail('حداقل یک کارتن انتخاب کنید');\n $rows=db(false,function($s)use($ids){\n  $selected=array_fill_keys($ids,true);$valid=[];$codes=[];\n  foreach($s['cartons']??[] as $carton){\n   $id=(int)($carton['id']??0);if(!isset($selected[$id]))continue;\n   $valid[$id]=true;$code=strtoupper(trim((string)($carton['code']??'')));if($code!=='')$codes[$code]=true;\n  }\n  $rows=[];$seen=[];\n  foreach($s['inventory']??[] as $iv){\n   $id=(int)($iv['carton_id']??0);$code=strtoupper(trim((string)($iv['carton_code']??'')));\n   if(!isset($valid[$id])&&!isset($codes[$code]))continue;\n   $serial=trim((string)($iv['serial']??''));$key=strtoupper($serial);\n   if($serial===''||isset($seen[$key]))continue;\n   $seen[$key]=true;$rows[]=[$serial];\n  }\n  return $rows;\n });\n if(!$rows)fail('برای کارتن‌های انتخاب‌شده سریالی پیدا نشد',404);\n xlsx_out('selected-carton-serials.xlsx',$rows);\n}\n\n"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "6b01b1d43f7fdc44a1a3e9869a88090c264d8e8f04d79f0b7f90da8395e27016",
+      "after_sha256": "9d0590684395f199ebe058497b06dccc7497706229878ecae644df8a0717d132",
+      "edits": [
+        {
+          "offset": 107917,
+          "delete": 0,
+          "insert": "id=\"gpCartonExportToolbar\" class=\"toolbar\" style=\"margin-bottom:12px\"><label><input id=\"gpCartonExportSelectVisible\" type=\"checkbox\" style=\"width:auto\" onchange=\"gpSelectVisibleCartonsForExport(this.checked)\"> انتخاب کارتن‌های نمایش‌داده‌شده</label><button id=\"gpCartonExportExcel\" class=\"btn2\" onclick=\"gpDownloadSelectedCartonSerials()\" disabled>اکسل سریال کارتن‌های انتخابی (۰)</button><button type=\"button\" class=\"btnlight\" onclick=\"gpClearCartonExportSelection()\">پاک‌کردن انتخاب‌ها</button><span class=\"small\">خروجی یک فایل با فقط سریال‌هاست.</span></div><div "
+        },
+        {
+          "offset": 201645,
+          "delete": 0,
+          "insert": "const GP_CARTON_EXPORT_SELECTION=new Set();\n/** Keep carton selections across filters while discarding cartons removed on refresh. */\nfunction gpUpdateCartonExportSelection(){\n const existing=new Set((WH.cartons||[]).map(c=>Number(c.id)));\n GP_CARTON_EXPORT_SELECTION.forEach(id=>{if(!existing.has(id))GP_CARTON_EXPORT_SELECTION.delete(id);});\n const visible=Array.from(document.querySelectorAll('#warehouseBody .gp-carton-export-select'));\n visible.forEach(el=>{el.checked=GP_CARTON_EXPORT_SELECTION.has(Number(el.value));});\n const checked=visible.filter(el=>el.checked).length,all=document.getElementById('gpCartonExportSelectVisible');\n if(all){all.checked=visible.length>0&&checked===visible.length;all.indeterminate=checked>0&&checked<visible.length;all.disabled=!visible.length;}\n const button=document.getElementById('gpCartonExportExcel');\n if(button){const disabled=!GP_CARTON_EXPORT_SELECTION.size,label='اکسل سریال کارتن‌های انتخابی ('+GP_CARTON_EXPORT_SELECTION.size.toLocaleString('fa-IR')+')';if(button.disabled!==disabled)button.disabled=disabled;if(button.textContent!==label)button.textContent=label;}\n}\n/** Select the carton rather than requiring its individual serial window. */\nfunction gpSelectCartonForExport(id,selected){\n id=Number(id);if(!Number.isSafeInteger(id)||id<1)return;\n if(selected)GP_CARTON_EXPORT_SELECTION.add(id);else GP_CARTON_EXPORT_SELECTION.delete(id);\n gpUpdateCartonExportSelection();\n}\n/** Apply select-all only to rows currently visible through the warehouse filter. */\nfunction gpSelectVisibleCartonsForExport(selected){\n document.querySelectorAll('#warehouseBody .gp-carton-export-select').forEach(el=>{\n  const id=Number(el.value);if(selected)GP_CARTON_EXPORT_SELECTION.add(id);else GP_CARTON_EXPORT_SELECTION.delete(id);\n });\n gpUpdateCartonExportSelection();\n}\n/** Clear the carton selection independently from inventory and allocations. */\nfunction gpClearCartonExportSelection(){GP_CARTON_EXPORT_SELECTION.clear();gpUpdateCartonExportSelection();}\n/** POST carton identifiers to the existing authenticated server without URL length limits. */\nfunction gpDownloadSelectedCartonSerials(){\n gpUpdateCartonExportSelection();if(!GP_CARTON_EXPORT_SELECTION.size)return;\n const form=document.createElement('form');form.method='POST';form.action='/export/carton-serials.xlsx';form.hidden=true;\n const input=document.createElement('input');input.type='hidden';input.name='carton_ids';input.value=Array.from(GP_CARTON_EXPORT_SELECTION).join(',');form.appendChild(input);\n document.body.appendChild(form);form.submit();form.remove();\n}\n\n"
+        },
+        {
+          "offset": 203035,
+          "delete": 32,
+          "insert": "label style=\"display:flex;align-items:center;gap:8px\"><input type=\"checkbox\" class=\"gp-carton-export-select\" style=\"width:auto\" value=\"${Number(c.id)}\" ${GP_CARTON_EXPORT_SELECTION.has(Number(c.id))?'checked':''} onchange=\"gpSelectCartonForExport(this.value,this.checked)\" aria-label=\"انتخاب کارتن ${esc(c.code)}\"><b class=\"code\">${esc(c.code)}</b></label"
+        },
+        {
+          "offset": 204275,
+          "delete": 0,
+          "insert": " gpUpdateCartonExportSelection();\n"
+        }
+      ]
+    }
+  ]
+}
