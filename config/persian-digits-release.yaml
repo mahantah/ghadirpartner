@@ -1,0 +1,28 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "app.html",
+      "before_sha256": "2285553160bf7141c1e9e20c6fac701e6ea0d2b3a59a9eb31393a4adebe67af5",
+      "after_sha256": "fe035ab5371ee3e2d7d741b4e0e4260651195f5a9602e97efcef584d6c80c5ca",
+      "edits": [
+        {
+          "offset": 330434,
+          "delete": 0,
+          "insert": "{{GP_PERSIAN_DIGITS_PAYLOAD}}"
+        }
+      ]
+    }
+  ]
+}
