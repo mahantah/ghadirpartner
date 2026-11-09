@@ -12,7 +12,7 @@ class OrderPanelRowPresentation {
         throw new Error("invalid_panel_color");
     }
     if (policy.label !== "ثبت در پنل") throw new Error("invalid_panel_label");
-    if (!Number.isInteger(policy.width) || policy.width < 2 || policy.width > 4)
+    if (!Number.isInteger(policy.width) || policy.width < 1 || policy.width > 4)
       throw new Error("invalid_panel_border_width");
   }
 

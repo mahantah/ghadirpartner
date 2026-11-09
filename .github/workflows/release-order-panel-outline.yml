@@ -1,4 +1,4 @@
-name: Release orange panel-order outlines preserving status colors
+name: Release one-pixel panel-order outlines preserving status colors
 
 on:
   pull_request:
