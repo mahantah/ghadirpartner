@@ -1,19 +1,7 @@
 name: Release full orange rows for panel orders
 
+# Superseded by the outline release; retained for manual historical inspection.
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/release-order-panel-rows.yml'
-      - 'config/order-panel-rows-release.yaml'
-      - 'scripts/release-order-panel-rows.py'
-      - 'tests/test_order_panel_rows_release.py'
-      - 'tests/order-panel-rows-v1/**'
-      - 'scripts/order-panel-rows-v1.ts'
-      - 'config/order-panel-rows*'
-      - 'assets/order-panel-rows-v1/**'
-  push:
-    branches: [main]
-    paths: ['.github/workflows/release-order-panel-rows.yml']
   workflow_dispatch:
 
 permissions:

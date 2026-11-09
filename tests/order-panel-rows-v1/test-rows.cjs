@@ -73,16 +73,16 @@ for (const row of rows.slice(0, 2)) {
   for (const cell of row.cells) {
     const shadow = w.getComputedStyle(cell).boxShadow;
     assert.ok(shadow.includes("#f58220"), shadow);
-    assert.ok(shadow.includes("inset 0 3px"), shadow);
-    assert.ok(shadow.includes("inset 0 -3px"), shadow);
+    assert.ok(shadow.includes("inset 0 1px"), shadow);
+    assert.ok(shadow.includes("inset 0 -1px"), shadow);
   }
   assert.ok(
-    w.getComputedStyle(row.cells[0]).boxShadow.includes("inset -3px 0"),
+    w.getComputedStyle(row.cells[0]).boxShadow.includes("inset -1px 0"),
   );
   assert.ok(
     w
       .getComputedStyle(row.cells[row.cells.length - 1])
-      .boxShadow.includes("inset 3px 0"),
+      .boxShadow.includes("inset 1px 0"),
   );
   assert.ok(
     row
@@ -128,8 +128,8 @@ try {
  const blue=getComputedStyle(rows[1].cells[0]);
  if(green.backgroundColor!=='rgb(228, 247, 233)'||blue.backgroundColor!=='rgb(230, 242, 255)')throw Error('status_background_changed');
  for(const row of [rows[0],rows[1]])for(const cell of row.cells)if(!getComputedStyle(cell).boxShadow.includes('rgb(245, 130, 32)'))throw Error('missing_outline');
- if(!getComputedStyle(rows[0].cells[0]).boxShadow.includes('-3px 0px'))throw Error('missing_right_edge');
- if(!getComputedStyle(rows[0].cells[6]).boxShadow.includes('3px 0px'))throw Error('missing_left_edge');
+ if(!getComputedStyle(rows[0].cells[0]).boxShadow.includes('-1px 0px'))throw Error('missing_right_edge');
+ if(!getComputedStyle(rows[0].cells[6]).boxShadow.includes('1px 0px'))throw Error('missing_left_edge');
  document.querySelector('#outline-browser-result').textContent='GP_PANEL_OUTLINE_PASS';
 } catch(error) {document.querySelector('#outline-browser-result').textContent='GP_PANEL_OUTLINE_FAIL:'+error.message;}
 </script>`;
