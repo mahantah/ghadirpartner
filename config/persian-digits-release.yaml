@@ -14,12 +14,12 @@
   "targets": [
     {
       "path": "app.html",
-      "before_sha256": "2285553160bf7141c1e9e20c6fac701e6ea0d2b3a59a9eb31393a4adebe67af5",
-      "after_sha256": "fe035ab5371ee3e2d7d741b4e0e4260651195f5a9602e97efcef584d6c80c5ca",
+      "before_sha256": "a0dc0bb4f81a8a105612fbd9918af7442db17a126f4da690e290624fcb0001df",
+      "after_sha256": "b62448acfaee12eef3eb2a412d469fc86bf351af8adec013ac9ec5966c22c13d",
       "edits": [
         {
-          "offset": 330434,
-          "delete": 0,
+          "offset": 333260,
+          "delete": 31541,
           "insert": "{{GP_PERSIAN_DIGITS_PAYLOAD}}"
         }
       ]

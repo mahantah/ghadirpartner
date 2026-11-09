@@ -300,6 +300,10 @@ class Validator:
             for fixture_path in (self.project / "tests/persian-digits-v1").iterdir():
                 if fixture_path.is_file():
                     shutil.copyfile(fixture_path, root / fixture_path.name)
+            shutil.copyfile(
+                self.project / "assets/persian-digits-v1/source.json",
+                root / "font-source.json",
+            )
             for fixture in ("test-display.cjs", "test-font.py"):
                 subprocess.run(
                     [
@@ -313,6 +317,28 @@ class Validator:
                     check=True,
                     capture_output=True,
                 )
+
+            browser = shutil.which("google-chrome") or shutil.which("chromium")
+            if not browser:
+                raise RuntimeError("missing_browser_for_font_check")
+            result = subprocess.run(
+                [
+                    browser,
+                    "--headless=new",
+                    "--no-sandbox",
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    "--no-first-run",
+                    "--virtual-time-budget=5000",
+                    "--dump-dom",
+                    (root / "tanha-browser.html").as_uri(),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            if b"GP_TANHA_DIGITS_PASS</output>" not in result.stdout:
+                raise RuntimeError("browser_font_regression")
 
 
 class Health:
