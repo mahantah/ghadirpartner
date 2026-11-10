@@ -1,0 +1,74 @@
+name: Release courier details in shipment SMS
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-courier-shipment-sms.yml'
+      - 'lib/courier-shipment-sms.php'
+      - 'config/courier-shipment-sms*'
+      - 'scripts/release-courier-shipment-sms.py'
+      - 'tests/test_courier_shipment_sms_release.py'
+      - 'tests/courier-shipment-sms/**'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-courier-shipment-sms.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check pinned release and rollback fixtures
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          python3 -m ruff check --select E,F,I,UP scripts/release-courier-shipment-sms.py tests/test_courier_shipment_sms_release.py
+          python3 -m ruff format --check scripts/release-courier-shipment-sms.py tests/test_courier_shipment_sms_release.py
+          python3 -m mypy --strict scripts/release-courier-shipment-sms.py
+          python3 -m unittest discover -s tests -p 'test_courier_shipment_sms_release.py' -v
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    env:
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          extensions: curl
+          coverage: none
+          tools: phpstan:2.1.17
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned PHP formatter
+        run: npm install --prefix /tmp/gp-courier-qa --ignore-scripts --no-audit --no-fund prettier@3.4.2 @prettier/plugin-php@0.22.4
+      - name: Check PHP syntax, strict types and formatting
+        run: |
+          set -euo pipefail
+          php -l lib/courier-shipment-sms.php
+          php -l tests/courier-shipment-sms/test-message.php
+          phpstan analyse --configuration=config/courier-shipment-sms-phpstan.neon --no-progress --error-format=table
+          /tmp/gp-courier-qa/node_modules/.bin/prettier --plugin=/tmp/gp-courier-qa/node_modules/@prettier/plugin-php/src/index.mjs --tab-width 4 --single-quote --check lib/courier-shipment-sms.php tests/courier-shipment-sms/test-message.php
+          /tmp/gp-courier-qa/node_modules/.bin/prettier --check --parser json config/courier-shipment-sms-policy.yaml
+      - name: Privately validate existing SMS flow with an isolated mocked gateway
+        run: python3 scripts/release-courier-shipment-sms.py --mode inspect
+      - name: Publish the pinned source change with protected rollback
+        if: github.event_name != 'pull_request'
+        run: python3 scripts/release-courier-shipment-sms.py --mode apply

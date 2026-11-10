@@ -1,0 +1,7 @@
+{
+  "kind": "shipped",
+  "carrier": "پیک",
+  "name_label": "نام پیک",
+  "phone_label": "شماره تماس پیک",
+  "separator": "\n"
+}
