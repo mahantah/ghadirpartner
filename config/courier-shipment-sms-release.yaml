@@ -1,0 +1,43 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "index.php",
+      "before_sha256": "77fcbbc1c2dd1e04e8069c1d7b9deec1eb84310b90048a4c331111fedf6f2bb2",
+      "after_sha256": "a00e02fe02dd78d3f738f080264390840b5e308bc09d1e36bcae5801cb68ee0d",
+      "edits": [
+        {
+          "offset": 23144,
+          "delete": 36,
+          "insert": "ارسال شد.{tracking_suffix}{courier_suffix}'],"
+        },
+        {
+          "offset": 26369,
+          "delete": 0,
+          "insert": "{{GP_COURIER_SMS_PAYLOAD}}"
+        },
+        {
+          "offset": 27650,
+          "delete": 55,
+          "insert": "'cancel_suffix'=>$cancel!==''?' علت: '.$cancel:'']+$GLOBALS['gpCourierShipmentSms']->variables($order);}"
+        },
+        {
+          "offset": 28434,
+          "delete": 39,
+          "insert": "    $finalMessage=$GLOBALS['gpCourierShipmentSms']->enrich($kind,$finalMessage,$vars);\n    $provider='homa_token';\n    $entry="
+        }
+      ]
+    }
+  ]
+}
