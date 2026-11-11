@@ -1,0 +1,97 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "partners/sw.js",
+      "before_sha256": "c5dafe05a818ad90521e4c1762b46aaba61cf75712a5858f9c184412c8696362",
+      "after_sha256": "d6563001f1e9f925562146cda5203a9f6992d6b0f809c1665780cb689d3bde0a",
+      "edits": [
+        {
+          "offset": 0,
+          "delete": 1112,
+          "insert": "{{GP_PORTAL_R521_WORKER}}"
+        }
+      ]
+    },
+    {
+      "path": "partners/manifest.webmanifest",
+      "before_sha256": "524852633c941319c3a0a929ba9a537c2215dc219b878b8c70b744a703a67e06",
+      "after_sha256": "1dc73e66ea239a9ac861e3957dcf326e2e76a4c9fb6c65c50cc67de6ffc37862",
+      "edits": [
+        {
+          "offset": 0,
+          "delete": 637,
+          "insert": "{{GP_PORTAL_R521_MANIFEST}}"
+        }
+      ]
+    },
+    {
+      "path": "partners/portal.html",
+      "before_sha256": "a957c020c9f46533b796857af00d266a51ca4e72e9ebb22b90acc856f3e76311",
+      "after_sha256": "d3f0d97f56865dd88e12f5d6e548853d0977226d7c2645090369e4f0c609e828",
+      "edits": [
+        {
+          "offset": 64653,
+          "delete": 43,
+          "insert": "function show(id){if(window.gpPortalR521?.blocked(id))return;document.querySelectorAll"
+        },
+        {
+          "offset": 64879,
+          "delete": 37,
+          "insert": "toggleMenu(false);window.gpPortalR521?.page(id);if(id==='accounts')"
+        },
+        {
+          "offset": 73168,
+          "delete": 0,
+          "insert": ";document.body.dataset.r521Ready='true';window.gpPortalR521?.mount();"
+        },
+        {
+          "offset": 73680,
+          "delete": 75,
+          "insert": "await Promise.all([loadCustomerPurchaseReport(),window.gpCustomerCredit?.refresh()])"
+        },
+        {
+          "offset": 73756,
+          "delete": 0,
+          "insert": ";window.gpPortalR521?.refresh();"
+        },
+        {
+          "offset": 91725,
+          "delete": 32,
+          "insert": "function updateDraft(){window.gpPortalR521?.normalizeCart();let rows="
+        },
+        {
+          "offset": 92383,
+          "delete": 0,
+          "insert": ";window.gpPortalR521?.cartChanged();"
+        },
+        {
+          "offset": 106396,
+          "delete": 33,
+          "insert": "function showOrderCompleteHint(){if(document.body.dataset.r521)return;"
+        },
+        {
+          "offset": 110809,
+          "delete": 39,
+          "insert": "serviceWorker.register('./sw.js?v=521'"
+        },
+        {
+          "offset": 117252,
+          "delete": 0,
+          "insert": "{{GP_PORTAL_R521_PAYLOAD}}"
+        }
+      ]
+    }
+  ]
+}

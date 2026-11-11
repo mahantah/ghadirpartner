@@ -1,0 +1,70 @@
+name: Release Ghadir Partner web portal r5.21
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-portal-r521.yml'
+      - 'assets/portal-r521/**'
+      - 'scripts/portal-r521.ts'
+      - 'scripts/release-portal-r521.py'
+      - 'config/portal-r521*'
+      - 'tests/portal-r521/**'
+      - 'tests/test_portal_r521_release.py'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-portal-r521.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify release protection and rollback
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          python3 -m ruff check --select E,F,I,UP scripts/release-portal-r521.py tests/test_portal_r521_release.py
+          python3 -m ruff format --check scripts/release-portal-r521.py tests/test_portal_r521_release.py
+          python3 -m mypy --strict scripts/release-portal-r521.py
+          python3 -m unittest discover -s tests -p 'test_portal_r521_release.py' -v
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    env:
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      NODE_PATH: /tmp/gp-r521/node_modules
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned verification tools
+        run: npm install --prefix /tmp/gp-r521 --ignore-scripts --no-audit --no-fund typescript@5.7.3 prettier@3.4.2 eslint@9.17.0 typescript-eslint@8.18.0 jsdom@26.1.0
+      - name: Check type safety and reproducible portal assets
+        run: |
+          set -euo pipefail
+          /tmp/gp-r521/node_modules/.bin/tsc -p config/portal-r521.tsconfig.json
+          git diff --exit-code -- assets/portal-r521/portal.js
+          /tmp/gp-r521/node_modules/.bin/eslint --config config/portal-r521-eslint.cjs scripts/portal-r521.ts --max-warnings 0
+          /tmp/gp-r521/node_modules/.bin/prettier --check scripts/portal-r521.ts assets/portal-r521/portal.css assets/portal-r521/sw.js tests/portal-r521/test-portal.cjs config/portal-r521.tsconfig.json config/portal-r521-eslint.cjs
+          /tmp/gp-r521/node_modules/.bin/prettier --check --parser json config/portal-r521.yaml
+      - name: Verify private live baseline and mobile and desktop browser flows
+        run: python3 scripts/release-portal-r521.py --mode inspect
+      - name: Publish reviewed portal files with protected rollback
+        if: github.event_name != 'pull_request'
+        run: python3 scripts/release-portal-r521.py --mode apply
