@@ -1,0 +1,47 @@
+name: Publish customer portal privacy notice
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-portal-privacy.yml'
+      - 'config/portal-privacy-release.yaml'
+      - 'scripts/release-portal-privacy.py'
+      - 'partners/privacy.html'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-portal-privacy.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check release tooling
+        run: |
+          python -m pip install ruff==0.14.3 mypy==1.18.2
+          python -m ruff check --select E,F,I,UP scripts/release-portal-privacy.py
+          python -m ruff format --check scripts/release-portal-privacy.py
+          python -m mypy --strict scripts/release-portal-privacy.py
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate the live portal baseline without changing it
+        run: python3 scripts/release-portal-privacy.py inspect
+      - name: Publish and verify the policy
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: python3 scripts/release-portal-privacy.py apply
