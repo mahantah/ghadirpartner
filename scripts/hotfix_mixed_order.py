@@ -214,11 +214,11 @@ class MixedSettlementHotfix:
         self._settings = settings
         self._sources = sources
 
-    def release(self) -> tuple[str, ...]:
+    def release(self, *, inspect: bool = False) -> tuple[str, ...]:
         """Publish only matching old versions, credit first; roll back on failure.
 
         Returns:
-            The relative PHP paths actually updated; an empty tuple is idempotent.
+            The relative paths updated, or pending when inspecting.
 
         Raises:
             RuntimeError: If a fingerprint, rename, readback, or health guard fails.
@@ -239,6 +239,8 @@ class MixedSettlementHotfix:
             original[target.path] = live
             new_bytes[target.path] = source
             pending.append(target)
+        if inspect:
+            return tuple(target.path for target in pending)
         if not pending:
             return ()
         if not self._health.is_healthy(
@@ -347,12 +349,17 @@ class HotfixEntry:
             )
             remote = FtpsClient(settings)
             try:
+                inspect = sys.argv[1:] == ["--inspect"]
                 changed = MixedSettlementHotfix(
                     remote, HealthClient(), settings, base
-                ).release()
+                ).release(inspect=inspect)
                 print(
                     json.dumps(
-                        {"ok": True, "updated": changed, "database_changed": False}
+                        {
+                            "ok": True,
+                            "pending" if inspect else "updated": changed,
+                            "database_changed": False,
+                        }
                     )
                 )
             finally:

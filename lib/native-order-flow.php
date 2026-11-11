@@ -51,8 +51,11 @@ final class GpCustomerOrderFlow
             throw new InvalidArgumentException('روش تسویه را انتخاب کنید');
         }
         $settlement = $request['settlement_details'] ?? [];
-        if ($method === 'mixed') {
-            if (($settlement['split'] ?? false) !== true) throw new InvalidArgumentException('جزئیات تسویه ترکیبی الزامی است');
+        $split = ($settlement['split'] ?? false) === true;
+        if ($method === 'mixed' && !$split) {
+            throw new InvalidArgumentException('جزئیات تسویه ترکیبی الزامی است');
+        }
+        if ($method === 'mixed' || ($method === 'credit' && $split)) {
             $active = 0;
             foreach (['cash', 'check', 'credit'] as $part) {
                 $enabled = ($settlement[$part . '_enabled'] ?? false) === true;
@@ -60,9 +63,14 @@ final class GpCustomerOrderFlow
                 if (!is_int($amount) || $amount < 0 || (!$enabled && $amount !== 0)) throw new InvalidArgumentException('مبلغ روش تسویه معتبر نیست');
                 if ($enabled && $amount > 0) ++$active;
             }
-            if ($active < 2) throw new InvalidArgumentException('حداقل دو روش تسویه برای حالت ترکیبی الزامی است');
+            if ($method === 'mixed' && $active < 2) {
+                throw new InvalidArgumentException('حداقل دو روش تسویه برای حالت ترکیبی الزامی است');
+            }
+            if ($method === 'credit' && ($active !== 1 || $this->creditPortion($settlement) === 0)) {
+                throw new InvalidArgumentException('مبلغ اعتباری معتبر وارد کنید');
+            }
         }
-        $hasCredit = $method === 'credit' || ($method === 'mixed' && ($settlement['credit_enabled'] ?? false) === true && ($settlement['credit_amount'] ?? 0) > 0);
+        $hasCredit = $method === 'credit' || ($method === 'mixed' && $this->creditPortion($settlement) > 0);
         if ($hasCredit && (($settlement['terms_accepted'] ?? false) !== true)) {
             throw new InvalidArgumentException('پذیرش تعهد تسویه اعتباری الزامی است');
         }
@@ -134,12 +142,23 @@ final class GpCustomerOrderFlow
     public function creditCommitment(array $request): array
     {
         $method = $request['requested_payment_method'] ?? '';
-        $splitCredit = $method === 'mixed' && ($request['settlement_details']['credit_enabled'] ?? false) === true && ($request['settlement_details']['credit_amount'] ?? 0) > 0;
-        if ($method !== 'credit' && !$splitCredit) return [];
+        $settlement = $request['settlement_details'] ?? [];
+        $portion = $this->creditPortion($settlement);
+        if ($method !== 'credit' && ($method !== 'mixed' || $portion === 0)) return [];
         $snapshot = ['terms_accepted' => true, 'commitment_text' => $this->policy['credit_commitment'],
             'commitment_sha256' => hash('sha256', $this->policy['credit_commitment'])];
-        if ($splitCredit) $snapshot['credit_amount'] = $request['settlement_details']['credit_amount'];
+        if (($settlement['split'] ?? false) === true && $portion > 0) {
+            $snapshot['credit_amount'] = $portion;
+        }
         return $snapshot;
+    }
+
+    private function creditPortion(array $settlement): int
+    {
+        $amount = $settlement['credit_amount'] ?? 0;
+        return ($settlement['credit_enabled'] ?? false) === true && is_int($amount)
+            ? max(0, $amount)
+            : 0;
     }
 
     /** A final company decision cannot revive a cancelled, rejected or fulfilled order. */
