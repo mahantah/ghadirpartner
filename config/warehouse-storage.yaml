@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "page_size": 200,
+  "max_page_size": 500,
+  "core_read_paths": ["/api/me", "/api/customers", "/api/products", "/api/notifications"],
+  "drain_seconds": 65
+}

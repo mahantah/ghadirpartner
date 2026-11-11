@@ -47,7 +47,7 @@ def main():
         'GP_LEDGER_EOD_FREEZE_V1_20261025',
         'gpLedgerStockOnJalaliDay',
         'Asia/Tehran',
-        'rememberLive',
+        'GP_LEDGER_EVENT_HISTORY_V2_20261104',
         'renderWarehouseLedger',
     ):
         if needle not in js:
