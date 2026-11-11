@@ -39,7 +39,7 @@
     {
       "path": "partners/portal.html",
       "before_sha256": "a957c020c9f46533b796857af00d266a51ca4e72e9ebb22b90acc856f3e76311",
-      "after_sha256": "3db2d1ca7db5a36c07293cee05c7f0b9126af45db4ec9829f00ac4c9f6471033",
+      "after_sha256": "d3f0d97f56865dd88e12f5d6e548853d0977226d7c2645090369e4f0c609e828",
       "edits": [
         {
           "offset": 64653,
@@ -54,7 +54,7 @@
         {
           "offset": 73168,
           "delete": 0,
-          "insert": ";window.gpPortalR521?.mount();"
+          "insert": ";document.body.dataset.r521Ready='true';window.gpPortalR521?.mount();"
         },
         {
           "offset": 73680,

@@ -1557,4 +1557,6 @@ class R521Portal {
         orderDetail: (id) => details(id),
     };
     view.gpPortalR521 = new R521Portal(policy, new R521Repository(api), legacy);
+    if (document.body.dataset.r521Ready === "true")
+        view.gpPortalR521.mount();
 })();

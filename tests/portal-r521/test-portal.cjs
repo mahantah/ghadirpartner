@@ -44,7 +44,13 @@ function setup(role) {
     customer_id: role === "customer" ? 10 : 0,
     customer,
   };
-  window.fixture = { writes: [], catalog, orders };
+  window.fixture = { writes: [], catalog, orders, errors: [] };
+  window.addEventListener("error", (event) => {
+    if (event.message) window.fixture.errors.push(event.message);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    window.fixture.errors.push(String(event.reason));
+  });
   window.alert = (message) => {
     throw new Error(String(message));
   };
@@ -155,7 +161,12 @@ async function exercise(role, realBrowser) {
       if (predicate()) return;
       await new Promise((resolve) => setTimeout(resolve, 15));
     }
-    throw new Error(message);
+    throw new Error(
+      message +
+        (window.fixture.errors.length
+          ? ":" + window.fixture.errors.join("|")
+          : ""),
+    );
   };
   const change = (node, event = "input") =>
     node.dispatchEvent(new Event(event, { bubbles: true }));
