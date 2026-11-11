@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: 10
     environment: production
     env:
-      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_SERVER: shahin500.limoo.host
       FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
       FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
       PORTAL_BASE: https://ghadirpartner.ir/partners
