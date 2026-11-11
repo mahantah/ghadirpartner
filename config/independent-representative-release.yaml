@@ -1,0 +1,101 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "assets/menu-live-v3.js",
+      "before_sha256": "12ee17deb01b3121a400ec4c4f2549d5e9f4126adc5d83b2ac5186a567a7aebb",
+      "after_sha256": "3cfb2fa1c0b7000e16ea866bccb535dc5d896703f4b4f9bc117fb1a3b0078bc0",
+      "edits": [
+        {
+          "offset": 12042,
+          "delete": 63,
+          "insert": "if (window.addCustomer && (window.addCustomer.__gpMenu3 || window.addCustomer.__gpStab1)) return;"
+        }
+      ]
+    },
+    {
+      "path": "assets/coop-model-v1.js",
+      "before_sha256": "ac2d613a28d6deeeb1f3a80a0c1177990773f4fd9ec1ea76b7698aebc6b8c2b6",
+      "after_sha256": "29250b158ce94c029bef32f83eb4fe56f150dbdbe91e9859eac211d14e9516bb",
+      "edits": [
+        {
+          "offset": 12489,
+          "delete": 45,
+          "insert": "  function wrapAdd() {\n    if (window.addCustomer && window.addCustomer.__gpStab1) return;\n    window.addCustomer"
+        }
+      ]
+    },
+    {
+      "path": "assets/customer-form-polish-v1.js",
+      "before_sha256": "e21cdc8c7c802591ae89576403f48bc393fb3b1247844bf7143acbc3e4fed067",
+      "after_sha256": "398d76fc76e4e31f5f2ceccad7301a25b166b7b3f55cd4dd733a88d9d3a31b6a",
+      "edits": [
+        {
+          "offset": 12949,
+          "delete": 45,
+          "insert": "  function wrapAdd() {\n    if (window.addCustomer && window.addCustomer.__gpStab1) return;\n    window.addCustomer"
+        }
+      ]
+    },
+    {
+      "path": "assets/customer-ops-stabilize-v1.js",
+      "before_sha256": "6814a9eb65401f48828a6e51b0a40a85d6827d501e838d5e6af2b92791769898",
+      "after_sha256": "224e7ffd12ce3390f94c9ab43c76b986d10bdfea67a1e435f1861ad92c37bd25",
+      "edits": [
+        {
+          "offset": 9316,
+          "delete": 32,
+          "insert": "      ['rep', 'نماینده مستقل'],"
+        },
+        {
+          "offset": 11425,
+          "delete": 109,
+          "insert": "      box.addEventListener('change', function () {\n        var role = $('gpRepRole');\n        if (role && !role.value && box.querySelector('input[name=\"gpChannel\"][value=\"rep\"]:checked')) {\n          role.value = 'rep';\n          if (role.value === 'rep') {\n            role.dispatchEvent(new Event('change', { bubbles: true }));\n            return;\n          }\n        }\n        var kind = readKindFrom('gpChannel', 'gpRepRole');"
+        },
+        {
+          "offset": 17261,
+          "delete": 338,
+          "insert": ""
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "b62448acfaee12eef3eb2a412d469fc86bf351af8adec013ac9ec5966c22c13d",
+      "after_sha256": "9878abad750ea3eb144fffeba62b2de5bbb1715ccd7edede2cda24d7447e6c4e",
+      "edits": [
+        {
+          "offset": 328349,
+          "delete": 65,
+          "insert": "/assets/menu-live-v3.js?v=20261106proofs-products&whfix=20261028a&repfix=20261111"
+        },
+        {
+          "offset": 328574,
+          "delete": 44,
+          "insert": "/assets/coop-model-v1.js?v=1&whfix=20261028a&repfix=20261111"
+        },
+        {
+          "offset": 328687,
+          "delete": 54,
+          "insert": "/assets/customer-form-polish-v1.js?v=1&whfix=20261028a&repfix=20261111"
+        },
+        {
+          "offset": 329426,
+          "delete": 56,
+          "insert": "/assets/customer-ops-stabilize-v1.js?v=3&whfix=20261028a&repfix=20261111"
+        }
+      ]
+    }
+  ]
+}

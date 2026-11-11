@@ -1,0 +1,62 @@
+name: Fix independent representative registration
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-independent-representative.yml'
+      - 'config/independent-representative-release.yaml'
+      - 'scripts/release-independent-representative.py'
+      - 'tests/test_independent_representative_release.py'
+      - 'tests/independent-representative/**'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-independent-representative.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify release protection and rollback
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          python3 -m ruff check --select E,F,I,UP scripts/release-independent-representative.py tests/test_independent_representative_release.py
+          python3 -m ruff format --check scripts/release-independent-representative.py tests/test_independent_representative_release.py
+          python3 -m mypy --strict scripts/release-independent-representative.py
+          python3 -m unittest discover -s tests -p 'test_independent_representative_release.py' -v
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    env:
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      NODE_PATH: /tmp/gp-rep/node_modules
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated form test and formatter
+        run: npm install --prefix /tmp/gp-rep --ignore-scripts --no-audit --no-fund jsdom@26.1.0 prettier@3.4.2
+      - name: Verify test formatting
+        run: /tmp/gp-rep/node_modules/.bin/prettier --check tests/independent-representative/test-form.cjs
+      - name: Verify the live form and delayed handlers using synthetic customer data
+        run: python3 scripts/release-independent-representative.py --mode inspect
+      - name: Publish pinned source changes with protected rollback
+        if: github.event_name != 'pull_request'
+        run: python3 scripts/release-independent-representative.py --mode apply
