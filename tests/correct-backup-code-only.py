@@ -50,7 +50,7 @@ assert manifest["public_files"] == [
     "lib/partial-dispatch.php", "lib/partial-dispatch-routes.php", "config/partial-dispatch.yaml",
     "lib/partial-delivery-web.php", "lib/partial-delivery-web-routes.php", "assets/partial-delivery-web.js", "assets/partial-delivery-web.css",
     "lib/customer-credit.php", "lib/customer-credit-routes.php", "config/customer-credit.yaml", "assets/customer-credit.js",
-    "assets/offer-plan-code.js", "assets/offer-plan-code.css", "lib/offer-product-scope.php"
+    "assets/offer-plan-code.js", "assets/offer-plan-code.css", "lib/offer-product-scope.php", "assets/warehouse-ledger-eod-freeze-v1.js"
 ]
 assert all(
     "config" not in Path(path).name.lower()
