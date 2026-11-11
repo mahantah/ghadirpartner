@@ -1,0 +1,24 @@
+{
+  "ftp_host": "shahin500.limoo.host",
+  "ftp_port": 21,
+  "ftp_timeout": 45,
+  "username": "${FTP_USERNAME}",
+  "password": "${FTP_PASSWORD}",
+  "portal_url": "https://ghadirpartner.ir/partners/",
+  "portal_before": "d3f0d97f56865dd88e12f5d6e548853d0977226d7c2645090369e4f0c609e828",
+  "portal_after": "20807f4433a35c6665803573232829522a1d090ca4bda9113ec85cb427ed1387",
+  "changes": [
+    {
+      "before": "<p id=\"loginMsg\" class=\"err\"></p>",
+      "after": "<p class=\"hint\"><a href=\"/partners/privacy.html\" target=\"_blank\" rel=\"noopener\">حریم خصوصی قدیر پارتنر</a></p><p id=\"loginMsg\" class=\"err\"></p>"
+    },
+    {
+      "before": "<input id=\"regName\"",
+      "after": "<p class=\"hint\"><a href=\"/partners/privacy.html\" target=\"_blank\" rel=\"noopener\">حریم خصوصی قدیر پارتنر</a></p><input id=\"regName\""
+    },
+    {
+      "before": "<div id=\"profile\" class=\"profile\"></div>",
+      "after": "<p class=\"hint\"><a href=\"/partners/privacy.html\" target=\"_blank\" rel=\"noopener\">حریم خصوصی قدیر پارتنر</a></p><div id=\"profile\" class=\"profile\"></div>"
+    }
+  ]
+}
