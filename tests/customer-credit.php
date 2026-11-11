@@ -12,6 +12,25 @@ if($model->amount($split)!==0)throw new Exception('split_cash_only_no_credit_exp
 $b=$model->balance($state,1,'1405/08',$monthOf);if($b['available']!==70||$b['monthly_used']!==0||$b['reserved']!==30)throw new Exception('prior_debt');
 $next=$order;$next['id']=2;$next['estimated_total']=70;$next['created_at']='1405/08/01';$after=$state;$after['orders'][]=$next;
 $model->assertChanges($state,$after,'1405/08',$monthOf);
+$partial = $next;
+$partial['estimated_total'] = 120;
+$partial['native_settlement'] = ['credit_amount' => 70];
+$partialState = $state;
+$partialState['orders'][] = $partial;
+$model->assertChanges($state, $partialState, '1405/08', $monthOf);
+if ($model->amount($partial) !== 70) throw new LogicException('invoice_charged_as_credit');
+$partialState['orders'][1]['native_settlement']['credit_amount'] = 71;
+try {
+    $model->assertChanges($state, $partialState, '1405/08', $monthOf);
+    throw new LogicException('partial_credit_limit_bypassed');
+} catch (GpMonthlyCreditViolation $e) {}
+$partialState['orders'][1]['estimated_total'] = 60;
+try {
+    $model->assertChanges($state, $partialState, '1405/08', $monthOf);
+    throw new LogicException('credit_above_invoice_accepted');
+} catch (GpMonthlyCreditViolation $e) {
+    if ($e->getMessage() !== 'مبلغ اعتباری از مبلغ فاکتور بیشتر است') throw $e;
+}
 $after['orders'][1]['estimated_total']=71;
 try{$model->assertChanges($state,$after,'1405/08',$monthOf);throw new LogicException('over_limit_accepted');}catch(GpMonthlyCreditViolation $e){}
 $after['orders'][1]['estimated_total']=70;$after['customers'][0]['monthly_credit']['enabled']=false;

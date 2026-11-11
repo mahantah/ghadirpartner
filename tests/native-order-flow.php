@@ -41,6 +41,12 @@ final class NativeOrderFlowTest
         foreach (['cash','check','credit'] as $method) {
             $request['requested_payment_method']=$method; $this->service->validateRequest($request); $this->checks++;
         }
+        $partial = $this->request();
+        $partial['settlement_details'] += ['split'=>true, 'credit_enabled'=>true, 'credit_amount'=>60];
+        $this->service->validateRequest($partial);
+        $this->check($this->service->creditCommitment($partial)['credit_amount'] === 60, 'partial credit allocation retained');
+        $partial['settlement_details']['credit_amount'] = '60';
+        $this->fails(function () use ($partial): void { $this->service->validateRequest($partial); }, 'string credit amount rejected');
         $request=$this->request();
         $request['requested_payment_method']='mixed';
         $request['settlement_details']+=['split'=>true,'cash_enabled'=>true,'cash_amount'=>40,'check_enabled'=>false,'check_amount'=>0,'credit_enabled'=>true,'credit_amount'=>60];

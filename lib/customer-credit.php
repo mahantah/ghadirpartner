@@ -25,7 +25,14 @@ final class GpCreditModel {
             return is_int($credit)?max(0,$credit):0;
         }
         if($method!=='credit'&&($o['payment_status']??'')!=='اعتباری'&&!($method===''&&($o['requested_payment_method']??'')==='credit'))return 0;
-        return max(0,(int)((($o['approval_status']??'')==='تأیید شده')?($o['approved_total']??$o['estimated_total']??0):($o['estimated_total']??0)));
+        $invoice = max(0, (int)(($o['approval_status'] ?? '') === 'تأیید شده'
+            ? ($o['approved_total'] ?? $o['estimated_total'] ?? 0)
+            : ($o['estimated_total'] ?? 0)));
+        $explicit = $o['native_settlement']['credit_amount'] ?? null;
+        if (($o['requested_payment_method'] ?? '') === 'credit' && is_int($explicit) && $explicit > 0) {
+            return min($invoice, $explicit);
+        }
+        return $invoice;
     }
     /** Use existing confirmed settlement status; unreviewed receipts do not repay debt. */
     public function debt(array $o): int {return ($o['payment_status']??'')==='تسویه کامل'?0:$this->amount($o);}
@@ -48,6 +55,12 @@ final class GpCreditModel {
         $old=[];foreach($before['orders']??[] as $o)$old[(int)$o['id']]=$o;
         foreach($after['orders']??[] as $o){
             $prior=$old[(int)$o['id']]??[];
+            $credit = $o['native_settlement']['credit_amount'] ?? null;
+            // Validate a new allocation against the server-priced invoice, never the submitted total.
+            if (!$prior && in_array($o['requested_payment_method'] ?? '', ['credit', 'mixed'], true)
+                && is_int($credit) && $credit > (int)($o['estimated_total'] ?? 0)) {
+                throw new GpMonthlyCreditViolation('مبلغ اعتباری از مبلغ فاکتور بیشتر است');
+            }
             $sameCustomer=(int)($prior['customer_id']??0)===(int)($o['customer_id']??0);
             $increase=!$sameCustomer||$this->amount($o)>$this->amount($prior)||$this->debt($o)>$this->debt($prior)||($this->amount($o)>0&&$monthOf((string)($o['created_at']??''))===$month&&$monthOf((string)($prior['created_at']??''))!==$month);
             if(!$increase||$this->amount($o)===0)continue;
