@@ -1,0 +1,55 @@
+name: Restore customer OTP and password recovery
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-customer-auth.yml'
+      - 'config/customer-auth-release.yaml'
+      - 'scripts/release-customer-auth.py'
+      - 'tests/customer-auth-release.php'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-customer-auth.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check release tooling and test fixture syntax
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.14.3 mypy==1.18.2
+          python -m ruff check --select E,F,I,UP scripts/release-customer-auth.py
+          python -m ruff format --check scripts/release-customer-auth.py
+          python -m mypy --strict scripts/release-customer-auth.py
+          php -l tests/customer-auth-release.php
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      PORTAL_BASE: https://ghadirpartner.ir/partners
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check scoped edits and run authentication fixtures against private server source
+        run: python3 scripts/release-customer-auth.py inspect
+      - name: Apply the validated repair and verify live routes
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: python3 scripts/release-customer-auth.py apply

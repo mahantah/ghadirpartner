@@ -1,0 +1,51 @@
+[
+  [
+    "if(in_array($p,['/api/native/credit','/api/native/proof','/api/orders/add'],true))require_once __DIR__.'/native-r54.php';",
+    "if(($m==='POST'&&in_array($p,['/api/native/login-otp/request','/api/native/login-otp/confirm'],true))||in_array($p,['/api/native/credit','/api/native/proof','/api/orders/add'],true))require_once __DIR__.'/native-r54.php';"
+  ],
+  [
+    "db(true,function(&$s)use($r,$send){foreach($s['password_reset_requests']??[] as &$q)",
+    "db(true,function(&$s)use($r,$send){foreach($s['password_reset_requests'] as &$q)",
+    "if($p==='/api/password-reset/request'&&$m==='POST'){"
+  ],
+  [
+    "db(true,function(&$s)use($r){foreach($s['password_reset_requests']??[] as &$q)",
+    "db(true,function(&$s)use($r){foreach($s['password_reset_requests'] as &$q)",
+    "if($p==='/api/password-reset/request'&&$m==='POST'){"
+  ],
+  [
+    "out(db(true,function(&$s)use($mobile,$otp,$pw){",
+    "$result=db(true,function(&$s)use($mobile,$otp,$pw){",
+    "if($p==='/api/password-reset/confirm'&&$m==='POST'){"
+  ],
+  [
+    "fail('کد بازیابی معتبر نیست یا منقضی شده است',400);",
+    "return ['error'=>'کد بازیابی معتبر نیست یا منقضی شده است','status'=>400];",
+    "if($p==='/api/password-reset/confirm'&&$m==='POST'){"
+  ],
+  [
+    "fail('کد بازیابی منقضی شده است؛ دوباره کد بگیرید',400);",
+    "return ['error'=>'کد بازیابی منقضی شده است؛ دوباره کد بگیرید','status'=>400];",
+    "if($p==='/api/password-reset/confirm'&&$m==='POST'){"
+  ],
+  [
+    "fail('تعداد تلاش مجاز تمام شده است؛ دوباره کد بگیرید',429);",
+    "return ['error'=>'تعداد تلاش مجاز تمام شده است؛ دوباره کد بگیرید','status'=>429];",
+    "if($p==='/api/password-reset/confirm'&&$m==='POST'){"
+  ],
+  [
+    "fail('کد یکبارمصرف صحیح نیست',400);",
+    "return ['error'=>'کد یکبارمصرف صحیح نیست','status'=>400];",
+    "if($p==='/api/password-reset/confirm'&&$m==='POST'){"
+  ],
+  [
+    "fail('حساب مشتری فعال پیدا نشد',404);",
+    "return ['error'=>'حساب مشتری فعال پیدا نشد','status'=>404];",
+    "if($p==='/api/password-reset/confirm'&&$m==='POST'){"
+  ],
+  [
+    ";}));}",
+    ";});if(isset($result['error']))fail($result['error'],$result['status']);out($result);}",
+    "if($p==='/api/password-reset/confirm'&&$m==='POST'){"
+  ]
+]
