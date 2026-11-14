@@ -13,7 +13,20 @@ class CustomerPurchaseReportStage:
         '<section id="salesReports" class="tab hidden"><div class="sales-report-shell">'
     )
     _script = '<script defer src="/assets/customer-purchase-report.js"></script>'
+    _messages_script = '<script defer src="/assets/portal-messages.js"></script>'
+    _reports_v2 = (
+        '<script defer src="/assets/customer-purchase-report.js?v=2"></script>'
+    )
+    _messages_v2 = '<script defer src="/assets/portal-messages.js?v=2"></script>'
+    _new_assets = (
+        '<link rel="stylesheet" href="/assets/portal-phase-two.css">'
+        '\n<script defer src="/assets/portal-phase-two-navigation.js"></script>'
+    )
     _customer_section = '<section id="customers" class="tab hidden">'
+    _legacy_registration = (
+        "let showPanel=x.dataset.portalPanel===key || "
+        "(key==='accounts'&&x.dataset.portalPanel==='registrations');"
+    )
     _approval = "if($action!=='approve')fail('عملیات نامعتبر است');$mobile="
     _card = """
 <details id="gpCustomerPurchaseReport" class="card" hidden>
@@ -70,9 +83,12 @@ class CustomerPurchaseReportStage:
         "lib/customer-purchase-report-route.php",
         "assets/customer-purchase-report.js",
         "assets/portal-messages.js",
+        "assets/portal-phase-two-navigation.js",
+        "assets/portal-phase-two.css",
         "lib/portal-messages.php",
         "lib/portal-messages-routes.php",
         "config/portal-messages.yaml",
+        "config/portal-stock.yaml",
     )
 
     def __init__(self, package: Path) -> None:
@@ -117,13 +133,19 @@ class CustomerPurchaseReportStage:
             app, self._customer_section, self._customer_section + self._membership_card
         )
         closing = "\n</body></html>"
+        if self._messages_v2 not in app:
+            if self._messages_script not in app:
+                app = self._insert(
+                    app,
+                    closing,
+                    "\n" + self._script + "\n" + self._messages_script + closing,
+                )
+            app = self._insert(app, self._script, self._reports_v2)
+            app = self._insert(
+                app, self._messages_script, self._messages_v2 + "\n" + self._new_assets
+            )
         app = self._insert(
-            app,
-            closing,
-            "\n"
-            + self._script
-            + '\n<script defer src="/assets/portal-messages.js"></script>'
-            + closing,
+            app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
         router = None
         if partner_router is not None:
@@ -133,6 +155,21 @@ class CustomerPurchaseReportStage:
                 anchor,
                 "require __DIR__.'/lib/portal-membership-route.php';\n"
                 "require __DIR__.'/lib/portal-messages-routes.php';\n" + anchor,
+            )
+            stock = "function warehouse_free_stock($s,$product){$n=0;"
+            router = self._insert(
+                router,
+                stock + "foreach($s['inventory']??[] as $iv)",
+                stock
+                + "$policy=json_decode(file_get_contents(dirname(__DIR__).'/config/portal-stock.yaml'),true,512,JSON_THROW_ON_ERROR);"
+                + "$wholesale=$policy['wholesale_warehouse_id']??null;"
+                + "if(!is_int($wholesale)||$wholesale<1)throw new RuntimeException('Invalid portal stock policy');"
+                + "foreach($s['inventory']??[] as $iv)",
+            )
+            router = self._insert(
+                router,
+                "&&empty($iv['order_id']))$n++;return $n;}",
+                "&&empty($iv['order_id'])&&(int)($iv['warehouse_id']??$wholesale)===$wholesale)$n++;return $n;}",
             )
         output.mkdir(parents=True, exist_ok=True)
         for name in self._files:

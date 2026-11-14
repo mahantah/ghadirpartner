@@ -116,6 +116,29 @@ final class GpPortalMessages
         return $items;
     }
 
+    /** Save a reusable draft private to the current administrator. */
+    public function saveTemplate(array &$state, int $actor, array $input): array
+    {
+        $title = is_string($input['title'] ?? null) ? trim($input['title']) : '';
+        $body = is_string($input['body'] ?? null) ? trim($input['body']) : '';
+        if ($title === '' || strlen($title) > $this->policy['max_title_bytes'] ||
+            $body === '' || strlen($body) > $this->policy['max_body_bytes']) {
+            throw new InvalidArgumentException('عنوان و متن پیام آماده را بررسی کنید.');
+        }
+        $templates = $state['portal_message_templates'][$actor] ?? [];
+        $key = hash('sha256', $title);
+        $limit = $this->policy['max_templates_per_admin'] ?? null;
+        if (!is_int($limit) || $limit < 1) {
+            throw new RuntimeException('Invalid template limit.');
+        }
+        if (!isset($templates[$key]) && count($templates) >= $limit) {
+            throw new InvalidArgumentException('ظرفیت پیام‌های آماده تکمیل است.');
+        }
+        $templates[$key] = ['title' => $title, 'body' => $body];
+        $state['portal_message_templates'][$actor] = $templates;
+        return array_values($templates);
+    }
+
     /** Mark only messages belonging to this customer as read. */
     public function markRead(array &$state, int $customerId, array $ids, string $now): void
     {

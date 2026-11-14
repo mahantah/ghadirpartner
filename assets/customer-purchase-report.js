@@ -47,14 +47,26 @@
                         if (request !== generation || !has("admin") || !window.confirm(prompt)) return;
                         for (const control of actions.querySelectorAll("button")) control.disabled = true;
                         try {
-                            await req("/api/registration-requests/review", {
+                            membershipStatus.textContent = "در حال ثبت نتیجه…";
+                            const outcome = await req("/api/registration-requests/review", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ id: applicant.id, action, identity_reviewed: review }),
                             });
-                            if (request === generation) await loadMembership();
-                        } catch {
-                            if (request === generation) membershipStatus.textContent = "ثبت نتیجه ناموفق بود.";
+                            if (!outcome?.ok) throw new Error("سامانه نتیجهٔ بررسی را تأیید نکرد.");
+                            if (request === generation) {
+                                row.cells[4].textContent = labels[outcome.status] ?? outcome.status;
+                                actions.replaceChildren();
+                                membershipStatus.textContent = action === "approve"
+                                    ? "درخواست تأیید شد و حساب فعال شد."
+                                    : "درخواست رد شد.";
+                            }
+                        } catch (error) {
+                            if (request === generation) {
+                                const reason = error instanceof Error ? error.message.trim() : "";
+                                membershipStatus.textContent = reason && !reason.startsWith("<") && reason.length < 300
+                                    ? reason : "ثبت نتیجه ناموفق بود. درخواست را دوباره بررسی کنید.";
+                            }
                         } finally {
                             for (const control of actions.querySelectorAll("button")) control.disabled = false;
                         }
@@ -76,19 +88,43 @@
     membership.querySelector("button").addEventListener("click", loadMembership);
 
     function clearResult() {
-        result.replaceChildren();
-        products.replaceChildren();
+        metrics.replaceChildren();
+        productRows.replaceChildren();
         orders.replaceChildren();
         ordersWrap.hidden = true;
     }
 
     function value(label, amount) {
-        const term = document.createElement("dt");
-        const definition = document.createElement("dd");
-        term.textContent = label;
-        definition.textContent = amount;
-        result.append(term, definition);
+        appendRow(metrics, [label, amount]);
     }
+
+    function appendRow(container, values) {
+        const row = document.createElement("tr");
+        for (const value of values) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.append(cell);
+        }
+        container.append(row);
+    }
+
+    function tableFor(element, title, columns) {
+        const table = document.createElement("table");
+        table.createCaption().textContent = title;
+        const headers = table.createTHead().insertRow();
+        for (const label of columns) {
+            const header = document.createElement("th");
+            header.scope = "col";
+            header.textContent = label;
+            headers.append(header);
+        }
+        const body = table.createTBody();
+        element.replaceWith(table);
+        return body;
+    }
+
+    const metrics = tableFor(result, "خلاصهٔ خرید و اعتبار", ["شاخص", "مقدار"]);
+    const productRows = tableFor(products, "اقلام خریداری‌شده", ["محصول", "تعداد"]);
 
     async function loadCustomers() {
         if (customersLoading) return;
@@ -144,9 +180,7 @@
             value("بدهی تسویه‌نشده", money(credit.outstanding));
             value("اعتبار قابل‌استفاده", money(credit.available));
             for (const [name, quantity] of Object.entries(data.products)) {
-                const item = document.createElement("li");
-                item.textContent = name + " · " + number.format(quantity) + " دستگاه";
-                products.append(item);
+                appendRow(productRows, [name, number.format(quantity)]);
             }
             for (const order of data.orders) {
                 const row = orders.insertRow();
@@ -156,8 +190,8 @@
                 ]) row.insertCell().textContent = field;
             }
             ordersWrap.hidden = !data.orders.length;
-            status.textContent = products.childElementCount
-                ? "اقلام خریداری‌شده در بازه در انتهای گزارش آمده‌اند."
+            status.textContent = productRows.childElementCount
+                ? "گزارش آماده است."
                 : "در این بازه کالای خریداری‌شده‌ای ثبت نشده است.";
         } catch {
             if (request === generation) {
