@@ -3,6 +3,9 @@
 
     const section = document.getElementById("gpCustomerPurchaseReport");
     if (!section) return;
+    const membership = document.getElementById("gpMembershipRequests");
+    const membershipRows = membership.querySelector("tbody");
+    const membershipStatus = membership.querySelector("[role=status]");
 
     const form = section.querySelector("form");
     const customer = form.elements.namedItem("customer_id");
@@ -14,6 +17,60 @@
     const number = new Intl.NumberFormat("fa-IR");
     let generation = 0;
     let customersLoading = false;
+    let membershipLoading = false;
+
+    async function loadMembership() {
+        if (membershipLoading) return;
+        membershipLoading = true;
+        const request = generation;
+        membershipStatus.textContent = "در حال دریافت درخواست‌ها…";
+        try {
+            const rows = await req("/api/registration-requests");
+            if (request !== generation) return;
+            membershipRows.replaceChildren();
+            for (const applicant of rows) {
+                const row = membershipRows.insertRow();
+                const labels = { pending: "در انتظار بررسی", approved: "تأیید شده", rejected: "رد شده" };
+                for (const field of [applicant.name, applicant.mobile, labels[applicant.status] ?? applicant.status]) {
+                    row.insertCell().textContent = field;
+                }
+                const actions = row.insertCell();
+                if (applicant.status !== "pending") continue;
+                for (const [action, label] of [["approve", "تأیید و فعال‌سازی"], ["reject", "رد درخواست"]]) {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.textContent = label;
+                    button.addEventListener("click", async () => {
+                        if (request !== generation || !has("admin") || !window.confirm(label + " انجام شود؟")) return;
+                        for (const control of actions.querySelectorAll("button")) control.disabled = true;
+                        try {
+                            await req("/api/registration-requests/review", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: applicant.id, action }),
+                            });
+                            if (request === generation) await loadMembership();
+                        } catch {
+                            if (request === generation) membershipStatus.textContent = "ثبت نتیجه ناموفق بود.";
+                        } finally {
+                            for (const control of actions.querySelectorAll("button")) control.disabled = false;
+                        }
+                    });
+                    actions.append(button, " ");
+                }
+            }
+            membershipStatus.textContent = rows.length ? "" : "درخواستی ثبت نشده است.";
+        } catch {
+            if (request === generation) membershipStatus.textContent = "دریافت درخواست‌ها ناموفق بود.";
+        } finally {
+            membershipLoading = false;
+        }
+    }
+
+    membership.querySelector("summary").addEventListener("click", () => {
+        if (!membership.open) void loadMembership();
+    });
+    membership.querySelector("button").addEventListener("click", loadMembership);
 
     function clearResult() {
         result.replaceChildren();
@@ -112,8 +169,12 @@
         const hidden = !has("admin");
         if (section.hidden === hidden) return;
         section.hidden = hidden;
+        membership.hidden = hidden;
         if (section.hidden) {
             generation++;
+            membership.open = false;
+            membershipRows.replaceChildren();
+            membershipStatus.textContent = "";
             section.open = false;
             form.reset();
             customer.replaceChildren(new Option("انتخاب مشتری", ""));

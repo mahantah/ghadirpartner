@@ -13,6 +13,7 @@ class CustomerPurchaseReportStage:
         '<section id="salesReports" class="tab hidden"><div class="sales-report-shell">'
     )
     _script = '<script defer src="/assets/customer-purchase-report.js"></script>'
+    _customer_section = '<section id="customers" class="tab hidden">'
     _card = """
 <details id="gpCustomerPurchaseReport" class="card" hidden>
   <summary>خرید و اعتبار هر مشتری</summary>
@@ -29,6 +30,19 @@ class CustomerPurchaseReportStage:
     <table>
       <caption>سفارش‌های مشتری در بازه</caption>
       <thead><tr><th>شماره</th><th>تاریخ شمسی</th><th>وضعیت</th><th>تأیید</th><th>مبلغ سفارش</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</details>
+"""
+    _membership_card = """
+<details id="gpMembershipRequests" class="card" hidden>
+  <summary>درخواست‌های عضویت</summary>
+  <button type="button" class="btn2">به‌روزرسانی درخواست‌ها</button>
+  <p class="small" role="status"></p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>متقاضی</th><th>شماره همراه</th><th>وضعیت</th><th>عملیات</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -66,6 +80,9 @@ class CustomerPurchaseReportStage:
             (source / "app.html").read_text(),
             self._section,
             self._section + self._card,
+        )
+        app = self._insert(
+            app, self._customer_section, self._customer_section + self._membership_card
         )
         closing = "\n</body></html>"
         app = self._insert(app, closing, "\n" + self._script + closing)
