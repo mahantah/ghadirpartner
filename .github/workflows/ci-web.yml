@@ -106,6 +106,17 @@ jobs:
           php tests/live-offer-code-release.php
           php -l lib/customer-credit.php
           php -l lib/customer-credit-routes.php
+          php -l lib/customer-purchase-report.php
+          php -l lib/customer-purchase-report-route.php
+          php tests/customer-purchase-report.php
+          php -l lib/portal-membership.php
+          php -l lib/portal-membership-route.php
+          php tests/portal-membership.php
+          php -l lib/portal-messages.php
+          php -l lib/portal-messages-routes.php
+          php tests/portal-messages.php
+          node --check assets/portal-messages.js
+          node --check assets/customer-purchase-report.js
           php -l scripts/release-customer-credit.php
           php tests/customer-credit.php
           php tests/customer-credit-release.php
