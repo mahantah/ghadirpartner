@@ -30,9 +30,12 @@ jobs:
           node --check assets/customer-purchase-report.js
           node --check assets/portal-messages.js
           node --check assets/portal-phase-two-navigation.js
+          node --check assets/portal-phase-two-activity.js
+          node --check assets/portal-phase-two-activity-client.js
           php tests/customer-purchase-report.php
           php tests/portal-membership.php
           php tests/portal-messages.php
+          php tests/portal-activity.php
           python3 scripts/release-portal-phase-one.py inspect
       - name: Apply and verify phase one
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

@@ -10,6 +10,7 @@
     menu.append(heading);
     const pages = [
         ["gpCustomerPurchaseReport", "gpCustomerReportPage", "خرید و اعتبار هر مشتری"],
+        ["gpPortalActivity", "gpPortalActivityPage", "فعالیت کاربران و سبدهای خرید"],
         ["gpMembershipRequests", "gpMembershipPage", "درخواست‌های عضویت"],
         ["gpPortalMessages", "gpPortalMessagesPage", "ارسال پیام به مشتریان"],
     ];

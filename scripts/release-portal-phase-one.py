@@ -62,12 +62,16 @@ class PhaseOneRelease:
 
     def verify(self, staged: Path, sidebar_assets: tuple[str, ...]) -> None:
         """Check public asset bytes and require the private report routes to reject anonymous access."""
-        app = (staged / "app.html").read_text()
+        app = (staged / "app.html").read_text() + (
+            staged / "partners/portal.html"
+        ).read_text()
         for asset in (
             "customer-purchase-report.js",
             "portal-messages.js",
             "portal-phase-two-navigation.js",
             "portal-phase-two.css",
+            "portal-phase-two-activity.js",
+            "portal-phase-two-activity-client.js",
             *sidebar_assets,
         ):
             match = re.search(
@@ -79,6 +83,7 @@ class PhaseOneRelease:
                 if response.read() != (staged / "assets" / asset).read_bytes():
                     raise RuntimeError("public asset mismatch: " + asset)
         for route in (
+            "/api/reports/portal-activity",
             "/api/portal-messages/templates",
             "/api/reports/customer-purchases",
             "/api/portal-messages",
@@ -104,6 +109,7 @@ class PhaseOneRelease:
             "app.html",
             "partners/index.php",
             "partners/privacy.html",
+            "partners/portal.html",
         )
         with TemporaryDirectory() as directory:
             work = Path(directory)
@@ -120,6 +126,9 @@ class PhaseOneRelease:
                 if privacy.count("</main>") != 1:
                     raise RuntimeError("privacy notice anchor mismatch")
                 privacy = privacy.replace("</main>", note + "\n</main>", 1)
+            activity_note = "<p>زمان آخرین حضور و نام و تعداد کالاهای انتخاب‌شده برای گزارش همکاری ثبت می‌شود. سبدهای رهاشده تا پایان روز تهران در گزارش دیده می‌شوند. سابقهٔ آماری انتخاب‌ها تا ۳۰ روز در گزارش قابل مشاهده است.</p>"
+            if activity_note not in privacy:
+                privacy = privacy.replace("</main>", activity_note + "\n</main>", 1)
             (staged / "partners/privacy.html").write_text(privacy)
             for php_path in staged.rglob("*.php"):
                 subprocess.run(
