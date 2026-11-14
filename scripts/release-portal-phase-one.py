@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import ssl
 import subprocess
 import sys
@@ -59,16 +60,23 @@ class PhaseOneRelease:
             except error_perm:
                 pass
 
-    def verify(self) -> None:
+    def verify(self, staged: Path, sidebar_assets: tuple[str, ...]) -> None:
         """Check public asset bytes and require the private report routes to reject anonymous access."""
+        app = (staged / "app.html").read_text()
         for asset in (
             "customer-purchase-report.js",
             "portal-messages.js",
             "portal-phase-two-navigation.js",
             "portal-phase-two.css",
+            *sidebar_assets,
         ):
-            with urlopen(self.site + "/assets/" + asset, timeout=20) as response:
-                if response.read() != (ROOT / "assets" / asset).read_bytes():
+            match = re.search(
+                r'["\x27](/assets/' + re.escape(asset) + r'[^"\x27]*)', app
+            )
+            if not match:
+                raise RuntimeError("missing asset loader: " + asset)
+            with urlopen(self.site + match[1], timeout=20) as response:
+                if response.read() != (staged / "assets" / asset).read_bytes():
                     raise RuntimeError("public asset mismatch: " + asset)
         for route in (
             "/api/portal-messages/templates",
@@ -87,7 +95,11 @@ class PhaseOneRelease:
 
     def run(self, apply: bool) -> None:
         """Prepare and lint the exact live candidate, then apply when explicitly invoked."""
+        module = import_module("stage-customer-purchase-report")
+        stage = module.CustomerPurchaseReportStage
+        sidebar_assets: tuple[str, ...] = stage.sidebar_assets
         entries = (
+            *(f"assets/{name}" for name in sidebar_assets),
             "index.php",
             "app.html",
             "partners/index.php",
@@ -99,11 +111,9 @@ class PhaseOneRelease:
             (source / "partners").mkdir(parents=True)
             originals = {path: self.read(path) for path in entries}
             for path, data in originals.items():
+                (source / path).parent.mkdir(parents=True, exist_ok=True)
                 (source / path).write_bytes(data)
-            module = import_module("stage-customer-purchase-report")
-            module.CustomerPurchaseReportStage(ROOT).stage(
-                source, staged, source / "partners/index.php"
-            )
+            stage(ROOT).stage(source, staged, source / "partners/index.php")
             privacy = (source / "partners/privacy.html").read_text()
             note = "<p>در عضویت، کد ملی برای بررسی هویت توسط مدیر و شماره همراه برای ارسال کد تأیید دریافت می‌شود. وضعیت خواندن پیام‌های داخل برنامه برای پیگیری پیام‌ها ثبت می‌شود.</p>"
             if note not in privacy:
@@ -115,6 +125,14 @@ class PhaseOneRelease:
                 subprocess.run(
                     ["php", "-l", str(php_path)], check=True, capture_output=True
                 )
+            for name in sidebar_assets:
+                subprocess.run(
+                    ["node", "--check", str(staged / "assets" / name)], check=True
+                )
+            subprocess.run(
+                ["node", str(ROOT / "tests/portal-sidebar.cjs"), str(staged)],
+                check=True,
+            )
             print("Live anchors and PHP syntax verified.")
             if not apply:
                 return
@@ -142,7 +160,7 @@ class PhaseOneRelease:
                     replaced.append(path)
                     if self.read(path) != data:
                         raise RuntimeError("entry point verification failed: " + path)
-                self.verify()
+                self.verify(staged, sidebar_assets)
             except Exception:
                 for path in reversed(replaced):
                     self.publish(path, originals[path])

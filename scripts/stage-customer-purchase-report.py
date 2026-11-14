@@ -23,6 +23,14 @@ class CustomerPurchaseReportStage:
         '\n<script defer src="/assets/portal-phase-two-navigation.js?v=2"></script>'
     )
     _old_assets = _new_assets.replace("?v=2", "")
+    _current_assets = _new_assets.replace("?v=2", "?v=3")
+    sidebar_assets = (
+        "ui-v53435-menu2.js",
+        "nav-restructure-v1.js",
+        "menu-live-v4.js",
+    )
+    _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
+    _portal_entry = _sales_entry + '\n      nav.querySelector("#gpPortalReportsMenu"),'
     _customer_section = '<section id="customers" class="tab hidden">'
     _legacy_registration = (
         "let showPanel=x.dataset.portalPanel===key || "
@@ -148,7 +156,24 @@ class CustomerPurchaseReportStage:
         app = self._insert(
             app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
-        app = self._insert(app, self._old_assets, self._new_assets)
+        if self._current_assets not in app:
+            app = self._insert(app, self._old_assets, self._new_assets)
+            app = self._insert(app, self._new_assets, self._current_assets)
+        for name in self.sidebar_assets:
+            asset = Path("assets", name)
+            text = (source / asset).read_text()
+            target = output / asset
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(self._insert(text, self._sales_entry, self._portal_entry))
+            start = f'src="/{asset.as_posix()}?'
+            _, found, tail = app.partition(start)
+            query, end, _ = tail.partition('"')
+            if not found or not end:
+                raise ValueError(f"Expected a versioned loader for {asset}")
+            if not query.endswith("&portalreports=3"):
+                app = self._insert(
+                    app, start + query + end, start + query + "&portalreports=3" + end
+                )
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"
