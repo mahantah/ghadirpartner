@@ -1,10 +1,4 @@
-#app>header .gp-reports-menu {width:100%;padding:0;color:inherit}
-#app>header .gp-reports-menu[hidden] {display:none!important}
-#app>header .gp-reports-menu summary {cursor:pointer;font-size:12px;font-weight:700;padding:10px 12px;min-height:42px;border:1px solid #ffffff38;border-radius:18px;background:linear-gradient(110deg,#ffffff25,#ffffff08);color:#fff;list-style:none;display:flex;align-items:center;justify-content:space-between}
-#app>header .gp-reports-menu summary::-webkit-details-marker {display:none}
-#app>header .gp-reports-menu summary::after {content:"⌄"}
-#app>header .gp-reports-menu[open] summary {border-color:#f58220}
-.gp-reports-menu button {display:block;width:100%;margin:5px 0;text-align:start}
+#app>header #gpPortalReportsMenu[hidden],#app>header #gpPortalReportsMenu button[hidden],#app>header #gpCustomers button[hidden] {display:none!important}
 .gp-report-page {min-width:0}
 .gp-report-page details[open] > summary {display:none}
 .gp-report-page table {width:100%;border-collapse:collapse;margin-block:12px 20px;background:white;color:#102a43}

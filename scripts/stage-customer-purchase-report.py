@@ -28,6 +28,7 @@ class CustomerPurchaseReportStage:
     _current_assets = _sidebar_release.replace("?v=3", "?v=4") + (
         '\n<script defer src="/assets/portal-phase-two-activity.js?v=1"></script>'
     )
+    _report_submenu_assets = _current_assets.replace("?v=4", "?v=5")
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -55,6 +56,7 @@ class CustomerPurchaseReportStage:
     )
     _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
     _portal_entry = _sales_entry + '\n      nav.querySelector("#gpPortalReportsMenu"),'
+    _reports_entry = """nav.querySelector(':scope > #gpPortalReportsMenu') || nav.querySelector(':scope > [data-tab="salesReports"]'),"""
     _customer_section = '<section id="customers" class="tab hidden">'
     _legacy_registration = (
         "let showPanel=x.dataset.portalPanel===key || "
@@ -196,25 +198,34 @@ class CustomerPurchaseReportStage:
         app = self._insert(
             app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
-        if self._current_assets not in app:
-            if self._sidebar_release not in app:
-                app = self._insert(app, self._old_assets, self._new_assets)
-                app = self._insert(app, self._new_assets, self._sidebar_release)
-            app = self._insert(app, self._sidebar_release, self._current_assets)
+        if self._report_submenu_assets not in app:
+            if self._current_assets not in app:
+                if self._sidebar_release not in app:
+                    app = self._insert(app, self._old_assets, self._new_assets)
+                    app = self._insert(app, self._new_assets, self._sidebar_release)
+                app = self._insert(app, self._sidebar_release, self._current_assets)
+            app = self._insert(app, self._current_assets, self._report_submenu_assets)
         for name in self.sidebar_assets:
             asset = Path("assets", name)
             text = (source / asset).read_text()
             target = output / asset
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(self._insert(text, self._sales_entry, self._portal_entry))
+            if self._reports_entry not in text:
+                text = self._insert(text, self._sales_entry, self._portal_entry)
+            target.write_text(
+                self._insert(text, self._portal_entry, self._reports_entry)
+            )
             start = f'src="/{asset.as_posix()}?'
             _, found, tail = app.partition(start)
             query, end, _ = tail.partition('"')
             if not found or not end:
                 raise ValueError(f"Expected a versioned loader for {asset}")
-            if not query.endswith("&portalreports=3"):
+            next_query = query.removesuffix("&portalreports=3")
+            if not next_query.endswith("&portalreports=4"):
                 app = self._insert(
-                    app, start + query + end, start + query + "&portalreports=3" + end
+                    app,
+                    start + query + end,
+                    start + next_query + "&portalreports=4" + end,
                 )
         router = None
         if partner_router is not None:
