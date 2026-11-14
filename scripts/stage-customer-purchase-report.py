@@ -42,7 +42,7 @@ class CustomerPurchaseReportStage:
   <p class="small" role="status"></p>
   <div class="tablewrap">
     <table>
-      <thead><tr><th>متقاضی</th><th>شماره همراه</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+      <thead><tr><th>متقاضی</th><th>شماره همراه</th><th>تأیید شماره</th><th>وضعیت</th><th>عملیات</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -66,7 +66,9 @@ class CustomerPurchaseReportStage:
             raise ValueError(f"Expected a single source anchor for {anchor}")
         return source.replace(anchor, replacement, 1)
 
-    def stage(self, source: Path, output: Path) -> None:
+    def stage(
+        self, source: Path, output: Path, partner_router: Path | None = None
+    ) -> None:
         """Write a candidate only after verifying all source anchors."""
         if source.resolve() == output.resolve():
             raise ValueError("Choose a distinct staging directory.")
@@ -86,6 +88,14 @@ class CustomerPurchaseReportStage:
         )
         closing = "\n</body></html>"
         app = self._insert(app, closing, "\n" + self._script + closing)
+        router = None
+        if partner_router is not None:
+            anchor = "if($p==='/api/register'&&$m==='POST')"
+            router = self._insert(
+                partner_router.read_text(),
+                anchor,
+                "require __DIR__.'/lib/portal-membership-route.php';\n" + anchor,
+            )
         output.mkdir(parents=True, exist_ok=True)
         for name in self._files:
             path = output / name
@@ -93,6 +103,23 @@ class CustomerPurchaseReportStage:
             copyfile(self._package / name, path)
         (output / "index.php").write_text(index)
         (output / "app.html").write_text(app)
+        if router is not None:
+            target = output / "partners"
+            (target / "lib").mkdir(parents=True, exist_ok=True)
+            (output / "config").mkdir(parents=True, exist_ok=True)
+            copyfile(
+                self._package / "lib/portal-membership.php",
+                output / "lib/portal-membership.php",
+            )
+            copyfile(
+                self._package / "lib/portal-membership-route.php",
+                target / "lib/portal-membership-route.php",
+            )
+            copyfile(
+                self._package / "config/portal-membership.yaml",
+                output / "config/portal-membership.yaml",
+            )
+            (target / "index.php").write_text(router)
 
     @classmethod
     def main(cls) -> None:
@@ -100,8 +127,11 @@ class CustomerPurchaseReportStage:
         parser = ArgumentParser(description=__doc__)
         parser.add_argument("source", type=Path)
         parser.add_argument("output", type=Path)
+        parser.add_argument("--partner-router", type=Path)
         args = parser.parse_args()
-        cls(Path(__file__).resolve().parents[1]).stage(args.source, args.output)
+        cls(Path(__file__).resolve().parents[1]).stage(
+            args.source, args.output, args.partner_router
+        )
 
 
 if __name__ == "__main__":

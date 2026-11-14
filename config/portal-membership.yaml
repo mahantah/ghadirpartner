@@ -1,0 +1,1 @@
+{"valid_seconds":300,"resend_seconds":60,"max_attempts":5,"max_requests_per_ip":10,"max_active":1000,"sms_endpoint":"https://www.homacrm.com/api/v1/external/messaging/send"}

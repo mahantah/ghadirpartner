@@ -109,6 +109,9 @@ jobs:
           php -l lib/customer-purchase-report.php
           php -l lib/customer-purchase-report-route.php
           php tests/customer-purchase-report.php
+          php -l lib/portal-membership.php
+          php -l lib/portal-membership-route.php
+          php tests/portal-membership.php
           node --check assets/customer-purchase-report.js
           php -l scripts/release-customer-credit.php
           php tests/customer-credit.php

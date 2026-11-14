@@ -31,7 +31,8 @@
             for (const applicant of rows) {
                 const row = membershipRows.insertRow();
                 const labels = { pending: "در انتظار بررسی", approved: "تأیید شده", rejected: "رد شده" };
-                for (const field of [applicant.name, applicant.mobile, labels[applicant.status] ?? applicant.status]) {
+                const verified = applicant.mobile_verified_at ? "تأیید پیامکی" : "ثبت نشده";
+                for (const field of [applicant.name, applicant.mobile, verified, labels[applicant.status] ?? applicant.status]) {
                     row.insertCell().textContent = field;
                 }
                 const actions = row.insertCell();
