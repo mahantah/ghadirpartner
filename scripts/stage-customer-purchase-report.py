@@ -1,5 +1,6 @@
 """Stage the customer purchase report against the owner's application source."""
 
+import json
 from argparse import ArgumentParser
 from pathlib import Path
 from shutil import copyfile
@@ -23,7 +24,30 @@ class CustomerPurchaseReportStage:
         '\n<script defer src="/assets/portal-phase-two-navigation.js?v=2"></script>'
     )
     _old_assets = _new_assets.replace("?v=2", "")
-    _current_assets = _new_assets.replace("?v=2", "?v=3")
+    _sidebar_release = _new_assets.replace("?v=2", "?v=3")
+    _current_assets = _sidebar_release.replace("?v=3", "?v=4") + (
+        '\n<script defer src="/assets/portal-phase-two-activity.js?v=1"></script>'
+    )
+    _activity_client = (
+        '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
+    )
+    _activity_route = "require dirname(__DIR__).'/lib/portal-activity-routes.php';"
+    _activity_card = """
+<details id="gpPortalActivity" class="card" hidden>
+  <summary>فعالیت کاربران و سبدهای خرید</summary>
+  <p>آنلاین بر اساس آخرین حضور در برنامه یا وب سنجیده می‌شود. سبد رهاشده تا پایان روز تهران در گزارش دیده می‌شود.</p>
+  <div class="sales-custom-range">
+    <label>جست‌وجوی مشتری <input type="search"></label>
+    <label>وضعیت <select><option value="">همه</option><option value="online">آنلاین</option><option value="abandoned">سبد رهاشده</option></select></label>
+    <button type="button" class="btn2">به‌روزرسانی گزارش</button>
+  </div>
+  <p role="status"></p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>مشتری</th><th>وضعیت حضور</th><th>آخرین حضور</th><th>انتخاب محصولات در دورهٔ گزارش</th><th>سفارش‌های ثبت‌شده</th><th>سفارش‌های ارسال‌شده یا تحویل‌شده</th><th>سبدهای امروز</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</details>
+"""
     sidebar_assets = (
         "ui-v53435-menu2.js",
         "nav-restructure-v1.js",
@@ -98,6 +122,11 @@ class CustomerPurchaseReportStage:
         "lib/portal-messages-routes.php",
         "config/portal-messages.yaml",
         "config/portal-stock.yaml",
+        "config/portal-activity.yaml",
+        "lib/portal-activity.php",
+        "lib/portal-activity-routes.php",
+        "assets/portal-phase-two-activity.js",
+        "assets/portal-phase-two-activity-client.js",
     )
 
     def __init__(self, package: Path) -> None:
@@ -124,6 +153,12 @@ class CustomerPurchaseReportStage:
             "require __DIR__.'/lib/customer-purchase-report-route.php';\n"
             "require __DIR__.'/lib/portal-messages-routes.php';\n" + self._route,
         )
+        report_loader = "require __DIR__.'/lib/customer-purchase-report-route.php';"
+        index = self._insert(
+            index,
+            report_loader,
+            "require __DIR__.'/lib/portal-activity-routes.php';\n" + report_loader,
+        )
         index = self._insert(
             index,
             self._approval,
@@ -141,6 +176,11 @@ class CustomerPurchaseReportStage:
         app = self._insert(
             app, self._customer_section, self._customer_section + self._membership_card
         )
+        app = self._insert(
+            app,
+            self._section + self._card,
+            self._section + self._card + self._activity_card,
+        )
         closing = "\n</body></html>"
         if self._messages_v2 not in app:
             if self._messages_script not in app:
@@ -157,8 +197,10 @@ class CustomerPurchaseReportStage:
             app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
         if self._current_assets not in app:
-            app = self._insert(app, self._old_assets, self._new_assets)
-            app = self._insert(app, self._new_assets, self._current_assets)
+            if self._sidebar_release not in app:
+                app = self._insert(app, self._old_assets, self._new_assets)
+                app = self._insert(app, self._new_assets, self._sidebar_release)
+            app = self._insert(app, self._sidebar_release, self._current_assets)
         for name in self.sidebar_assets:
             asset = Path("assets", name)
             text = (source / asset).read_text()
@@ -183,6 +225,12 @@ class CustomerPurchaseReportStage:
                 "require __DIR__.'/lib/portal-membership-route.php';\n"
                 "require __DIR__.'/lib/portal-messages-routes.php';\n" + anchor,
             )
+            membership_loader = "require __DIR__.'/lib/portal-membership-route.php';"
+            router = self._insert(
+                router,
+                membership_loader,
+                self._activity_route + "\n" + membership_loader,
+            )
             stock = "function warehouse_free_stock($s,$product){$n=0;"
             router = self._insert(
                 router,
@@ -192,6 +240,19 @@ class CustomerPurchaseReportStage:
                 + "$wholesale=$policy['wholesale_warehouse_id']??null;"
                 + "if(!is_int($wholesale)||$wholesale<1)throw new RuntimeException('Invalid portal stock policy');"
                 + "foreach($s['inventory']??[] as $iv)",
+            )
+            # The web catalog uses bootstrap while Android uses /api/catalog.
+            router = self._insert(
+                router,
+                "if(!empty($iv['order_id']))continue;\n            $name=(string)($iv['product']??'');",
+                "if(!empty($iv['order_id'])||(int)($iv['warehouse_id']??$wholesale)!==$wholesale)continue;\n"
+                "            $name=(string)($iv['product']??'');",
+            )
+            router = self._insert(
+                router,
+                "        $free=[];\n        foreach($s['inventory']",
+                "        $policy=json_decode(file_get_contents(dirname(__DIR__).'/config/portal-stock.yaml'),true,512,JSON_THROW_ON_ERROR);\n"
+                "        $wholesale=$policy['wholesale_warehouse_id'];\n        $free=[];\n        foreach($s['inventory']",
             )
             router = self._insert(
                 router,
@@ -226,6 +287,46 @@ class CustomerPurchaseReportStage:
                 output / "config/portal-membership.yaml",
             )
             (target / "index.php").write_text(router)
+            web = (source / "partners/portal.html").read_text()
+            policy = json.loads(
+                (self._package / "config/portal-activity.yaml").read_text()
+            )
+            heartbeat = policy["heartbeat_seconds"]
+            if type(heartbeat) is not int or heartbeat <= 0:
+                raise ValueError("Invalid activity heartbeat.")
+            web = self._insert(
+                web,
+                '<div id="app" ',
+                f'<div id="app" data-portal-heartbeat="{heartbeat}" ',
+            )
+            hook = "window.gpPortalR521?.cartChanged();}"
+            web = self._insert(
+                web,
+                hook,
+                hook[:-1] + 'document.dispatchEvent(new Event("gp-portal-cart"));}',
+            )
+            discard = (
+                "this.draft.clear(this.accountKey());\n            banner.remove();"
+            )
+            web = self._insert(
+                web,
+                discard,
+                "this.draft.clear(this.accountKey());\n"
+                '            document.dispatchEvent(new Event("gp-portal-cart-clear"));\n'
+                "            banner.remove();",
+            )
+            submitted = 'this.draft.clear(this.accountKey());\n                    r521Node("orderItems").replaceChildren();'
+            web = self._insert(
+                web,
+                submitted,
+                "this.draft.clear(this.accountKey());\n"
+                '                    document.dispatchEvent(new Event("gp-portal-cart-clear"));\n'
+                '                    r521Node("orderItems").replaceChildren();',
+            )
+            web = self._insert(
+                web, "</body></html>", self._activity_client + "\n</body></html>"
+            )
+            (target / "portal.html").write_text(web)
 
     @classmethod
     def main(cls) -> None:

@@ -1,5 +1,9 @@
-.gp-reports-menu {width:100%;padding:4px 8px;color:inherit}
-.gp-reports-menu summary {cursor:pointer;font-weight:700;padding:8px 0}
+#app>header .gp-reports-menu {width:100%;padding:0;color:inherit}
+#app>header .gp-reports-menu[hidden] {display:none!important}
+#app>header .gp-reports-menu summary {cursor:pointer;font-size:12px;font-weight:700;padding:10px 12px;min-height:42px;border:1px solid #ffffff38;border-radius:18px;background:linear-gradient(110deg,#ffffff25,#ffffff08);color:#fff;list-style:none;display:flex;align-items:center;justify-content:space-between}
+#app>header .gp-reports-menu summary::-webkit-details-marker {display:none}
+#app>header .gp-reports-menu summary::after {content:"⌄"}
+#app>header .gp-reports-menu[open] summary {border-color:#f58220}
 .gp-reports-menu button {display:block;width:100%;margin:5px 0;text-align:start}
 .gp-report-page {min-width:0}
 .gp-report-page details[open] > summary {display:none}
@@ -9,6 +13,7 @@
 .gp-report-page th {background:#eaf0f6}
 .gp-report-page tbody tr:nth-child(even) {background:#f7f9fb}
 .gp-report-page [role=status] {padding-block:8px}
+#gpPortalActivity td:last-child {white-space:pre-line}
 #customers .card:has(#portalRegistrations),#portalAdmin .card:has(#portalRegistrations) {display:none!important}
 #gpPortalMessages form {display:grid;gap:12px;max-width:760px}
 #gpPortalMessages form :is(textarea,select,input:not([type=checkbox])) {width:100%}
