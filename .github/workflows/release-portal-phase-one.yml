@@ -1,7 +1,7 @@
 name: Release portal phase one
 on:
   pull_request:
-    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/release-portal-phase-one.py']
+    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/release-portal-phase-one.py', 'assets/portal-phase-two*']
   push:
     branches: [main]
     paths: ['.github/workflows/release-portal-phase-one.yml']
@@ -27,6 +27,9 @@ jobs:
           coverage: none
       - name: Verify PHP fixtures and inspect live entry points
         run: |
+          node --check assets/customer-purchase-report.js
+          node --check assets/portal-messages.js
+          node --check assets/portal-phase-two-navigation.js
           php tests/customer-purchase-report.php
           php tests/portal-membership.php
           php tests/portal-messages.php

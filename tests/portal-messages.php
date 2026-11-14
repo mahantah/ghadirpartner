@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__.'/../lib/portal-messages.php';
 require_once __DIR__.'/../lib/portal-membership.php';
 
-$service = new GpPortalMessages(['max_recipients' => 3, 'max_title_bytes' => 30, 'max_body_bytes' => 100]);
+$service = new GpPortalMessages(['max_recipients' => 3, 'max_title_bytes' => 30, 'max_body_bytes' => 100, 'max_templates_per_admin' => 1]);
 $state = [];
 $audience = [
     1 => ['id' => 1, 'name' => 'A', 'mobile' => '09910000000'],
@@ -28,5 +28,12 @@ if (!$service->inbox($state, 1)[0]['read'] || $service->inbox($state, 2)[0]['rea
     GpPortalMembership::validNationalId('0013542560') ||
     GpPortalMembership::validNationalId('1111111111')) {
     throw new RuntimeException('Read receipt, delivery retry or national ID regression.');
+}
+$service->saveTemplate($state, 9, ['title' => 'Welcome', 'body' => 'Hello']);
+$service->saveTemplate($state, 10, ['title' => 'Welcome', 'body' => 'Other admin']);
+$updated = $service->saveTemplate($state, 9, ['title' => 'Welcome', 'body' => 'Updated']);
+if ($updated !== [['title' => 'Welcome', 'body' => 'Updated']] ||
+    array_values($state['portal_message_templates'][10])[0]['body'] !== 'Other admin') {
+    throw new RuntimeException('Message template ownership or update regression.');
 }
 echo "Portal messaging and identity fixtures passed.\n";

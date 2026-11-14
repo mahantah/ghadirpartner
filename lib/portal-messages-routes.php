@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-$staffMessageRoutes = ['/api/portal-messages/recipients', '/api/portal-messages', '/api/portal-messages/sms'];
+$staffMessageRoutes = ['/api/portal-messages/recipients', '/api/portal-messages', '/api/portal-messages/sms', '/api/portal-messages/templates'];
 $customerMessageRoutes = ['/api/notifications/staff', '/api/notifications/staff/read'];
 if (!in_array($p, $staffMessageRoutes, true) && !in_array($p, $customerMessageRoutes, true)) {
     return;
@@ -39,6 +39,17 @@ if ($p === '/api/portal-messages/recipients' && $m === 'GET') {
     out(db(false, static fn (array $state): array => array_values(
         $messages->recipients($state, 'is_customer_user', 'clean_mobile')
     )));
+}
+if ($p === '/api/portal-messages/templates' && $m === 'GET') {
+    out(db(false, static fn (array $state): array => array_values($state['portal_message_templates'][(int) $actor['id']] ?? [])));
+}
+if ($p === '/api/portal-messages/templates' && $m === 'POST') {
+    $payload = input();
+    try {
+        out(db(true, static fn (array &$state): array => $messages->saveTemplate($state, (int) $actor['id'], $payload)));
+    } catch (InvalidArgumentException $error) {
+        fail($error->getMessage(), 422);
+    }
 }
 if ($p === '/api/portal-messages' && $m === 'GET') {
     out(db(false, static fn (array $state): array => array_slice(array_values(array_reverse($state['portal_messages'] ?? [])), 0, 30)));

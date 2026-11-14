@@ -61,11 +61,17 @@ class PhaseOneRelease:
 
     def verify(self) -> None:
         """Check public asset bytes and require the private report routes to reject anonymous access."""
-        for asset in ("customer-purchase-report.js", "portal-messages.js"):
+        for asset in (
+            "customer-purchase-report.js",
+            "portal-messages.js",
+            "portal-phase-two-navigation.js",
+            "portal-phase-two.css",
+        ):
             with urlopen(self.site + "/assets/" + asset, timeout=20) as response:
                 if response.read() != (ROOT / "assets" / asset).read_bytes():
                     raise RuntimeError("public asset mismatch: " + asset)
         for route in (
+            "/api/portal-messages/templates",
             "/api/reports/customer-purchases",
             "/api/portal-messages",
             "/partners/api/notifications/staff",
