@@ -106,6 +106,10 @@ jobs:
           php tests/live-offer-code-release.php
           php -l lib/customer-credit.php
           php -l lib/customer-credit-routes.php
+          php -l lib/customer-purchase-report.php
+          php -l lib/customer-purchase-report-route.php
+          php tests/customer-purchase-report.php
+          node --check assets/customer-purchase-report.js
           php -l scripts/release-customer-credit.php
           php tests/customer-credit.php
           php tests/customer-credit-release.php
