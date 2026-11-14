@@ -12,6 +12,7 @@
         ["gpMembershipRequests", "gpMembershipPage", "درخواست‌های عضویت"],
         ["gpPortalMessages", "gpPortalMessagesPage", "ارسال پیام به مشتریان"],
     ];
+    let openMembership = null;
     for (const [panelId, pageId, label] of pages) {
         const panel = document.getElementById(panelId);
         if (!panel) continue;
@@ -26,16 +27,21 @@
         const link = document.createElement("button");
         link.type = "button";
         link.textContent = label;
-        link.addEventListener("click", () => {
+        const openPage = () => {
             if (!has("admin")) return;
             show(pageId);
             if (!panel.open) panel.querySelector("summary").click();
-        });
+            if (typeof setSidebar === "function") setSidebar(false);
+        };
+        if (panelId === "gpMembershipRequests") openMembership = openPage;
+        link.addEventListener("click", openPage);
         menu.append(link);
     }
     const sales = navigation.querySelector('[data-tab="salesReports"]');
     if (sales) sales.after(menu);
     else navigation.append(menu);
+    // Older customer tabs still reference this handler after their cards move.
+    if (openMembership) window.reviewRegistration = openMembership;
     const update = () => { menu.hidden = !has("admin"); };
     new MutationObserver(update).observe(document.getElementById("app"), { attributes: true });
     update();

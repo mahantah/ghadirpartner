@@ -9,5 +9,6 @@
 .gp-report-page th {background:#eaf0f6}
 .gp-report-page tbody tr:nth-child(even) {background:#f7f9fb}
 .gp-report-page [role=status] {padding-block:8px}
+#customers .card:has(#portalRegistrations),#portalAdmin .card:has(#portalRegistrations) {display:none!important}
 #gpPortalMessages form {display:grid;gap:12px;max-width:760px}
 #gpPortalMessages form :is(textarea,select,input:not([type=checkbox])) {width:100%}

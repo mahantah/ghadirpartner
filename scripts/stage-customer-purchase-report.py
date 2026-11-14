@@ -19,9 +19,10 @@ class CustomerPurchaseReportStage:
     )
     _messages_v2 = '<script defer src="/assets/portal-messages.js?v=2"></script>'
     _new_assets = (
-        '<link rel="stylesheet" href="/assets/portal-phase-two.css">'
-        '\n<script defer src="/assets/portal-phase-two-navigation.js"></script>'
+        '<link rel="stylesheet" href="/assets/portal-phase-two.css?v=2">'
+        '\n<script defer src="/assets/portal-phase-two-navigation.js?v=2"></script>'
     )
+    _old_assets = _new_assets.replace("?v=2", "")
     _customer_section = '<section id="customers" class="tab hidden">'
     _legacy_registration = (
         "let showPanel=x.dataset.portalPanel===key || "
@@ -147,6 +148,7 @@ class CustomerPurchaseReportStage:
         app = self._insert(
             app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
+        app = self._insert(app, self._old_assets, self._new_assets)
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"
