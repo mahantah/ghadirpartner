@@ -3,6 +3,7 @@
     const navigation = document.querySelector(".topnav");
     if (!navigation) return;
     const menu = document.createElement("details");
+    menu.id = "gpPortalReportsMenu";
     menu.className = "gp-reports-menu";
     const heading = document.createElement("summary");
     heading.textContent = "گزارش‌ها و ارتباط با مشتریان";
