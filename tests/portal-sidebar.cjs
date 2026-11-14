@@ -18,10 +18,10 @@ const destinations = {
   },
 };
 const nav = {
-  children: [sales, reports, unrelated],
+  children: [reports, unrelated],
   querySelector(selector) {
-    if (selector === '[data-tab="salesReports"]') return sales;
-    if (selector === "#" + id) return reports;
+    if (selector === ':scope > [data-tab="salesReports"]') return this.children.includes(sales) ? sales : null;
+    if (selector === ":scope > #" + id) return this.children.includes(reports) ? reports : null;
     return null;
   },
   querySelectorAll() { return []; },
@@ -43,10 +43,12 @@ vm.runInNewContext(readAsset("menu-live-v4.js"), {
   document, window, setTimeout: (callback) => delayed.push(callback),
 });
 for (const refresh of [window.applyPermissionVisibility, ...delayed]) refresh();
-assert.deepEqual(nav.children, [sales, reports]);
+assert.deepEqual(nav.children, [reports]);
 assert.deepEqual(discarded, [unrelated]);
 for (const name of ["ui-v53435-menu2.js", "nav-restructure-v1.js"]) {
-  assert.match(readAsset(name), /nav\.querySelector\('\[data-tab="salesReports"\]'\),\s*nav\.querySelector\("#gpPortalReportsMenu"\),/);
+  assert.match(readAsset(name), /nav\.querySelector\(':scope > #gpPortalReportsMenu'\) \|\| nav\.querySelector\(':scope > \[data-tab="salesReports"\]'\)/);
 }
-assert.match(readAsset("portal-phase-two-navigation.js"), /menu\.id = "gpPortalReportsMenu"/);
+assert.match(readAsset("portal-phase-two-navigation.js"), /reportMenu\.append\(sales\)/);
+assert.match(readAsset("portal-phase-two-navigation.js"), /"gpPortalActivityPage", [^\n]+, reportMenu\]/);
+assert.match(readAsset("portal-phase-two-navigation.js"), /"gpPortalMessagesPage", [^\n]+, customerMenu\]/);
 console.log("Portal reports menu remains in the sidebar after permission refreshes.");
