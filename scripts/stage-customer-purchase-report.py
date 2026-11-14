@@ -29,6 +29,9 @@ class CustomerPurchaseReportStage:
         '\n<script defer src="/assets/portal-phase-two-activity.js?v=1"></script>'
     )
     _report_submenu_assets = _current_assets.replace("?v=4", "?v=5")
+    _report_icon_assets = _report_submenu_assets.replace(
+        "navigation.js?v=5", "navigation.js?v=6"
+    )
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -198,13 +201,17 @@ class CustomerPurchaseReportStage:
         app = self._insert(
             app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
-        if self._report_submenu_assets not in app:
+        if (
+            self._report_icon_assets not in app
+            and self._report_submenu_assets not in app
+        ):
             if self._current_assets not in app:
                 if self._sidebar_release not in app:
                     app = self._insert(app, self._old_assets, self._new_assets)
                     app = self._insert(app, self._new_assets, self._sidebar_release)
                 app = self._insert(app, self._sidebar_release, self._current_assets)
             app = self._insert(app, self._current_assets, self._report_submenu_assets)
+        app = self._insert(app, self._report_submenu_assets, self._report_icon_assets)
         for name in self.sidebar_assets:
             asset = Path("assets", name)
             text = (source / asset).read_text()
