@@ -86,4 +86,18 @@ final class GpPortalMembership
     {
         return (string) $this->policy['sms_endpoint'];
     }
+
+    /** Validate the checksum before a manager reviews the applicant's identity. */
+    public static function validNationalId(string $value): bool
+    {
+        if (!preg_match('/^[0-9]{10}$/D', $value) || preg_match('/^(\d)\1{9}$/D', $value)) {
+            return false;
+        }
+        $sum = 0;
+        for ($index = 0; $index < 9; $index++) {
+            $sum += (int) $value[$index] * (10 - $index);
+        }
+        $remainder = $sum % 11;
+        return (int) $value[9] === ($remainder < 2 ? $remainder : 11 - $remainder);
+    }
 }

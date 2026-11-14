@@ -1,0 +1,36 @@
+name: Release portal phase one
+on:
+  pull_request:
+    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/release-portal-phase-one.py']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-portal-phase-one.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghadirpartner-production-web
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Verify PHP fixtures and inspect live entry points
+        run: |
+          php tests/customer-purchase-report.php
+          php tests/portal-membership.php
+          php tests/portal-messages.php
+          python3 scripts/release-portal-phase-one.py inspect
+      - name: Apply and verify phase one
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: python3 scripts/release-portal-phase-one.py apply

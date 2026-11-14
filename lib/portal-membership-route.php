@@ -38,6 +38,10 @@ if ($p === '/api/native/membership/code') {
 $code = $payload['otp'] ?? '';
 $password = $payload['password'] ?? '';
 $name = $payload['name'] ?? '';
+$nationalId = $payload['national_id'] ?? '';
+if (!is_string($nationalId) || !GpPortalMembership::validNationalId($nationalId)) {
+    fail('کد ملی معتبر وارد کنید.', 422);
+}
 $details = [];
 foreach (['company', 'city', 'address'] as $key) {
     $value = $payload[$key] ?? '';
@@ -51,7 +55,7 @@ if (!is_string($code) || !preg_match('/^[0-9]{6}$/D', $code) ||
     !is_string($name) || strlen(trim($name)) < 3 || strlen($name) > 200) {
     fail('نام، کد تأیید و رمز ورود معتبر وارد کنید.', 422);
 }
-$status = db(true, static function (array &$state) use ($membership, $mobile, $code, $password, $name, $details): string {
+$status = db(true, static function (array &$state) use ($membership, $mobile, $code, $password, $name, $nationalId, $details): string {
     if (!$membership->verify($state, $mobile, $code, time())) {
         return 'invalid_code';
     }
@@ -66,6 +70,7 @@ $status = db(true, static function (array &$state) use ($membership, $mobile, $c
     $state['registration_requests'][] = $details + [
         'id' => $state['next_registration']++, 'name' => trim($name), 'mobile' => $mobile,
         'password_hash' => password_hash($password, PASSWORD_DEFAULT), 'mobile_verified_at' => now(),
+        'national_id' => $nationalId,
         'status' => 'pending', 'created_at' => now(), 'reviewed_at' => '', 'reviewed_by' => '',
     ];
     return 'created';

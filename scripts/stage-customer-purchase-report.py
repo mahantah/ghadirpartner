@@ -14,6 +14,7 @@ class CustomerPurchaseReportStage:
     )
     _script = '<script defer src="/assets/customer-purchase-report.js"></script>'
     _customer_section = '<section id="customers" class="tab hidden">'
+    _approval = "if($action!=='approve')fail('عملیات نامعتبر است');$mobile="
     _card = """
 <details id="gpCustomerPurchaseReport" class="card" hidden>
   <summary>خرید و اعتبار هر مشتری</summary>
@@ -42,16 +43,36 @@ class CustomerPurchaseReportStage:
   <p class="small" role="status"></p>
   <div class="tablewrap">
     <table>
-      <thead><tr><th>متقاضی</th><th>شماره همراه</th><th>تأیید شماره</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+      <thead><tr><th>متقاضی</th><th>شماره همراه</th><th>تأیید شماره</th><th>کد ملی</th><th>وضعیت</th><th>عملیات</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
+</details>
+<details id="gpPortalMessages" class="card" hidden>
+  <summary>ارسال پیام به مشتریان</summary>
+  <form>
+    <label>عنوان <input name="title" required maxlength="120"></label>
+    <label>متن <textarea name="body" required maxlength="800"></textarea></label>
+    <label>گیرندگان <select name="recipients" multiple size="7" required></select></label>
+    <label><input type="checkbox" name="app" checked> داخل اپ</label>
+    <label><input type="checkbox" name="sms"> پیامک</label>
+    <button type="submit" class="btn2">ارسال</button>
+  </form>
+  <p role="status"></p>
+  <div class="tablewrap"><table><caption>آخرین ارسال‌ها</caption>
+    <thead><tr><th>پیام</th><th>گیرنده</th><th>خواندن در اپ</th><th>پیامک</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
 </details>
 """
     _files = (
         "lib/customer-purchase-report.php",
         "lib/customer-purchase-report-route.php",
         "assets/customer-purchase-report.js",
+        "assets/portal-messages.js",
+        "lib/portal-messages.php",
+        "lib/portal-messages-routes.php",
+        "config/portal-messages.yaml",
     )
 
     def __init__(self, package: Path) -> None:
@@ -76,7 +97,16 @@ class CustomerPurchaseReportStage:
             (source / "index.php").read_text(),
             self._route,
             "require __DIR__.'/lib/customer-purchase-report-route.php';\n"
-            + self._route,
+            "require __DIR__.'/lib/portal-messages-routes.php';\n" + self._route,
+        )
+        index = self._insert(
+            index,
+            self._approval,
+            "if($action!=='approve')fail('عملیات نامعتبر است');"
+            "if(isset($r['national_id'])){"
+            "if(($x['identity_reviewed']??false)!==true)fail('ابتدا هویت متقاضی را بررسی کنید',422);"
+            "$r['identity_verified_at']=now();}"
+            "$mobile=",
         )
         app = self._insert(
             (source / "app.html").read_text(),
@@ -87,14 +117,22 @@ class CustomerPurchaseReportStage:
             app, self._customer_section, self._customer_section + self._membership_card
         )
         closing = "\n</body></html>"
-        app = self._insert(app, closing, "\n" + self._script + closing)
+        app = self._insert(
+            app,
+            closing,
+            "\n"
+            + self._script
+            + '\n<script defer src="/assets/portal-messages.js"></script>'
+            + closing,
+        )
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"
             router = self._insert(
                 partner_router.read_text(),
                 anchor,
-                "require __DIR__.'/lib/portal-membership-route.php';\n" + anchor,
+                "require __DIR__.'/lib/portal-membership-route.php';\n"
+                "require __DIR__.'/lib/portal-messages-routes.php';\n" + anchor,
             )
         output.mkdir(parents=True, exist_ok=True)
         for name in self._files:
@@ -114,6 +152,10 @@ class CustomerPurchaseReportStage:
             copyfile(
                 self._package / "lib/portal-membership-route.php",
                 target / "lib/portal-membership-route.php",
+            )
+            copyfile(
+                self._package / "lib/portal-messages-routes.php",
+                target / "lib/portal-messages-routes.php",
             )
             copyfile(
                 self._package / "config/portal-membership.yaml",

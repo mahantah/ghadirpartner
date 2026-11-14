@@ -32,7 +32,7 @@
                 const row = membershipRows.insertRow();
                 const labels = { pending: "در انتظار بررسی", approved: "تأیید شده", rejected: "رد شده" };
                 const verified = applicant.mobile_verified_at ? "تأیید پیامکی" : "ثبت نشده";
-                for (const field of [applicant.name, applicant.mobile, verified, labels[applicant.status] ?? applicant.status]) {
+                for (const field of [applicant.name, applicant.mobile, verified, applicant.national_id ?? "—", labels[applicant.status] ?? applicant.status]) {
                     row.insertCell().textContent = field;
                 }
                 const actions = row.insertCell();
@@ -42,13 +42,15 @@
                     button.type = "button";
                     button.textContent = label;
                     button.addEventListener("click", async () => {
-                        if (request !== generation || !has("admin") || !window.confirm(label + " انجام شود؟")) return;
+                        const review = action === "approve" && Boolean(applicant.national_id);
+                        const prompt = review ? "هویت متقاضی را بررسی کرده‌اید و حساب فعال شود؟" : label + " انجام شود؟";
+                        if (request !== generation || !has("admin") || !window.confirm(prompt)) return;
                         for (const control of actions.querySelectorAll("button")) control.disabled = true;
                         try {
                             await req("/api/registration-requests/review", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ id: applicant.id, action }),
+                                body: JSON.stringify({ id: applicant.id, action, identity_reviewed: review }),
                             });
                             if (request === generation) await loadMembership();
                         } catch {
