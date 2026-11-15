@@ -4,6 +4,7 @@
     const sales = navigation?.querySelector('[data-tab="salesReports"]');
     const salesPage = document.getElementById("salesReports");
     const customerMenu = navigation?.querySelector("#gpCustomers .nav-submenu");
+    const app = document.getElementById("app");
     if (!sales || !salesPage || !customerMenu) return;
 
     const iconSample = sales.querySelector(".gp-menu-icon");
@@ -94,10 +95,34 @@
         reports.hidden = !canViewTab("salesReports");
         for (const link of adminLinks) link.hidden = !admin;
     };
-    new MutationObserver(update).observe(document.getElementById("app"), { attributeFilter: ["class"] });
+    new MutationObserver(update).observe(app, { attributeFilter: ["class"] });
     update();
+    const railControls = navigation.querySelectorAll(":scope > [data-tab], :scope > .nav-group > .nav-group-toggle");
+    for (const control of railControls) {
+        const name = (control.querySelector(".gp-menu-text") || control).textContent.trim();
+        if (!name) continue;
+        control.title = name;
+        control.setAttribute("aria-label", name);
+    }
+    // Group icons open their original submenus in the full sidebar.
+    navigation.addEventListener("click", (event) => {
+        const group = event.target.closest(".nav-group-toggle")?.parentElement;
+        if (!group || group.parentElement !== navigation || !app.classList.contains("sidebar-collapsed")) return;
+        document.getElementById("desktopSidebarOpen")?.click();
+        requestAnimationFrame(() => {
+            group.classList.add("open");
+            group.querySelector(".nav-group-toggle")?.setAttribute("aria-expanded", "true");
+        });
+    }, true);
     addIcon(customerMenu.querySelector('[data-tab="salesPlans"]'), "salesPlans");
-    for (const key of ["changePasswordBtn", "logoutbtn"]) {
-        addIcon(document.getElementById(key), key);
+    for (const [key, name] of [["changePasswordBtn", "تغییر رمز"], ["logoutbtn", "خروج از حساب"]]) {
+        const button = document.getElementById(key);
+        if (!button) continue;
+        if (key === "logoutbtn" && button.textContent.trim() === "خروج") {
+            button.textContent = name;
+        }
+        addIcon(button, key);
+        button.title = name;
+        button.setAttribute("aria-label", name);
     }
 })();

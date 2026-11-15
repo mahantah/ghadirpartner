@@ -13,6 +13,9 @@ const dockCss = fs.readFileSync(root + "/assets/account-logout-access-v1.css", "
 const dockRule = dockCss.match(/#app > \.userbox\.gp-account-docked\s*\{([^}]+)\}/)[1];
 assert.match(dockRule, /right: max\(10px, env\(safe-area-inset-right, 0px\)\)/);
 assert.match(dockRule, /left: auto !important/);
+assert.match(dockRule, /width: 44px !important/);
+assert.match(dockCss, /#app\.sidebar-collapsed > \.wrap \{\s*margin-right: var\(--gp-sidebar-rail-width\)/);
+assert.match(dockCss, /#app > \.userbox\.gp-account-docked #who \{\s*display: none !important/);
 assert.match(dockCss, /> \.gp-menu-icon\s*\{\s*width: 18px !important;\s*height: 18px !important/);
 
 (async () => {

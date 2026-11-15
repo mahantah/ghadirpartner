@@ -8,32 +8,23 @@
   left: auto !important;
   top: auto !important;
   transform: none !important;
-  width: min(292px, calc(100vw - 22px)) !important;
+  width: 44px !important;
   max-width: 100% !important;
   z-index: 225 !important;
   pointer-events: auto !important;
   opacity: 1 !important;
   visibility: visible !important;
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-  gap: 8px !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 6px !important;
   margin: 0 !important;
-  padding: 12px 8px 10px !important;
-  background: linear-gradient(180deg, rgba(12, 36, 60, 0.98), rgba(11, 42, 70, 0.99)) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 12px 28px rgba(7, 29, 53, 0.42) !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 #app > .userbox.gp-account-docked #who {
-  display: block !important;
-  grid-column: 1 / -1 !important;
-  padding: 7px 9px !important;
-  text-align: center !important;
-  border-radius: 9px !important;
-  background: rgba(255, 255, 255, 0.09) !important;
-  color: #e8f3ff !important;
-  font-size: 12px !important;
-  overflow-wrap: anywhere !important;
+  display: none !important;
 }
 #app > .userbox.gp-account-docked #changePasswordBtn,
 #app > .userbox.gp-account-docked #logoutbtn {
@@ -44,10 +35,10 @@
   width: 100% !important;
   min-height: 40px !important;
   margin: 0 !important;
-  padding: 7px 6px !important;
+  padding: 0 !important;
+  gap: 0 !important;
   border-radius: 9px !important;
-  font-size: 11.5px !important;
-  font-weight: 780 !important;
+  font-size: 0 !important;
   background: rgba(255, 255, 255, 0.08) !important;
   color: #fff !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
@@ -75,4 +66,47 @@
 #app > header .topnav.gp-account-nav-flex > .userbox.gp-sidebar-userbox {
   margin-top: auto !important;
   flex: 0 0 auto !important;
+}
+
+@media (min-width: 821px) {
+  #app.sidebar-collapsed {
+    --gp-sidebar-rail-width: 64px;
+  }
+  #app.sidebar-collapsed > header {
+    width: var(--gp-sidebar-rail-width) !important;
+    padding: 0 !important;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  #app.sidebar-collapsed > .wrap {
+    margin-right: var(--gp-sidebar-rail-width) !important;
+  }
+  #app.sidebar-collapsed > header .topnav.topnav {
+    width: var(--gp-sidebar-rail-width) !important;
+    min-height: 0 !important;
+    height: 100dvh !important;
+    padding: calc(62px + env(safe-area-inset-top, 0px)) 10px 110px !important;
+    align-items: stretch !important;
+    scrollbar-width: none;
+  }
+  #app.sidebar-collapsed > header .topnav.topnav :is(.sidebar-head, .sidebar-footer, .userbox, .nav-submenu, .gp-menu-text, .chev) {
+    display: none !important;
+  }
+  #app.sidebar-collapsed > header .topnav.topnav > :is(button, a[data-tab]),
+  #app.sidebar-collapsed > header .topnav.topnav > .nav-group > .nav-group-toggle {
+    min-height: 44px !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  #app.sidebar-collapsed > header .topnav.topnav > .nav-group {
+    flex: 0 0 auto !important;
+  }
+  #app.sidebar-collapsed #gpSidebarSwitch {
+    right: 12px !important;
+    left: auto !important;
+    top: calc(10px + env(safe-area-inset-top, 0px)) !important;
+  }
 }
