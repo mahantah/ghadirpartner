@@ -3,6 +3,7 @@
 import json
 import re
 from argparse import ArgumentParser
+from hashlib import sha256
 from html import unescape
 from pathlib import Path
 from shutil import copyfile
@@ -71,6 +72,11 @@ class CustomerPurchaseReportStage:
     )
     dock_asset = "account-logout-access-v1.css"
     proof_asset = "order-details-v2-approved-20261024.js"
+    _credit_base_hashes = {
+        "d1a5e6706afca7d98619dc7ce9c6dee7fb4417da5d8be6c58b8621fe7afa8d8b"
+    }
+    credit_library = "lib/customer-credit.php"
+    followup_asset = "order-followup.js"
     native_proof_router = "partners/native-r54.php"
     order_flow_library = "lib/native-order-flow.php"
     _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
@@ -144,6 +150,10 @@ class CustomerPurchaseReportStage:
         "lib/portal-messages.php",
         "lib/portal-messages-routes.php",
         "lib/order-proof-upload.php",
+        "lib/order-followup.php",
+        "lib/order-followup-route.php",
+        "config/order-followup.yaml",
+        "assets/order-followup.js",
         "lib/order-proof-upload-route.php",
         "config/order-proof-upload.yaml",
         "config/portal-messages.yaml",
@@ -229,12 +239,29 @@ class CustomerPurchaseReportStage:
             "extension:proof.proof_mime==='image/png'?'png':'jpg'",
             "extension:proof.proof_mime==='application/pdf'?'pdf':proof.proof_mime==='image/png'?'png':'jpg'",
         )
-        label = "    const label=image.label;\n"
+        if "if(image.extension==='pdf')" not in data:
+            label = "    const label=image.label;\n"
+            data = self._insert(
+                data,
+                label,
+                label
+                + """    if(image.extension==='pdf')return '<figure class="od2-evidence"><figcaption>'+label.replace(/^تصویر /,'')+'</figcaption><a class="btn2" href="'+image.src+'" download="payment-'+String(Number(o.id)||0)+'-'+index+'.pdf">دانلود فایل PDF</a></figure>';\n""",
+            )
+        doc_label = "label:proof.kind"
+        data = self._insert(data, doc_label, "note:gpOdEsc(proof.note)," + doc_label)
         data = self._insert(
             data,
-            label,
-            label
-            + """    if(image.extension==='pdf')return '<figure class="od2-evidence"><figcaption>'+label.replace(/^تصویر /,'')+'</figcaption><a class="btn2" href="'+image.src+'" download="payment-'+String(Number(o.id)||0)+'-'+index+'.pdf">دانلود فایل PDF</a></figure>';\n""",
+            "'+label+'</figcaption>",
+            "'+label+(image.note?' · '+image.note:'')+'</figcaption>",
+        )
+        data = self._insert(
+            data,
+            "label.replace(/^تصویر /,'')+'</figcaption>",
+            "label.replace(/^تصویر /,'')+(image.note?' · '+image.note:'')+'</figcaption>",
+        )
+        hook = "  overlay.classList.remove('hidden');gpOdActivate(section);"
+        data = self._insert(
+            data, hook, hook + "\n  window.gpOrderFollowup?.mount(root,o.id);"
         )
         (output / asset).write_text(data)
         start = f'src="/{asset.as_posix()}?'
@@ -242,9 +269,11 @@ class CustomerPurchaseReportStage:
         query, end, _ = tail.partition('"')
         if not found or not end:
             raise ValueError(f"Expected a versioned loader for {asset}")
-        if not query.endswith("&proofs=2"):
+        if not query.endswith("&proofs=3"):
             app = self._insert(
-                app, start + query + end, start + query + "&proofs=2" + end
+                app,
+                start + query + end,
+                start + query.removesuffix("&proofs=2") + "&proofs=3" + end,
             )
         return app
 
@@ -261,6 +290,8 @@ class CustomerPurchaseReportStage:
                 + """if($proof['proof_mime']==='application/pdf')header('Content-Disposition: attachment; filename="payment-document.pdf"');""",
             )
         )
+        if "if($checkoutProofs!==null)$checkoutProofs->commit();" in router:
+            return router
         method_guard = "    if($isCustomer&&!isset($paymentLabels[$requestedPayment]))"
         router = self._insert(
             router,
@@ -311,6 +342,108 @@ class CustomerPurchaseReportStage:
             result,
             "    if($checkoutProofs!==null)$checkoutProofs->commit();\n" + result,
         )
+
+    def stage_order_revision(self, router: str) -> str:
+        """Reuse the priced checkout for an owner editing a returned order in place."""
+        if "if($revisionId>0)out($order);" in router:
+            return router
+        loader = "    $paymentFiles=$isCustomer?"
+        router = self._insert(
+            router,
+            loader,
+            """    $revisionId=$isCustomer?($x['revision_order_id']??0):0;
+    $revisionVersion=$isCustomer?($x['revision_version']??0):0;
+    if(!is_int($revisionId)||$revisionId<0||!is_int($revisionVersion)||$revisionVersion<0
+        ||(($revisionId>0)!==($revisionVersion>0)))fail('شماره یا نسخه سفارش معتبر نیست.',422);
+    unset($x['revision_order_id'],$x['revision_version']);
+    $revisionService=null;
+    if($revisionId>0){
+        require_once dirname(__DIR__).'/lib/order-followup.php';
+        $revisionService=GpOrderFollowup::configured(dirname($file).'/native-proofs');
+    }
+"""
+            + loader,
+        )
+        capture = "$gpCustomerOrderFlow,$checkoutProofs,$paymentFiles){"
+        router = self._insert(
+            router,
+            capture,
+            "$gpCustomerOrderFlow,$checkoutProofs,$paymentFiles,$revisionService,$revisionId,$revisionVersion){\n"
+            """        $revisionIndex=null;
+        if($revisionService!==null){
+            try{
+                $revisionIndex=$revisionService->revisionIndex($s,$revisionId,(int)$x['customer_id'],$revisionVersion);
+            }catch(DomainException $error){fail($error->getMessage(),$error->getCode());}
+        }""",
+        )
+        router = self._insert(
+            router,
+            "$id=$s['next_order']++;$c=$s['customers'][$ci];$o=$x;",
+            "$id=$revisionIndex===null?$s['next_order']++:$revisionId;$c=$s['customers'][$ci];$o=$x;",
+        )
+        offer = "$offer=offer_by_code($s,$promoInput,(int)$x['customer_id']);"
+        router = self._insert(
+            router,
+            offer,
+            """if($revisionIndex!==null){
+                $s['offer_usages']=array_values(array_filter($s['offer_usages']??[],
+                    static fn(array $entry):bool=>(int)($entry['order_id']??0)!==$revisionId));
+            }"""
+            + offer,
+        )
+        history = "        $history=$isCustomer?'سفارش توسط مشتری با فاکتور "
+        router = self._insert(
+            router,
+            history,
+            """        if($revisionIndex!==null){
+            $revisionService->preserveRevision($s['orders'][$revisionIndex],$o,$paymentFiles??[],$o['updated_at']);
+        }
+"""
+            + history,
+        )
+        store = "hist($o,$u['username'],$history);$s['orders'][]=$o;"
+        router = self._insert(
+            router,
+            store,
+            """if($revisionIndex!==null){
+            hist($o,$u['username'],'سفارش پس از اصلاح دوباره ارسال شد');
+            $s['orders'][$revisionIndex]=$o;
+            if($promoInput===''){
+                $s['offer_usages']=array_values(array_filter($s['offer_usages']??[],
+                    static fn(array $entry):bool=>(int)($entry['order_id']??0)!==$id));
+            }
+        }else{hist($o,$u['username'],$history);$s['orders'][]=$o;}""",
+        )
+        return self._insert(
+            router,
+            "    sms_status($customer,$order,'','order_created');",
+            "    if($revisionId>0)out($order);\n    sms_status($customer,$order,'','order_created');",
+        )
+
+    def stage_followup(
+        self, index: str, app: str, source: Path, output: Path
+    ) -> tuple[str, str]:
+        """Publish both authenticated follow-up routes and the staff order controls."""
+        loader = "require __DIR__.'/lib/portal-activity-routes.php';"
+        index = self._insert(
+            index, loader, "require __DIR__.'/lib/order-followup-route.php';\n" + loader
+        )
+        # Refuse to replace a credit implementation changed independently on the host.
+        credit = Path(self.credit_library)
+        live = (source / credit).read_bytes()
+        candidate = (self._package / credit).read_bytes()
+        if (
+            live != candidate
+            and sha256(live).hexdigest() not in self._credit_base_hashes
+        ):
+            raise ValueError(
+                "The live credit library differs from the reviewed baseline."
+            )
+        (output / credit).parent.mkdir(parents=True, exist_ok=True)
+        (output / credit).write_bytes(candidate)
+        asset = '<script defer src="/assets/order-followup.js?v=1"></script>'
+        app = self._insert(app, self._messages_v3, self._messages_v3 + "\n" + asset)
+        return index, app
 
     def stage_panel_switches(
         self, app: str, router: str, source: Path, output: Path
@@ -474,6 +607,7 @@ class CustomerPurchaseReportStage:
                 )
         app = self.stage_console(app, source, output)
         app = self.stage_proof_documents(app, source, output)
+        index, app = self.stage_followup(index, app, source, output)
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
@@ -502,6 +636,12 @@ class CustomerPurchaseReportStage:
             )
             router = self._insert(
                 router, self._activity_route, proof_route + "\n" + self._activity_route
+            )
+            router = self._insert(
+                router,
+                proof_route,
+                "require dirname(__DIR__).'/lib/order-followup-route.php';\n"
+                + proof_route,
             )
             stock = "function warehouse_free_stock($s,$product){$n=0;"
             router = self._insert(
@@ -559,10 +699,12 @@ class CustomerPurchaseReportStage:
                 output / "config/portal-membership.yaml",
             )
             (target / "index.php").write_text(
-                self.stage_checkout_proofs(
-                    self.stage_panel_switches(app, router, source, output),
-                    source,
-                    output,
+                self.stage_order_revision(
+                    self.stage_checkout_proofs(
+                        self.stage_panel_switches(app, router, source, output),
+                        source,
+                        output,
+                    )
                 )
             )
             web = (source / "partners/portal.html").read_text()
