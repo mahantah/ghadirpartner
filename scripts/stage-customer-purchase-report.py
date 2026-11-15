@@ -306,9 +306,11 @@ class CustomerPurchaseReportStage:
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
-        if dock_url + '&dock=3"' not in app:
-            app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
-            app = self._insert(app, dock_url + '&dock=2"', dock_url + '&dock=3"')
+        if dock_url + '&dock=4"' not in app:
+            if dock_url + '&dock=3"' not in app:
+                app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
+                app = self._insert(app, dock_url + '&dock=2"', dock_url + '&dock=3"')
+            app = self._insert(app, dock_url + '&dock=3"', dock_url + '&dock=4"')
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"
