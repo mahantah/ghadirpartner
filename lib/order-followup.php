@@ -60,7 +60,7 @@ final class GpOrderFollowup
             'outstanding' => $outstanding,
             'can_submit' => $outstanding > 0 && ($order['status'] ?? '') === 'تحویل شد',
             'can_return' => $this->canReturn($order),
-            'proofs' => array_values($order['native_settlement']['proofs'] ?? []),
+            'proofs' => $this->orderProofs($order),
             'repayments' => array_values($order['credit_repayments'] ?? []),
             'correction' => $order['customer_correction'] ?? null,
         ];
@@ -144,6 +144,38 @@ final class GpOrderFollowup
         return $this->summary($order);
     }
 
+    /** Record staff review of a checkout receipt separately from credit repayments. */
+    public function reviewOrderReceipt(array &$order, array $request, string $action, int $actor, string $now): array
+    {
+        $token = $request['token'] ?? null;
+        $receipts = array_column($this->orderProofs($order), null, 'proof_token');
+        if (!is_string($token) || ($receipts[$token]['kind'] ?? '') !== 'cash') {
+            throw new DomainException('فیش واریزی این سفارش پیدا نشد.', 404);
+        }
+        $existing = $order['order_receipt_reviews'][$token] ?? [];
+        $status = $existing['status'] ?? 'pending';
+        $isAdjustment = $action === 'adjust_order_receipt';
+        if ($isAdjustment) {
+            if ($status !== 'approved' || ($request['previous_amount'] ?? null) !== ($existing['amount'] ?? null)) {
+                throw new DomainException('وضعیت یا مبلغ فیش تغییر کرده است. جزئیات را دوباره باز کنید.', 409);
+            }
+        } elseif ($status !== 'pending') {
+            return $this->summary($order);
+        }
+        $rejected = $action === 'reject_order_receipt';
+        if (!$rejected && !$isAdjustment && ($request['seen'] ?? null) !== true) {
+            throw new DomainException('ابتدا پیش‌نمایش فیش را باز کنید.', 422);
+        }
+        $note = $this->note($request, $rejected || $isAdjustment);
+        $amount = $rejected ? 0 : $this->amount($request);
+        $record = ['status' => $rejected ? 'rejected' : 'approved', 'amount' => $amount,
+            'review_note' => $note, 'reviewed_by' => $actor, 'reviewed_at' => $now];
+        $entry = $record + ['action' => $action, 'previous_amount' => $existing['amount'] ?? null];
+        $record['history'] = array_merge($existing['history'] ?? [], [$entry]);
+        $order['order_receipt_reviews'][$token] = $record;
+        return $this->summary($order);
+    }
+
     /** Request corrections only before stock allocation, delivery or a confirmed repayment. */
     public function returnOrder(array &$order, array $request, int $actor, string $now): array
     {
@@ -185,7 +217,7 @@ final class GpOrderFollowup
     /** Reuse the original order identity, confirmation context and payment documents on resubmission. */
     public function preserveRevision(array $previous, array &$order, array $newFiles, string $now): void
     {
-        foreach (['number', 'created_at', 'created_by', 'history', 'credit_repayments', 'followup_events', 'customer_correction', 'correction_history'] as $key) {
+        foreach (['number', 'created_at', 'created_by', 'history', 'credit_repayments', 'followup_events', 'customer_correction', 'correction_history', 'order_receipt_reviews'] as $key) {
             if (array_key_exists($key, $previous)) $order[$key] = $previous[$key];
         }
         $proofs = $previous['native_settlement']['proofs'] ?? [];
@@ -233,7 +265,7 @@ final class GpOrderFollowup
     /** Resolve a token only inside the already authorized order. */
     public function document(array $order, string $token): array
     {
-        $sets = [$order['native_settlement']['proofs'] ?? []];
+        $sets = [$this->orderProofs($order)];
         foreach ($order['credit_repayments'] ?? [] as $payment) $sets[] = $payment['proofs'];
         foreach ($sets as $files) {
             foreach ($files as $file) {
@@ -241,6 +273,26 @@ final class GpOrderFollowup
             }
         }
         throw new DomainException('فایل پیدا نشد.', 404);
+    }
+
+    private function orderProofs(array $order): array
+    {
+        $settlement = $order['native_settlement'] ?? [];
+        $proofs = $settlement['proofs'] ?? [];
+        if (!$proofs && !empty($settlement['proof_token'])) {
+            $proofs[] = [
+                'kind' => $settlement['kind'] ?? (($order['requested_payment_method'] ?? '') === 'check' ? 'check' : 'cash'),
+                'proof_token' => $settlement['proof_token'],
+                'proof_mime' => $settlement['proof_mime'] ?? 'image/jpeg',
+            ];
+        }
+        return array_values(array_map(static function (array $proof) use ($order): array {
+            $review = $order['order_receipt_reviews'][$proof['proof_token'] ?? ''] ?? [];
+            if ($review) {
+                $proof['review'] = array_intersect_key($review, array_flip(['status', 'amount', 'review_note']));
+            }
+            return $proof;
+        }, $proofs));
     }
 
     private function canReturn(array $order): bool

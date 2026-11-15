@@ -63,6 +63,26 @@ try {
     $workflow->review($order, ['request_id' => $manual, 'amount' => 100, 'note' => 'تسویه حضوری'], 'manual', 2, $now);
     $workflow->review($order, ['request_id' => $manual, 'amount' => 80, 'previous_amount' => 100, 'note' => 'اصلاح مبلغ'], 'adjust', 2, $now);
     $assert($credit->debt($order) === 470 && count($order['credit_repayments'][$manual]['adjustments']) === 1, 'Manual adjustment lost the audit or balance.');
+    $receiptToken = $proof['proof_token'];
+    $firstReceipt = $base;
+    $firstReceipt['native_settlement']['proof_token'] = $receiptToken;
+    $firstReceipt['native_settlement']['proof_mime'] = $proof['proof_mime'];
+    $receiptInput = ['token' => $receiptToken, 'amount' => 55];
+    $denied(static function () use ($workflow, &$firstReceipt, $receiptInput, $now) {
+        $workflow->reviewOrderReceipt($firstReceipt, $receiptInput, 'approve_order_receipt', 2, $now);
+    }, 422);
+    $assert($workflow->document($firstReceipt, $receiptToken)['data'] === $png, 'Legacy checkout receipt cannot be opened.');
+    $result = $workflow->reviewOrderReceipt($firstReceipt, $receiptInput + ['seen' => true], 'approve_order_receipt', 2, $now);
+    $assert($result['proofs'][0]['review']['status'] === 'approved' && $credit->debt($firstReceipt) === 800, 'Checkout proof approval changed credit debt.');
+    $adjusted = $workflow->reviewOrderReceipt($firstReceipt, [
+        'token' => $receiptToken, 'amount' => 65, 'previous_amount' => 55, 'note' => 'اصلاح مبلغ فیش',
+    ], 'adjust_order_receipt', 2, $now);
+    $assert($adjusted['proofs'][0]['review']['amount'] === 65 && count($firstReceipt['order_receipt_reviews'][$receiptToken]['history']) === 2, 'Receipt adjustment lost audit history.');
+    $rejectedReceipt = $base;
+    $rejectedReceipt['native_settlement']['proofs'] = [$proof];
+    $rejected = $workflow->reviewOrderReceipt($rejectedReceipt, ['token' => $receiptToken, 'note' => 'ناخوانا'],
+        'reject_order_receipt', 2, $now);
+    $assert($rejected['proofs'][0]['review']['status'] === 'rejected', 'Checkout receipt rejection was not saved.');
     $returned = array_merge($base, [
         'id' => 5, 'status' => 'در انتظار تأیید سفارش', 'approval_status' => 'در انتظار تأیید',
         'purchase_items' => [['product' => 'Original']], 'native_settlement' => [],

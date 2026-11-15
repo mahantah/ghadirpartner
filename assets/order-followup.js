@@ -30,7 +30,9 @@
     return node;
   }
   function field(form, label, value = "", isAmount = false) {
-    const wrapper = element("label", label + " ");
+    const wrapper = element("label");
+    wrapper.className = "gp-followup-field";
+    wrapper.append(element("span", label));
     const input = element(isAmount ? "input" : "textarea");
     input.value = String(value);
     if (isAmount) input.inputMode = "numeric";
@@ -41,7 +43,7 @@
   }
   function section(parent, title) {
     const panel = element("section");
-    panel.className = "od2-card";
+    panel.className = "od2-card gp-followup-card";
     panel.append(element("h4", title));
     parent.append(panel);
     return panel;
@@ -59,10 +61,74 @@
     }
     const image = element("img");
     image.alt = "تصویر فیش مشتری";
-    image.style.maxWidth = "100%";
+    image.className = "gp-followup-proof-image";
     image.src = "data:" + mime + ";base64," + data;
     await image.decode();
     target.replaceChildren(image);
+  }
+  function group(parent, className) {
+    const node = element("div");
+    node.className = className;
+    parent.append(node);
+    return node;
+  }
+  function enteredAmount(input) {
+    const value = ascii(input.value).replace(/[٬,\s]/g, "");
+    const amount = Number(value);
+    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(amount) || amount < 1) {
+      throw new Error("مبلغ معتبر به تومان وارد کنید.");
+    }
+    return amount;
+  }
+  function showProof(card, id, proof, label, seen, safe, message) {
+    const row = group(card, "gp-followup-proof");
+    const area = element("div");
+    row.append(button(label, safe(message, async () => {
+      await preview(area, id, proof);
+      const link = area.querySelector("a");
+      if (link) link.addEventListener("click", () => seen.add(proof.proof_token), {once: true});
+      else seen.add(proof.proof_token);
+    })));
+    if (proof.note) row.append(element("p", proof.note));
+    row.append(area);
+  }
+  function receiptCard(card, {id, proofs, review, initialToken, safe, creditStatus, update}) {
+    const status = review.status ?? "pending";
+    const labels = {pending: "در انتظار بررسی", approved: "تأییدشده", rejected: "ردشده"};
+    const badge = element("span", labels[status]);
+    badge.className = "gp-followup-state";
+    badge.dataset.state = status;
+    card.append(badge);
+    if (review.review_note) card.append(element("p", review.review_note));
+    const seen = new Set();
+    for (const [index, proof] of proofs.entries()) {
+      const suffix = proofs.length > 1 ? " " + (index + 1).toLocaleString("fa-IR") : "";
+      showProof(card, id, proof, "پیش‌نمایش فیش" + suffix, seen, safe, creditStatus);
+    }
+    if (status === "rejected") return;
+    const fields = group(card, "gp-followup-fields");
+    const amount = field(fields, "مبلغ (تومان)", status === "approved" ? review.amount : review.claimed_amount ?? "", true);
+    const note = field(fields, "توضیحات بررسی");
+    const actions = group(card, "gp-followup-actions");
+    const run = action => safe(creditStatus, async () => {
+      if (action === "approve" && (!proofs.length || seen.size !== proofs.length)) {
+        throw new Error("برای تأیید، ابتدا پیش‌نمایش همهٔ مدارک را باز کنید. برای PDF، فایل را باز یا دانلود کنید.");
+      }
+      if (action !== "approve" && !note.value.trim()) throw new Error("دلیل رد یا اصلاح فیش را بنویسید.");
+      const payload = {amount: action === "reject" ? 0 : enteredAmount(amount), note: note.value,
+        seen: proofs.length > 0 && seen.size === proofs.length, previous_amount: review.amount};
+      if (initialToken) payload.token = initialToken;
+      else payload.request_id = review.id;
+      await update(initialToken ? action + "_order_receipt" : action, payload);
+    });
+    if (status === "pending") {
+      actions.append(button("تأیید فیش", run("approve")));
+      const reject = button("رد فیش", run("reject"));
+      reject.classList.add("gp-followup-reject");
+      actions.append(reject);
+    } else {
+      actions.append(button("اصلاح مبلغ فیش", run("adjust")));
+    }
   }
   const allowed = () => typeof has === "function" && (has("finance") || has("sales"));
   async function mount(root, id, activeSection) {
@@ -81,7 +147,8 @@
     marker.dataset.orderFollowupMounted = "";
     overview.append(marker);
     const correction = section(overview, "اصلاح سفارش مشتری");
-    const credit = has("finance") ? section(payment, "بازپرداخت اعتبار") : null;
+    const credit = has("finance") ? section(payment, "بررسی فیش‌ها") : null;
+    if (credit && modern) payment.prepend(credit);
     const status = element("p");
     const paymentStatus = credit ? element("p") : null;
     if (paymentStatus) {
@@ -117,9 +184,11 @@
         })));
       }
       if (has("sales") && data.can_return && review?.status !== "requested") {
-        const reason = field(correction, "علت بازگشت سفارش");
-        let key = requestId();
-        correction.append(button("بازگشت به مشتری", safe(status, async () => {
+        const fields = group(correction, "gp-followup-fields");
+        const reason = field(fields, "علت بازگشت سفارش");
+        const key = requestId();
+        const actions = group(correction, "gp-followup-actions");
+        actions.append(button("بازگشت به مشتری", safe(status, async () => {
           const result = await send("return", {request_id: key, note: reason.value});
           reason.disabled = true;
           status.textContent = result.correction.reason + " · درخواست اصلاح برای مشتری ارسال شد.";
@@ -128,66 +197,61 @@
         status.textContent = "امکان بازگشت این سفارش در وضعیت فعلی وجود ندارد.";
       }
       if (!credit) return;
-      const payments = data.repayments ?? [];
-      const initialProofs = data.proofs ?? [];
-      credit.hidden = !data.credit_amount && !payments.length && (modern || !initialProofs.length);
-      if (!modern && initialProofs.length) {
-        const documents = section(credit, "مدارک پرداخت سفارش");
-        for (const [index, proof] of initialProofs.entries()) {
-          const area = element("div");
-          const prefix = proof.kind === "check" ? "چک " : "رسید ";
-          documents.append(button("مشاهده " + prefix + (index + 1).toLocaleString("fa-IR"), safe(status, () => preview(area, id, proof))), area);
-          if (proof.note) documents.append(element("p", proof.note));
-        }
-      }
-      const creditStatus = element("p");
-      creditStatus.setAttribute("role", "status");
-      const content = element("div");
-      credit.append(creditStatus, content);
+      const content = group(credit, "gp-followup-list");
+      const creditStatus = paymentStatus;
+      const update = async (action, payload) => {
+        showPayments(await send(action, payload));
+        creditStatus.textContent = "نتیجه ثبت شد.";
+        await updateAlerts();
+      };
       const showPayments = summary => {
-        content.replaceChildren(element("p", "ماندهٔ اعتباری سفارش " + money(summary.outstanding)));
-        for (const item of summary.repayments ?? []) {
-          const labels = {pending: "در انتظار بررسی", approved: "تأییدشده", rejected: "ردشده"};
-          const block = section(content, labels[item.status] + " · " + money(item.status === "approved" ? item.amount : item.claimed_amount));
-          if (item.review_note) block.append(element("p", item.review_note));
-          const proofs = item.proofs ?? [];
-          const viewed = new Set();
-          for (const [index, proof] of proofs.entries()) {
-            const area = element("div");
-            block.append(button("مشاهده فیش " + (index + 1).toLocaleString("fa-IR"), safe(creditStatus, async () => {
-              await preview(area, id, proof);
-              viewed.add(proof.proof_token);
-            })), area);
-            if (proof.note) block.append(element("p", proof.note));
+        const receipts = summary.proofs ?? [];
+        const repayments = summary.repayments ?? [];
+        content.replaceChildren();
+        if (receipts.length) {
+          const documents = section(content, "مدارک پرداخت هنگام سفارش");
+          for (const [index, proof] of receipts.entries()) {
+            if (proof.kind === "check") {
+              const block = section(documents, "چک " + (index + 1).toLocaleString("fa-IR"));
+              showProof(block, id, proof, "پیش‌نمایش چک", new Set(), safe, creditStatus);
+              continue;
+            }
+            const block = section(documents, "فیش سفارش " + (index + 1).toLocaleString("fa-IR"));
+            const review = proof.review ?? {};
+            receiptCard(block, {id, proofs: [proof], review, initialToken: proof.proof_token, safe, creditStatus, update});
           }
-          if (item.status === "rejected") continue;
-          const amount = field(block, "مبلغ تومان", item.status === "approved" ? item.amount : item.claimed_amount, true);
-          const note = field(block, "توضیحات بررسی");
-          const update = action => safe(creditStatus, async () => {
-            if (action === "approve" && viewed.size !== proofs.length) throw new Error("ابتدا همهٔ مدارک را باز کنید.");
-            showPayments(await send(action, {
-              request_id: item.id, amount: Number(ascii(amount.value)), note: note.value,
-              seen: viewed.size === proofs.length, previous_amount: item.amount,
-            }));
-            creditStatus.textContent = "نتیجه ثبت شد.";
-            await updateAlerts();
-          });
-          if (item.status === "pending") block.append(button("تأیید فیش", update("approve")), button("رد فیش", update("reject")));
-          else block.append(button("اصلاح مبلغ ثبت‌شده", update("adjust")));
         }
-        if (summary.outstanding > 0) {
-          const manual = section(content, "ثبت دستی تسویهٔ تأییدشده");
-          const amount = field(manual, "مبلغ تومان", "", true);
-          const note = field(manual, "توضیحات تسویه");
-          const key = requestId();
-          manual.append(button("ثبت تسویه", safe(creditStatus, async () => {
-            showPayments(await send("manual", {request_id: key, amount: Number(ascii(amount.value)), note: note.value}));
-            creditStatus.textContent = "تسویه دستی ثبت شد.";
-          })));
+        if (summary.credit_amount > 0 || repayments.length) {
+          const repaymentsSection = section(content, "بازپرداخت اعتبار");
+          repaymentsSection.append(element("p", "ماندهٔ اعتباری سفارش " + money(summary.outstanding)));
+          for (const [index, item] of repayments.entries()) {
+            const block = section(repaymentsSection, "فیش بازپرداخت " + (index + 1).toLocaleString("fa-IR"));
+            receiptCard(block, {id, proofs: item.proofs ?? [], review: item, safe, creditStatus, update});
+          }
+          if (summary.outstanding > 0) {
+            const manual = section(repaymentsSection, "ثبت دستی تسویهٔ تأییدشده");
+            const fields = group(manual, "gp-followup-fields");
+            const amount = field(fields, "مبلغ (تومان)", "", true);
+            const note = field(fields, "توضیحات تسویه");
+            const key = requestId();
+            group(manual, "gp-followup-actions").append(button("ثبت تسویه", safe(creditStatus, () =>
+              update("manual", {request_id: key, amount: enteredAmount(amount), note: note.value}))));
+          }
         }
+        if (!content.children.length) content.append(element("p", "هنوز فیشی برای این سفارش ثبت نشده است."));
       };
       showPayments(data);
-      if (!modern && activeSection === "payment" && !credit.hidden) credit.scrollIntoView({block: "nearest"});
+      if (modern && (data.proofs?.length || data.repayments?.length || data.credit_amount > 0)) {
+        const actions = root.querySelector(".od2-header-actions");
+        if (actions) {
+          const jump = element("button", "بررسی فیش‌ها");
+          jump.type = "button";
+          jump.className = "btn2";
+          jump.dataset.od2Jump = "payment";
+          actions.prepend(jump);
+        }
+      }
+      if (!modern && activeSection === "payment") credit.scrollIntoView({block: "nearest"});
     })();
   }
   const shell = document.getElementById("app");
