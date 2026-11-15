@@ -36,6 +36,7 @@ jobs:
           php tests/portal-membership.php
           php tests/portal-messages.php
           php tests/portal-activity.php
+          php tests/order-proof-upload.php
           python3 scripts/release-portal-phase-one.py inspect
       - name: Apply and verify phase one
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

@@ -83,6 +83,7 @@ class PhaseOneRelease:
                 if response.read() != (staged / "assets" / asset).read_bytes():
                     raise RuntimeError("public asset mismatch: " + asset)
         for route in (
+            "/partners/api/native/order-proof",
             "/api/reports/portal-activity",
             "/api/portal-messages/templates",
             "/api/reports/customer-purchases",

@@ -36,9 +36,12 @@ if (!$staffRequest) {
 }
 
 if ($p === '/api/portal-messages/recipients' && $m === 'GET') {
-    out(db(false, static fn (array $state): array => array_values(
+    $recipients = db(false, static fn (array $state): array => array_values(
         $messages->recipients($state, 'is_customer_user', 'clean_mobile')
-    )));
+    ));
+    out(($_GET['with_limit'] ?? '') === '1'
+        ? ['recipients' => $recipients, 'max_recipients' => $policy['max_recipients']]
+        : $recipients);
 }
 if ($p === '/api/portal-messages/templates' && $m === 'GET') {
     out(db(false, static fn (array $state): array => array_values($state['portal_message_templates'][(int) $actor['id']] ?? [])));

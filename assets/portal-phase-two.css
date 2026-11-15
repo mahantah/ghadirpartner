@@ -11,3 +11,7 @@
 #customers .card:has(#portalRegistrations),#portalAdmin .card:has(#portalRegistrations) {display:none!important}
 #gpPortalMessages form {display:grid;gap:12px;max-width:760px}
 #gpPortalMessages form :is(textarea,select,input:not([type=checkbox])) {width:100%}
+#gpPortalMessages .gp-message-recipients {min-width:0;border:1px solid #dbe4ed;border-radius:10px;padding:10px}
+#gpPortalMessages .gp-message-recipients label {display:flex;align-items:center;gap:8px;min-height:38px}
+#gpPortalMessages .gp-message-recipient-options {max-height:260px;overflow:auto}
+#gpPortalMessages .gp-message-recipient-options label {border-top:1px solid #e9eff5}

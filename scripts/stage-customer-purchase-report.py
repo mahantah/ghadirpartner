@@ -19,6 +19,7 @@ class CustomerPurchaseReportStage:
         '<script defer src="/assets/customer-purchase-report.js?v=2"></script>'
     )
     _messages_v2 = '<script defer src="/assets/portal-messages.js?v=2"></script>'
+    _messages_v3 = _messages_v2.replace("?v=2", "?v=3")
     _new_assets = (
         '<link rel="stylesheet" href="/assets/portal-phase-two.css?v=2">'
         '\n<script defer src="/assets/portal-phase-two-navigation.js?v=2"></script>'
@@ -35,6 +36,7 @@ class CustomerPurchaseReportStage:
     _sidebar_rail_assets = _report_icon_assets.replace(
         "navigation.js?v=6", "navigation.js?v=7"
     )
+    _recipient_assets = _sidebar_rail_assets.replace("css?v=5", "css?v=6")
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -134,6 +136,9 @@ class CustomerPurchaseReportStage:
         "assets/portal-phase-two.css",
         "lib/portal-messages.php",
         "lib/portal-messages-routes.php",
+        "lib/order-proof-upload.php",
+        "lib/order-proof-upload-route.php",
+        "config/order-proof-upload.yaml",
         "config/portal-messages.yaml",
         "config/portal-stock.yaml",
         "config/portal-activity.yaml",
@@ -250,7 +255,7 @@ class CustomerPurchaseReportStage:
             self._section + self._card + self._activity_card,
         )
         closing = "\n</body></html>"
-        if self._messages_v2 not in app:
+        if self._messages_v2 not in app and self._messages_v3 not in app:
             if self._messages_script not in app:
                 app = self._insert(
                     app,
@@ -261,11 +266,13 @@ class CustomerPurchaseReportStage:
             app = self._insert(
                 app, self._messages_script, self._messages_v2 + "\n" + self._new_assets
             )
+        app = self._insert(app, self._messages_v2, self._messages_v3)
         app = self._insert(
             app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
         if (
-            self._sidebar_rail_assets not in app
+            self._recipient_assets not in app
+            and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
         ):
@@ -275,11 +282,12 @@ class CustomerPurchaseReportStage:
                     app = self._insert(app, self._new_assets, self._sidebar_release)
                 app = self._insert(app, self._sidebar_release, self._current_assets)
             app = self._insert(app, self._current_assets, self._report_submenu_assets)
-        if self._sidebar_rail_assets not in app:
+        if self._sidebar_rail_assets not in app and self._recipient_assets not in app:
             app = self._insert(
                 app, self._report_submenu_assets, self._report_icon_assets
             )
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
+        app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
         for name in self.sidebar_assets:
             asset = Path("assets", name)
             text = (source / asset).read_text()
@@ -325,6 +333,12 @@ class CustomerPurchaseReportStage:
                 router,
                 membership_loader,
                 self._activity_route + "\n" + membership_loader,
+            )
+            proof_route = (
+                "require dirname(__DIR__).'/lib/order-proof-upload-route.php';"
+            )
+            router = self._insert(
+                router, self._activity_route, proof_route + "\n" + self._activity_route
             )
             stock = "function warehouse_free_stock($s,$product){$n=0;"
             router = self._insert(
