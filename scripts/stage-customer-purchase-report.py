@@ -32,6 +32,9 @@ class CustomerPurchaseReportStage:
     _report_icon_assets = _report_submenu_assets.replace(
         "navigation.js?v=5", "navigation.js?v=6"
     )
+    _sidebar_rail_assets = _report_icon_assets.replace(
+        "navigation.js?v=6", "navigation.js?v=7"
+    )
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -262,7 +265,8 @@ class CustomerPurchaseReportStage:
             app, self._legacy_registration, "let showPanel=x.dataset.portalPanel===key;"
         )
         if (
-            self._report_icon_assets not in app
+            self._sidebar_rail_assets not in app
+            and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
         ):
             if self._current_assets not in app:
@@ -271,7 +275,11 @@ class CustomerPurchaseReportStage:
                     app = self._insert(app, self._new_assets, self._sidebar_release)
                 app = self._insert(app, self._sidebar_release, self._current_assets)
             app = self._insert(app, self._current_assets, self._report_submenu_assets)
-        app = self._insert(app, self._report_submenu_assets, self._report_icon_assets)
+        if self._sidebar_rail_assets not in app:
+            app = self._insert(
+                app, self._report_submenu_assets, self._report_icon_assets
+            )
+            app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
         for name in self.sidebar_assets:
             asset = Path("assets", name)
             text = (source / asset).read_text()
@@ -298,7 +306,9 @@ class CustomerPurchaseReportStage:
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
-        app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
+        if dock_url + '&dock=3"' not in app:
+            app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
+            app = self._insert(app, dock_url + '&dock=2"', dock_url + '&dock=3"')
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"
