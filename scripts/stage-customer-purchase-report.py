@@ -76,6 +76,7 @@ class CustomerPurchaseReportStage:
         "d1a5e6706afca7d98619dc7ce9c6dee7fb4417da5d8be6c58b8621fe7afa8d8b"
     }
     credit_library = "lib/customer-credit.php"
+    followup_bridge = "production-order-details-bridge-v1.js"
     followup_asset = "order-followup.js"
     native_proof_router = "partners/native-r54.php"
     order_flow_library = "lib/native-order-flow.php"
@@ -154,6 +155,7 @@ class CustomerPurchaseReportStage:
         "lib/order-followup-route.php",
         "config/order-followup.yaml",
         "assets/order-followup.js",
+        "assets/order-followup.css",
         "lib/order-proof-upload-route.php",
         "config/order-proof-upload.yaml",
         "config/portal-messages.yaml",
@@ -259,6 +261,26 @@ class CustomerPurchaseReportStage:
             "label.replace(/^تصویر /,'')+'</figcaption>",
             "label.replace(/^تصویر /,'')+(image.note?' · '+image.note:'')+'</figcaption>",
         )
+        bridge = Path("assets", self.followup_bridge)
+        bridge_source = (source / bridge).read_text()
+        (output / bridge).write_text(
+            self._insert(
+                bridge_source,
+                "return legacy.open(id);",
+                "return legacy.open(id, section);",
+            )
+        )
+        bridge_url = f'src="/{bridge.as_posix()}?'
+        _, found_bridge, bridge_tail = app.partition(bridge_url)
+        bridge_query, bridge_end, _ = bridge_tail.partition('"')
+        if not found_bridge or not bridge_end:
+            raise ValueError(f"Expected a versioned loader for {bridge}")
+        if not bridge_query.endswith("&followup=1"):
+            app = self._insert(
+                app,
+                bridge_url + bridge_query + bridge_end,
+                bridge_url + bridge_query + "&followup=1" + bridge_end,
+            )
         hook = "  overlay.classList.remove('hidden');gpOdActivate(section);"
         data = self._insert(
             data, hook, hook + "\n  window.gpOrderFollowup?.mount(root,o.id);"
@@ -441,8 +463,42 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        asset = '<script defer src="/assets/order-followup.js?v=1"></script>'
-        app = self._insert(app, self._messages_v3, self._messages_v3 + "\n" + asset)
+        old_script = '<script defer src="/assets/order-followup.js?v=1"></script>'
+        script = '<script defer src="/assets/order-followup.js?v=2"></script>'
+        if old_script in app:
+            app = self._insert(app, old_script, script)
+        elif script not in app:
+            app = self._insert(
+                app, self._messages_v3, self._messages_v3 + "\n" + script
+            )
+        alerts = """<button class="gp-order-alerts" type="button" id="gpOrderAlerts" aria-haspopup="dialog" hidden>
+  <span aria-hidden="true">🔔</span><span>اعلان‌های سفارش</span><span class="gp-order-alert-badge" id="gpOrderAlertsCount" hidden></span>
+</button>
+<dialog class="gp-order-alerts-dialog" id="gpOrderAlertsDialog" aria-labelledby="gpOrderAlertsTitle" dir="rtl">
+  <div><div class="gp-order-alerts-heading"><h2 id="gpOrderAlertsTitle">اعلان‌های سفارش</h2>
+  <form method="dialog"><button class="btn2" type="submit" autofocus>بستن</button></form></div>
+  <p id="gpOrderAlertsStatus" role="status">در حال دریافت اعلان‌ها…</p><ul id="gpOrderAlertsList"></ul></div>
+</dialog>
+"""
+        header = '<div id="app" class="hidden"><header>'
+        app = self._insert(app, header, header + alerts)
+        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=1">'
+        dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css'
+        app = self._insert(app, dock, stylesheet + "\n" + dock)
+        legacy = "$('orderDetailOverlay').classList.remove('hidden')}\nfunction closeOrderDetails()"
+        app = self._insert(
+            app,
+            legacy,
+            "$('orderDetailOverlay').classList.remove('hidden');"
+            "window.gpOrderFollowup?.mount($('orderDetailBody'),o.id,section)}\nfunction closeOrderDetails()",
+        )
+        app = self._insert(
+            app,
+            "async function openOrderDetails(id){await ensureOrderSerialMeta(id);",
+            "async function openOrderDetails(id,section='overview'){await ensureOrderSerialMeta(id);",
+        )
+        poll = "async function pollNotif(){if(!ME)return;try{"
+        app = self._insert(app, poll, poll + "window.gpOrderFollowup?.updateAlerts();")
         return index, app
 
     def stage_panel_switches(

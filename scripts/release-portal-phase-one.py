@@ -72,6 +72,7 @@ class PhaseOneRelease:
             "portal-phase-two-activity.js",
             "portal-phase-two-activity-client.js",
             "order-followup.js",
+            "order-followup.css",
             *shell_assets,
         ):
             match = re.search(
@@ -111,6 +112,7 @@ class PhaseOneRelease:
             *stage.console_assets,
             stage.dock_asset,
             stage.proof_asset,
+            stage.followup_bridge,
         )
         entries = (
             *(f"assets/{name}" for name in shell_assets),
