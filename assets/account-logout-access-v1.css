@@ -4,8 +4,8 @@
 #app > .userbox.gp-account-docked {
   position: fixed !important;
   bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
-  left: max(10px, env(safe-area-inset-left, 0px)) !important;
-  right: auto !important;
+  right: max(10px, env(safe-area-inset-right, 0px)) !important;
+  left: auto !important;
   top: auto !important;
   transform: none !important;
   width: min(292px, calc(100vw - 22px)) !important;
@@ -52,6 +52,14 @@
   color: #fff !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
   box-shadow: none !important;
+}
+#app .userbox :is(#changePasswordBtn, #logoutbtn) {
+  gap: 6px;
+}
+#app .userbox :is(#changePasswordBtn, #logoutbtn) > .gp-menu-icon {
+  width: 18px !important;
+  height: 18px !important;
+  flex: 0 0 18px !important;
 }
 #app > .userbox.gp-account-docked #logoutbtn {
   color: #ffc79a !important;

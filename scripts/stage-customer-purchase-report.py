@@ -62,6 +62,7 @@ class CustomerPurchaseReportStage:
         "customer-ops-stabilize-v1.js",
         "session-keep-v1.js",
     )
+    dock_asset = "account-logout-access-v1.css"
     _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
     _portal_entry = _sales_entry + '\n      nav.querySelector("#gpPortalReportsMenu"),'
     _reports_entry = """nav.querySelector(':scope > #gpPortalReportsMenu') || nav.querySelector(':scope > [data-tab="salesReports"]'),"""
@@ -294,6 +295,10 @@ class CustomerPurchaseReportStage:
                     start + next_query + "&portalreports=4" + end,
                 )
         app = self.stage_console(app, source, output)
+        dock_path = Path("assets", self.dock_asset)
+        copyfile(self._package / dock_path, output / dock_path)
+        dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
+        app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"
