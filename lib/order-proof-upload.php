@@ -1,17 +1,17 @@
 <?php
 declare(strict_types=1);
 
-/** Attach a missing customer payment image using the existing private proof format. */
+/** Attach customer payment documents using the existing private proof format. */
 final class GpOrderProofUpload
 {
     private string $directory;
     private array $policy;
-    private ?string $written = null;
+    private array $written = [];
 
     /** Set the protected directory and validate upload limits. */
     public function __construct(string $directory, array $policy)
     {
-        foreach (['max_encoded_bytes', 'max_dimension'] as $key) {
+        foreach (['max_encoded_bytes', 'max_dimension', 'max_per_kind', 'max_batch_bytes'] as $key) {
             if (!isset($policy[$key]) || !is_int($policy[$key]) || $policy[$key] < 1) {
                 throw new RuntimeException('Invalid order proof policy.');
             }
@@ -20,31 +20,76 @@ final class GpOrderProofUpload
         $this->policy = $policy;
     }
 
-    /** Record one missing proof inside the order database transaction. */
+    /** Load the validated policy beside the order routes. */
+    public static function configured(string $directory): self
+    {
+        $policy = json_decode((string) file_get_contents(dirname(__DIR__).'/config/order-proof-upload.yaml'), true, 512, JSON_THROW_ON_ERROR);
+        $upload = new self($directory, $policy);
+        register_shutdown_function([$upload, 'cleanup']);
+        return $upload;
+    }
+
+    /** Record a missing proof from clients using the single-file request. */
     public function attach(array &$state, int $customerId, int $orderId, string $kind, string $encoded, string $now): array
     {
-        if (!in_array($kind, ['cash', 'check'], true)) {
-            throw new DomainException('نوع مدرک معتبر نیست.', 422);
-        }
+        return $this->attachBatch($state, $customerId, $orderId, $kind, [$encoded], $now, true);
+    }
+
+    /** Append a whole selection to a customer-owned order. */
+    public function attachBatch(array &$state, int $customerId, int $orderId, string $kind, array $files, string $now, bool $legacy = false): array
+    {
         foreach ($state['orders'] ?? [] as $index => $order) {
             if ((int) ($order['id'] ?? 0) === $orderId && (int) ($order['customer_id'] ?? 0) === $customerId && empty($order['deleted'])) {
-                return $this->attachTo($state['orders'][$index], $kind, $encoded, $now);
+                return $this->append($state['orders'][$index], $kind, $files, $now, $legacy);
             }
         }
         throw new DomainException('سفارش پیدا نشد.', 404);
     }
 
-    /** Roll back a private file when the order write fails. */
-    public function cleanup(): void
+    /** Store checkout evidence as part of the new order transaction. */
+    public function appendCheckout(array &$order, array $selection, string $now): void
     {
-        if ($this->written !== null) {
-            @unlink($this->written);
+        $totalBytes = 0;
+        foreach ($selection as $kind => $files) {
+            if (!in_array($kind, ['cash', 'check'], true) || !is_array($files)) {
+                throw new DomainException('نوع مدرک معتبر نیست.', 422);
+            }
+            foreach ($files as $encoded) {
+                if (!is_string($encoded)) {
+                    throw new DomainException('فایل معتبر نیست.', 422);
+                }
+                $totalBytes += strlen($encoded);
+            }
+        }
+        if ($totalBytes > $this->policy['max_batch_bytes']) {
+            throw new DomainException('حجم مجموع فایل‌ها بیش از حد مجاز است.', 413);
+        }
+        foreach ($selection as $kind => $files) {
+            $this->append($order, $kind, $files, $now);
         }
     }
 
-    /** Validate order eligibility and append without replacing earlier evidence. */
-    private function attachTo(array &$order, string $kind, string $encoded, string $now): array
+    /** Keep files only after the order database transaction has committed. */
+    public function commit(): void
     {
+        $this->written = [];
+    }
+
+    /** Roll back private files when the order write fails. */
+    public function cleanup(): void
+    {
+        foreach ($this->written as $path) {
+            @unlink($path);
+        }
+        $this->written = [];
+    }
+
+    /** Validate a complete selection before writing and preserve earlier evidence. */
+    private function append(array &$order, string $kind, array $files, string $now, bool $legacy = false): array
+    {
+        if (!in_array($kind, ['cash', 'check'], true)) {
+            throw new DomainException('نوع مدرک معتبر نیست.', 422);
+        }
         $method = $order['requested_payment_method'] ?? '';
         $settlement = $order['native_settlement'] ?? [];
         if (($method !== $kind && ($method !== 'mixed' || (int) ($settlement[$kind.'_amount'] ?? 0) < 1)) ||
@@ -60,36 +105,89 @@ final class GpOrderProofUpload
                 'proof_mime' => $settlement['proof_mime'] ?? 'image/jpeg',
             ];
         }
-        foreach ($proofs as $proof) {
-            if (($proof['kind'] ?? '') === $kind && !empty($proof['proof_token'])) {
-                return ['ok' => true, 'kind' => $kind];
+        $matching = array_values(array_filter($proofs, static fn (array $proof): bool =>
+            ($proof['kind'] ?? '') === $kind && !empty($proof['proof_token'])
+        ));
+        if ($legacy && $matching) {
+            return ['ok' => true, 'kind' => $kind, 'count' => count($matching)];
+        }
+        if (!$files || array_values($files) !== $files || count($files) > $this->policy['max_per_kind']) {
+            throw new DomainException('تعداد فایل‌ها را بررسی کنید.', 422);
+        }
+        $hashes = [];
+        foreach ($matching as $proof) {
+            if (!empty($proof['proof_hash'])) {
+                $hashes[$proof['proof_hash']] = true;
             }
         }
-        if (strlen($encoded) > $this->policy['max_encoded_bytes']) {
-            throw new DomainException('حجم تصویر بیش از حد مجاز است.', 413);
+        $validated = [];
+        $totalBytes = 0;
+        foreach ($files as $encoded) {
+            if (!is_string($encoded)) {
+                throw new DomainException('فایل معتبر نیست.', 422);
+            }
+            $totalBytes += strlen($encoded);
+            if ($totalBytes > $this->policy['max_batch_bytes']) {
+                throw new DomainException('حجم مجموع فایل‌ها بیش از حد مجاز است.', 413);
+            }
+            [$bytes, $mime] = $this->decode($encoded);
+            $hash = hash('sha256', $bytes);
+            if (!isset($hashes[$hash])) {
+                $validated[$hash] = [$bytes, $mime];
+                $hashes[$hash] = true;
+            }
         }
-        $bytes = base64_decode($encoded, true);
-        $info = $bytes === false ? false : @getimagesizefromstring($bytes);
-        if (!$info || !in_array($info['mime'] ?? '', ['image/jpeg', 'image/png'], true) ||
-            max($info[0], $info[1]) > $this->policy['max_dimension']) {
-            throw new DomainException('تصویر معتبر نیست.', 422);
+        $count = count($matching) + count($validated);
+        if ($count > $this->policy['max_per_kind']) {
+            throw new DomainException('حداکثر '. $this->policy['max_per_kind'].' فایل برای هر نوع مدرک مجاز است.', 422);
         }
-        if (!is_dir($this->directory) && !@mkdir($this->directory, 0750, true) && !is_dir($this->directory)) {
-            throw new RuntimeException('Cannot create private proof directory.');
+        if (!$validated) {
+            return ['ok' => true, 'kind' => $kind, 'count' => $count];
         }
-        $token = bin2hex(random_bytes(24));
-        $this->written = $this->directory.'/'.$token.'.php';
-        $content = "<?php http_response_code(404); exit; ?>\n".$bytes;
-        if (file_put_contents($this->written, $content, LOCK_EX) !== strlen($content)) {
-            throw new RuntimeException('Cannot store private proof.');
+        foreach ($validated as $hash => [$bytes, $mime]) {
+            $proofs[] = $this->store($kind, $bytes, $mime, $hash);
         }
-        @chmod($this->written, 0640);
-        $proofs[] = ['kind' => $kind, 'proof_token' => $token, 'proof_mime' => $info['mime']];
         $settlement['proofs'] = $proofs;
         $settlement['proof_token'] = $proofs[0]['proof_token'];
         $settlement['proof_mime'] = $proofs[0]['proof_mime'];
         $settlement['proof_updated_at'] = $now;
         $order['native_settlement'] = $settlement;
-        return ['ok' => true, 'kind' => $kind];
+        return ['ok' => true, 'kind' => $kind, 'count' => $count];
+    }
+
+    /** Accept decoded photos and bounded PDF documents, checking bytes instead of file names. */
+    private function decode(string $encoded): array
+    {
+        if (strlen($encoded) > $this->policy['max_encoded_bytes']) {
+            throw new DomainException('حجم فایل بیش از حد مجاز است.', 413);
+        }
+        $bytes = base64_decode($encoded, true);
+        if ($bytes !== false && preg_match('/^%PDF-[12]\.[0-9]/D', $bytes) &&
+            preg_match('/%%EOF[\x00\t\n\f\r ]*$/D', substr($bytes, -1024))) {
+            return [$bytes, 'application/pdf'];
+        }
+        $info = $bytes === false ? false : @getimagesizefromstring($bytes);
+        if (!$info || !in_array($info['mime'] ?? '', ['image/jpeg', 'image/png'], true) ||
+            max($info[0], $info[1]) > $this->policy['max_dimension']) {
+            throw new DomainException('فقط عکس یا فایل PDF معتبر را انتخاب کنید.', 422);
+        }
+        return [$bytes, $info['mime']];
+    }
+
+    /** Store each document in the existing private proof format. */
+    private function store(string $kind, string $bytes, string $mime, string $hash): array
+    {
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0750, true) && !is_dir($this->directory)) {
+            throw new RuntimeException('Cannot create private proof directory.');
+        }
+        $token = bin2hex(random_bytes(24));
+        $path = $this->directory.'/'.$token.'.php';
+        $this->written[] = $path;
+        $content = "<?php http_response_code(404); exit; ?>\n".$bytes;
+        if (file_put_contents($path, $content, LOCK_EX) !== strlen($content)) {
+            throw new RuntimeException('Cannot store private proof.');
+        }
+        @chmod($path, 0640);
+        return ['kind' => $kind, 'proof_token' => $token, 'proof_mime' => $mime, 'proof_hash' => $hash];
     }
 }

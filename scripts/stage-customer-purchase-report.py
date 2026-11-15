@@ -70,6 +70,8 @@ class CustomerPurchaseReportStage:
         "session-keep-v1.js",
     )
     dock_asset = "account-logout-access-v1.css"
+    proof_asset = "order-details-v2-approved-20261024.js"
+    native_proof_router = "partners/native-r54.php"
     order_flow_library = "lib/native-order-flow.php"
     _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
     _portal_entry = _sales_entry + '\n      nav.querySelector("#gpPortalReportsMenu"),'
@@ -218,6 +220,97 @@ class CustomerPurchaseReportStage:
                     app, start + query + end, start + query + "&console=1" + end
                 )
         return app
+
+    def stage_proof_documents(self, app: str, source: Path, output: Path) -> str:
+        """Add PDF downloads alongside the existing photo previews."""
+        asset = Path("assets", self.proof_asset)
+        data = self._insert(
+            (source / asset).read_text(),
+            "extension:proof.proof_mime==='image/png'?'png':'jpg'",
+            "extension:proof.proof_mime==='application/pdf'?'pdf':proof.proof_mime==='image/png'?'png':'jpg'",
+        )
+        label = "    const label=image.label;\n"
+        data = self._insert(
+            data,
+            label,
+            label
+            + """    if(image.extension==='pdf')return '<figure class="od2-evidence"><figcaption>'+label.replace(/^تصویر /,'')+'</figcaption><a class="btn2" href="'+image.src+'" download="payment-'+String(Number(o.id)||0)+'-'+index+'.pdf">دانلود فایل PDF</a></figure>';\n""",
+        )
+        (output / asset).write_text(data)
+        start = f'src="/{asset.as_posix()}?'
+        _, found, tail = app.partition(start)
+        query, end, _ = tail.partition('"')
+        if not found or not end:
+            raise ValueError(f"Expected a versioned loader for {asset}")
+        if not query.endswith("&proofs=2"):
+            app = self._insert(
+                app, start + query + end, start + query + "&proofs=2" + end
+            )
+        return app
+
+    def stage_checkout_proofs(self, router: str, source: Path, output: Path) -> str:
+        """Run multi-file checkout inside the existing order write transaction."""
+        native = Path(self.native_proof_router)
+        header = "header('Content-Type: '.$proof['proof_mime']);"
+        (output / native).parent.mkdir(parents=True, exist_ok=True)
+        (output / native).write_text(
+            self._insert(
+                (source / native).read_text(),
+                header,
+                header
+                + """if($proof['proof_mime']==='application/pdf')header('Content-Disposition: attachment; filename="payment-document.pdf"');""",
+            )
+        )
+        method_guard = "    if($isCustomer&&!isset($paymentLabels[$requestedPayment]))"
+        router = self._insert(
+            router,
+            method_guard,
+            "    $paymentLabels['mixed']=$paymentLabels['mixed']??'تسویه ترکیبی';\n"
+            + method_guard,
+        )
+        checkout = "    $result=db(true,function(&$s)use($x,$u,$isCustomer,$requestedPayment,$paymentLabels,$promoInput,$gpCustomerOrderFlow){"
+        router = self._insert(
+            router,
+            checkout,
+            """    $paymentFiles=$isCustomer?($x['settlement_details']['payment_files']??null):null;
+    $checkoutProofs=null;
+    if($paymentFiles!==null){
+        if(!is_array($paymentFiles))fail('فایل‌های پرداخت معتبر نیستند.',422);
+        require_once dirname(__DIR__).'/lib/order-proof-upload.php';
+        $checkoutProofs=GpOrderProofUpload::configured(dirname($file).'/native-proofs');
+    }
+"""
+            + checkout.replace(
+                "$gpCustomerOrderFlow){",
+                "$gpCustomerOrderFlow,$checkoutProofs,$paymentFiles){",
+            ),
+        )
+        order = "        $history=$isCustomer?'سفارش توسط مشتری با فاکتور "
+        router = self._insert(
+            router,
+            order,
+            """        if($isCustomer&&$requestedPayment==='mixed'){
+            foreach(['cash','check'] as $kind){
+                $amount=$kind.'_amount';
+                $o['native_settlement'][$amount]=$o['native_settlement'][$amount]??($x['settlement_details'][$amount]??0);
+            }
+        }
+        if($checkoutProofs!==null){
+            try {
+                $checkoutProofs->appendCheckout($o,$paymentFiles,$o['created_at']);
+            } catch (DomainException $error) {
+                fail($error->getMessage(),$error->getCode());
+            }
+        }
+"""
+            + order,
+        )
+        result = "    [$order,$customer,$adminMobiles]=$result;"
+        return self._insert(
+            router,
+            result,
+            "    if($checkoutProofs!==null)$checkoutProofs->commit();\n" + result,
+        )
 
     def stage_panel_switches(
         self, app: str, router: str, source: Path, output: Path
@@ -380,6 +473,7 @@ class CustomerPurchaseReportStage:
                     start + next_query + "&portalreports=4" + end,
                 )
         app = self.stage_console(app, source, output)
+        app = self.stage_proof_documents(app, source, output)
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
@@ -465,7 +559,11 @@ class CustomerPurchaseReportStage:
                 output / "config/portal-membership.yaml",
             )
             (target / "index.php").write_text(
-                self.stage_panel_switches(app, router, source, output)
+                self.stage_checkout_proofs(
+                    self.stage_panel_switches(app, router, source, output),
+                    source,
+                    output,
+                )
             )
             web = (source / "partners/portal.html").read_text()
             policy = json.loads(

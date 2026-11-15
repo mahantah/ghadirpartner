@@ -29,6 +29,35 @@ try {
         count(glob($directory.'/*.php')) !== 2) {
         throw new RuntimeException('Proof retry or payment state regression.');
     }
+    $pdf = base64_encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+    $anotherImage = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
+    $result = $service->attachBatch($state, 3, 4, 'check', [$pdf, $anotherImage], '');
+    $retry = $service->attachBatch($state, 3, 4, 'check', [$pdf, $anotherImage], '');
+    if ($result['count'] !== 3 || $retry['count'] !== 3 ||
+        array_column($state['orders'][0]['native_settlement']['proofs'], 'proof_mime') !== [
+            'image/png', 'image/png', 'application/pdf', 'image/png',
+        ] || count(glob($directory.'/*.php')) !== 4) {
+        throw new RuntimeException('Batch must append distinct files without replacing prior proofs.');
+    }
+    $checkoutService = new GpOrderProofUpload($directory, $policy);
+    $checkout = $order;
+    try {
+        $checkoutService->appendCheckout($checkout, ['cash' => [$pdf], 'check' => ['invalid']], '');
+        throw new RuntimeException('Invalid checkout batch was accepted.');
+    } catch (DomainException $error) {
+        if ($error->getCode() !== 422) {
+            throw $error;
+        }
+        $checkoutService->cleanup();
+        if (count(glob($directory.'/*.php')) !== 4) {
+            throw new RuntimeException('Failed checkout left a private file behind.');
+        }
+    }
+    $checkout = $order;
+    $checkoutService->appendCheckout($checkout, ['cash' => [$pdf, $image], 'check' => [$image]], '');
+    if (array_column($checkout['native_settlement']['proofs'], 'kind') !== ['cash', 'cash', 'check']) {
+        throw new RuntimeException('Checkout lost a selected payment proof.');
+    }
 } finally {
     foreach (glob($directory.'/*.php') ?: [] as $proof) {
         unlink($proof);
@@ -37,4 +66,4 @@ try {
         rmdir($directory);
     }
 }
-echo "Order proof ownership, validation and retry passed.\n";
+echo "Order proof ownership, validation, multiple files, checkout and retry passed.\n";
