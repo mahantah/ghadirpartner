@@ -1,7 +1,9 @@
 """Stage the customer purchase report against the owner's application source."""
 
 import json
+import re
 from argparse import ArgumentParser
+from html import unescape
 from pathlib import Path
 from shutil import copyfile
 
@@ -68,6 +70,7 @@ class CustomerPurchaseReportStage:
         "session-keep-v1.js",
     )
     dock_asset = "account-logout-access-v1.css"
+    order_flow_library = "lib/native-order-flow.php"
     _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
     _portal_entry = _sales_entry + '\n      nav.querySelector("#gpPortalReportsMenu"),'
     _reports_entry = """nav.querySelector(':scope > #gpPortalReportsMenu') || nav.querySelector(':scope > [data-tab="salesReports"]'),"""
@@ -128,6 +131,8 @@ class CustomerPurchaseReportStage:
 </details>
 """
     _files = (
+        "lib/portal-panel-switches.php",
+        "lib/portal-panel-switches-route.php",
         "lib/customer-purchase-report.php",
         "lib/customer-purchase-report-route.php",
         "assets/customer-purchase-report.js",
@@ -213,6 +218,70 @@ class CustomerPurchaseReportStage:
                     app, start + query + end, start + query + "&console=1" + end
                 )
         return app
+
+    def stage_panel_switches(
+        self, app: str, router: str, source: Path, output: Path
+    ) -> str:
+        """Publish the form's current switch options and preserve each order line's choice."""
+        form = re.search(r'<div id="pspSelect"[^>]*>(.*?)</div>', app, re.DOTALL)
+        if form is None:
+            raise ValueError("Automation switch list is missing.")
+        options = [
+            unescape(label)
+            for label in re.findall(r'<input\b[^>]*\bvalue="([^"]+)"', form[1])
+        ]
+        if not options or len(set(options)) != len(options):
+            raise ValueError("Automation switch options are empty or duplicated.")
+        policy = output / "config/portal-panel-switches.yaml"
+        policy.parent.mkdir(parents=True, exist_ok=True)
+        policy.write_text(json.dumps(options, ensure_ascii=False) + "\n")
+        flow = Path(self.order_flow_library)
+        identity = '$identity = $name . "\\0" . $key;'
+        (output / flow).parent.mkdir(parents=True, exist_ok=True)
+        (output / flow).write_text(
+            self._insert(
+                (source / flow).read_text(),
+                identity,
+                "$identity = $name . \"\\0\" . $key . \"\\0\" . (is_string($item['panel_switch'] ?? null) ? $item['panel_switch'] : '');",
+            )
+        )
+        loader = "require_once dirname(__DIR__).'/lib/native-order-flow-routes.php';"
+        router = self._insert(
+            router,
+            loader,
+            "require dirname(__DIR__).'/lib/portal-panel-switches-route.php';\n"
+            + loader,
+        )
+        prepare = "        $subtotal=0;$items=[];$requested=[];$seenItems=[];"
+        router = self._insert(
+            router,
+            prepare,
+            "        $panelSwitches=null;$selectedPanels=[];\n" + prepare,
+        )
+        key = "$purchaseIdentity=$isCustomer?$name.\"\\0\".trim((string)($it['price_key']??'')):$name;"
+        router = self._insert(
+            router,
+            key,
+            "$switch='';if($isCustomer&&array_key_exists('panel_switch',$it)){"
+            "require_once dirname(__DIR__).'/lib/portal-panel-switches.php';"
+            "$panelSwitches=$panelSwitches??GpPortalPanelSwitches::published();"
+            "try{$switch=$panelSwitches->choice($it);}catch(InvalidArgumentException $e){fail($e->getMessage(),422);}"
+            "if($switch!=='')$selectedPanels[$switch]=true;}\n            "
+            "$purchaseIdentity=$isCustomer?$name.\"\\0\".trim((string)($it['price_key']??'')).\"\\0\".$switch:$name;",
+        )
+        amount = "$subtotal+=$line;"
+        router = self._insert(
+            router,
+            amount,
+            "if($switch!=='')$items[count($items)-1]['panel_switch']=$switch;" + amount,
+        )
+        store = "$o['purchase_items']=$purchaseItems;"
+        return self._insert(
+            router,
+            store,
+            store
+            + "if($selectedPanels){$o['panels']=array_keys($selectedPanels);$o['psp']=$o['panels'][0];}",
+        )
 
     def stage(
         self, source: Path, output: Path, partner_router: Path | None = None
@@ -395,7 +464,9 @@ class CustomerPurchaseReportStage:
                 self._package / "config/portal-membership.yaml",
                 output / "config/portal-membership.yaml",
             )
-            (target / "index.php").write_text(router)
+            (target / "index.php").write_text(
+                self.stage_panel_switches(app, router, source, output)
+            )
             web = (source / "partners/portal.html").read_text()
             policy = json.loads(
                 (self._package / "config/portal-activity.yaml").read_text()

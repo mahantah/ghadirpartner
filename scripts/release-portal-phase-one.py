@@ -83,6 +83,7 @@ class PhaseOneRelease:
                 if response.read() != (staged / "assets" / asset).read_bytes():
                     raise RuntimeError("public asset mismatch: " + asset)
         for route in (
+            "/partners/api/native/panel-switches",
             "/partners/api/native/order-proof",
             "/api/reports/portal-activity",
             "/api/portal-messages/templates",
@@ -110,6 +111,7 @@ class PhaseOneRelease:
         )
         entries = (
             *(f"assets/{name}" for name in shell_assets),
+            stage.order_flow_library,
             "index.php",
             "app.html",
             "partners/index.php",
@@ -151,6 +153,10 @@ class PhaseOneRelease:
             )
             subprocess.run(
                 ["node", str(ROOT / "tests/portal-console.cjs"), str(staged)],
+                check=True,
+            )
+            subprocess.run(
+                ["php", str(ROOT / "tests/portal-panel-switches.php"), str(staged)],
                 check=True,
             )
             print("Live anchors and PHP syntax verified.")
