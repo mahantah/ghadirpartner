@@ -1,10 +1,10 @@
 name: Release portal phase one
 on:
   pull_request:
-    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/release-portal-phase-one.py', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*']
+    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/release-portal-phase-one.py', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*', 'lib/order-followup*.php']
   push:
     branches: [main]
-    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*']
+    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*', 'lib/order-followup*.php']
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,6 +38,7 @@ jobs:
           php tests/portal-activity.php
           php tests/order-proof-upload.php
           php tests/order-followup.php
+          php tests/order-correction-route.php
           python3 scripts/release-portal-phase-one.py inspect
       - name: Apply and verify phase one
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
