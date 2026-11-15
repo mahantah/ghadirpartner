@@ -24,7 +24,9 @@ final class GpOrderProofUpload
     public static function configured(string $directory): self
     {
         $policy = json_decode((string) file_get_contents(dirname(__DIR__).'/config/order-proof-upload.yaml'), true, 512, JSON_THROW_ON_ERROR);
-        return new self($directory, $policy);
+        $upload = new self($directory, $policy);
+        register_shutdown_function([$upload, 'cleanup']);
+        return $upload;
     }
 
     /** Record a missing proof from clients using the single-file request. */
@@ -65,6 +67,12 @@ final class GpOrderProofUpload
         foreach ($selection as $kind => $files) {
             $this->append($order, $kind, $files, $now);
         }
+    }
+
+    /** Keep files only after the order database transaction has committed. */
+    public function commit(): void
+    {
+        $this->written = [];
     }
 
     /** Roll back private files when the order write fails. */

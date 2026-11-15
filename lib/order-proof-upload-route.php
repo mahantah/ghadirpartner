@@ -20,18 +20,23 @@ $kind = $payload['kind'] ?? null;
 $image = $payload['image_base64'] ?? null;
 $files = $payload['files'] ?? null;
 if (!is_int($orderId) || $orderId < 1 || !is_string($kind) || ($files === null ? (!is_string($image) || $image === '') : !is_array($files))) {
-    fail('شماره سفارش و تصویر را بررسی کنید.', 422);
+    fail('شماره سفارش و فایل‌ها را بررسی کنید.', 422);
 }
 $upload = GpOrderProofUpload::configured(dirname($file).'/native-proofs');
 try {
-    out(db(true, static fn (array &$state): array => $files === null
-        ? $upload->attach($state, $customerId, $orderId, $kind, $image, now())
-        : $upload->attachBatch($state, $customerId, $orderId, $kind, $files, now())));
-} catch (DomainException $error) {
-    $upload->cleanup();
-    fail($error->getMessage(), $error->getCode());
+    $result = db(true, static function (array &$state) use ($upload, $customerId, $orderId, $kind, $image, $files): array {
+        try {
+            return $files === null
+                ? $upload->attach($state, $customerId, $orderId, $kind, $image, now())
+                : $upload->attachBatch($state, $customerId, $orderId, $kind, $files, now());
+        } catch (DomainException $error) {
+            fail($error->getMessage(), $error->getCode());
+        }
+    });
+    $upload->commit();
+    out($result);
 } catch (Throwable $error) {
     $upload->cleanup();
     error_log('Native order proof upload failed: '.get_class($error));
-    fail('ذخیرهٔ تصویر انجام نشد. دوباره تلاش کنید.', 503);
+    fail('ذخیرهٔ فایل‌ها انجام نشد. دوباره تلاش کنید.', 503);
 }

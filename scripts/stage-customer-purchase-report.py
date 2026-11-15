@@ -261,6 +261,13 @@ class CustomerPurchaseReportStage:
                 + """if($proof['proof_mime']==='application/pdf')header('Content-Disposition: attachment; filename="payment-document.pdf"');""",
             )
         )
+        method_guard = "    if($isCustomer&&!isset($paymentLabels[$requestedPayment]))"
+        router = self._insert(
+            router,
+            method_guard,
+            "    $paymentLabels['mixed']=$paymentLabels['mixed']??'تسویه ترکیبی';\n"
+            + method_guard,
+        )
         checkout = "    $result=db(true,function(&$s)use($x,$u,$isCustomer,$requestedPayment,$paymentLabels,$promoInput,$gpCustomerOrderFlow){"
         router = self._insert(
             router,
@@ -272,7 +279,6 @@ class CustomerPurchaseReportStage:
         require_once dirname(__DIR__).'/lib/order-proof-upload.php';
         $checkoutProofs=GpOrderProofUpload::configured(dirname($file).'/native-proofs');
     }
-    try {
 """
             + checkout.replace(
                 "$gpCustomerOrderFlow){",
@@ -283,14 +289,18 @@ class CustomerPurchaseReportStage:
         router = self._insert(
             router,
             order,
-            """        if($checkoutProofs!==null){
-            if($requestedPayment==='mixed'){
-                foreach(['cash','check'] as $kind){
-                    $amount=$kind.'_amount';
-                    $o['native_settlement'][$amount]=$o['native_settlement'][$amount]??($x['settlement_details'][$amount]??0);
-                }
+            """        if($isCustomer&&$requestedPayment==='mixed'){
+            foreach(['cash','check'] as $kind){
+                $amount=$kind.'_amount';
+                $o['native_settlement'][$amount]=$o['native_settlement'][$amount]??($x['settlement_details'][$amount]??0);
             }
-            $checkoutProofs->appendCheckout($o,$paymentFiles,$o['created_at']);
+        }
+        if($checkoutProofs!==null){
+            try {
+                $checkoutProofs->appendCheckout($o,$paymentFiles,$o['created_at']);
+            } catch (DomainException $error) {
+                fail($error->getMessage(),$error->getCode());
+            }
         }
 """
             + order,
@@ -299,16 +309,7 @@ class CustomerPurchaseReportStage:
         return self._insert(
             router,
             result,
-            """    } catch (DomainException $error) {
-        if($checkoutProofs!==null)$checkoutProofs->cleanup();
-        if($checkoutProofs===null)throw $error;
-        fail($error->getMessage(),$error->getCode());
-    } catch (Throwable $error) {
-        if($checkoutProofs!==null)$checkoutProofs->cleanup();
-        throw $error;
-    }
-"""
-            + result,
+            "    if($checkoutProofs!==null)$checkoutProofs->commit();\n" + result,
         )
 
     def stage_panel_switches(
