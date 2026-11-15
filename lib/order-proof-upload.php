@@ -132,10 +132,14 @@ final class GpOrderProofUpload
     }
 
     /** Save a separate bundle of documents for a pending credit repayment. */
-    public function storeSelection(string $kind, array $files): array
+    public function storeSelection(string $kind, array $files, array $existingHashes = [], bool $distinct = false): array
     {
+        $selection = $this->validateSelection($files);
+        if (($distinct && count($selection) !== count($files)) || array_intersect(array_keys($selection), $existingHashes)) {
+            throw new DomainException('این تصویر فیش تکراری است.', 422);
+        }
         $stored = [];
-        foreach ($this->validateSelection($files) as $hash => [$bytes, $mime, $note]) {
+        foreach ($selection as $hash => [$bytes, $mime, $note]) {
             $stored[] = $this->store($kind, $bytes, $mime, $hash, $note);
         }
         return $stored;
