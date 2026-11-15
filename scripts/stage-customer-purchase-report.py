@@ -152,6 +152,7 @@ class CustomerPurchaseReportStage:
         "lib/portal-messages-routes.php",
         "lib/order-proof-upload.php",
         "lib/order-followup.php",
+        "lib/order-settlement-progress.php",
         "lib/order-followup-route.php",
         "config/order-followup.yaml",
         "assets/order-followup.js",
@@ -285,17 +286,30 @@ class CustomerPurchaseReportStage:
         data = self._insert(
             data, hook, hook + "\n  window.gpOrderFollowup?.mount(root,o.id);"
         )
+        payment = "gpOdEsc(o.payment_status||'پرداخت نشده')"
+        data = self._insert(
+            data,
+            payment,
+            "(window.gpOrderFollowup?.settlementHtml(o,"
+            + payment
+            + ")??"
+            + payment
+            + ")",
+        )
         (output / asset).write_text(data)
         start = f'src="/{asset.as_posix()}?'
         _, found, tail = app.partition(start)
         query, end, _ = tail.partition('"')
         if not found or not end:
             raise ValueError(f"Expected a versioned loader for {asset}")
-        if not query.endswith("&proofs=3"):
+        if not query.endswith("&proofs=4"):
             app = self._insert(
                 app,
                 start + query + end,
-                start + query.removesuffix("&proofs=2") + "&proofs=3" + end,
+                start
+                + query.removesuffix("&proofs=2").removesuffix("&proofs=3")
+                + "&proofs=4"
+                + end,
             )
         return app
 
@@ -442,6 +456,34 @@ class CustomerPurchaseReportStage:
             "    if($revisionId>0)out($order);\n    sms_status($customer,$order,'','order_created');",
         )
 
+    def stage_settlement_progress(self, index: str, app: str) -> tuple[str, str]:
+        """Use the accounting projection in the existing automation payment column and detail views."""
+        decorator = "function gp_decorate_order($s,$o){\n"
+        index = self._insert(
+            index,
+            decorator,
+            decorator + " require_once __DIR__.'/lib/order-settlement-progress.php';\n"
+            " static $settlementProgress;\n"
+            " $settlementProgress=$settlementProgress??new GpOrderSettlementProgress(new GpCreditModel());\n"
+            " $o['settlement_progress']=$settlementProgress->read($o);\n",
+        )
+        row = '<td><span class="badge ${payClass(o.payment_status)}">${esc(o.payment_status)}</span></td><td><span class="badge ${statusClass(o.status)}">'
+        new_row = '<td>${window.gpOrderFollowup?.settlementHtml(o,detailPayBadge(o.payment_status))??detailPayBadge(o.payment_status)}</td><td><span class="badge ${statusClass(o.status)}">'
+        # The dashboard has a similar row, so scope the patch to the Orders list.
+        prefix, marker, rest = app.partition("function renderOrders(){")
+        orders, end, suffix = rest.partition("function goOrderPage(")
+        if not marker or not end:
+            raise ValueError("Orders list renderer not found.")
+        app = prefix + marker + self._insert(orders, row, new_row) + end + suffix
+        old_badge = "${detailPayBadge(o.payment_status)}${o.payment_method_label?"
+        new_badge = "${window.gpOrderFollowup?.settlementHtml(o,detailPayBadge(o.payment_status))??detailPayBadge(o.payment_status)}${o.payment_method_label?"
+        app = self._insert(app, old_badge, new_badge)
+        modal = '${paymentDetailHtml(o)}<select id="pstatus"'
+        app = self._insert(
+            app, modal, "${window.gpOrderFollowup?.settlementHtml(o)??''}" + modal
+        )
+        return index, app
+
     def stage_followup(
         self, index: str, app: str, source: Path, output: Path
     ) -> tuple[str, str]:
@@ -463,8 +505,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=3"></script>'
-        for previous_version in (1, 2):
+        script = '<script defer src="/assets/order-followup.js?v=4"></script>'
+        for previous_version in (1, 2, 3):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)
@@ -489,10 +531,11 @@ class CustomerPurchaseReportStage:
             app = self._insert(app, old_button, alerts.split("\n<dialog", 1)[0])
         elif 'id="gpOrderAlerts"' not in app:
             app = self._insert(app, header, header + alerts)
-        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=2">'
-        old_stylesheet = stylesheet.replace("?v=2", "?v=1")
-        if old_stylesheet in app:
-            app = self._insert(app, old_stylesheet, stylesheet)
+        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=3">'
+        for previous_version in (1, 2):
+            old_stylesheet = stylesheet.replace("?v=3", f"?v={previous_version}")
+            if old_stylesheet in app:
+                app = self._insert(app, old_stylesheet, stylesheet)
 
         dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css'
         app = self._insert(app, dock, stylesheet + "\n" + dock)
@@ -675,6 +718,7 @@ class CustomerPurchaseReportStage:
         app = self.stage_console(app, source, output)
         app = self.stage_proof_documents(app, source, output)
         index, app = self.stage_followup(index, app, source, output)
+        index, app = self.stage_settlement_progress(index, app)
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'

@@ -9,6 +9,31 @@
     if (text) node.textContent = text;
     return node;
   };
+  function settlementHtml(order, fallback = "") {
+    const progress = order.settlement_progress;
+    const selector = `data-settlement-order="${Number(order.id) || 0}"`;
+    const labels = ["پرداخت بخشی", "تسویه کامل", "بخش اعتباری تسویه شد"];
+    if (!progress || !labels.includes(progress.label)) return `<span ${selector}>${fallback}</span>`;
+    const status = progress.settled ? "pay-paid" : "pay-deposit";
+    return `<span class="gp-settlement-display" ${selector}>
+      <span class="badge ${status}">${progress.label}</span>
+      <small>واریزی تأییدشده ${money(progress.paid)}</small>
+      <small>ماندهٔ اعتباری ${money(progress.outstanding)}</small>
+    </span>`;
+  }
+
+  function updateSettlement(summary) {
+    const id = Number(summary.order_id);
+    if (!Number.isSafeInteger(id) || id < 1 || !Object.hasOwn(summary, "settlement_progress")) return;
+    const order = typeof ORD !== "undefined" ? ORD.find(item => Number(item.id) === id) : null;
+    if (order) order.settlement_progress = summary.settlement_progress;
+    const shown = {id, settlement_progress: summary.settlement_progress};
+    for (const node of document.querySelectorAll(`[data-settlement-order="${id}"]`)) {
+      node.outerHTML = settlementHtml(shown, order && typeof detailPayBadge === "function" ? detailPayBadge(order.payment_status) : "");
+    }
+    if (order && typeof renderActiveCore === "function") renderActiveCore();
+  }
+
   async function request(path, payload) {
     const options = {cache: "no-store"};
     if (payload) Object.assign(options, {
@@ -200,7 +225,9 @@
       const content = group(credit, "gp-followup-list");
       const creditStatus = paymentStatus;
       const update = async (action, payload) => {
-        showPayments(await send(action, payload));
+        const result = await send(action, payload);
+        showPayments(result);
+        updateSettlement(result);
         creditStatus.textContent = "نتیجه ثبت شد.";
         await updateAlerts();
       };
@@ -323,5 +350,5 @@
     new MutationObserver(() => updateAlerts()).observe(shell, {attributes: true, attributeFilter: ["class"]});
     updateAlerts();
   }
-  window.gpOrderFollowup = {mount, updateAlerts};
+  window.gpOrderFollowup = {mount, updateAlerts, settlementHtml};
 })();

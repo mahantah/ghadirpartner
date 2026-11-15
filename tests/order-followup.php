@@ -63,6 +63,19 @@ try {
     $workflow->review($order, ['request_id' => $manual, 'amount' => 100, 'note' => 'تسویه حضوری'], 'manual', 2, $now);
     $workflow->review($order, ['request_id' => $manual, 'amount' => 80, 'previous_amount' => 100, 'note' => 'اصلاح مبلغ'], 'adjust', 2, $now);
     $assert($credit->debt($order) === 470 && count($order['credit_repayments'][$manual]['adjustments']) === 1, 'Manual adjustment lost the audit or balance.');
+    $settlementProgress = new GpOrderSettlementProgress($credit);
+    $display = $settlementProgress->read($order);
+    $assert($display === [
+        'paid' => 330, 'outstanding' => 470, 'settled' => false, 'label' => 'پرداخت بخشی',
+    ], 'Order settlement display did not use approved repayments and audited adjustments.');
+    $onlyPending = array_merge($base, ['credit_repayments' => [
+        ['status' => 'pending', 'amount' => 500], ['status' => 'rejected', 'amount' => 300],
+    ]]);
+    $assert($settlementProgress->read($onlyPending) === null, 'Unconfirmed slips changed the displayed status.');
+    $paid = array_merge($base, ['credit_repayments' => [['status' => 'approved', 'amount' => 800]]]);
+    $assert($settlementProgress->read($paid)['label'] === 'تسویه کامل', 'A fully repaid credit invoice remained partial.');
+    $mixed = array_merge($paid, ['requested_payment_method' => 'mixed', 'approved_total' => 1000]);
+    $assert($settlementProgress->read($mixed)['label'] === 'بخش اعتباری تسویه شد', 'Mixed payment incorrectly showed full settlement.');
     $receiptToken = $proof['proof_token'];
     $firstReceipt = $base;
     $firstReceipt['native_settlement']['proof_token'] = $receiptToken;
