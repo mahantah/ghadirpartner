@@ -63,7 +63,7 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
             $messages->create($state, [
                 'id' => $messageId, 'title' => 'اصلاح سفارش '.$order['number'], 'body' => $reason,
                 'recipients' => [$id], 'app' => true, 'sms' => false,
-            ], $actorId, now());
+            ], $audience, $actorId, now());
             return $summary;
         }
         if ($action === 'ack_revision') {
