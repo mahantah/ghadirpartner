@@ -108,10 +108,12 @@ class PhaseOneRelease:
             *stage.sidebar_assets,
             *stage.console_assets,
             stage.dock_asset,
+            stage.proof_asset,
         )
         entries = (
             *(f"assets/{name}" for name in shell_assets),
             stage.order_flow_library,
+            stage.native_proof_router,
             "index.php",
             "app.html",
             "partners/index.php",

@@ -14,17 +14,19 @@ if ($m !== 'POST') {
 }
 header('Cache-Control: no-store');
 require_once __DIR__.'/order-proof-upload.php';
-$policy = json_decode((string) file_get_contents(dirname(__DIR__).'/config/order-proof-upload.yaml'), true, 512, JSON_THROW_ON_ERROR);
 $payload = input();
 $orderId = $payload['order_id'] ?? null;
 $kind = $payload['kind'] ?? null;
 $image = $payload['image_base64'] ?? null;
-if (!is_int($orderId) || $orderId < 1 || !is_string($kind) || !is_string($image) || $image === '') {
+$files = $payload['files'] ?? null;
+if (!is_int($orderId) || $orderId < 1 || !is_string($kind) || ($files === null ? (!is_string($image) || $image === '') : !is_array($files))) {
     fail('شماره سفارش و تصویر را بررسی کنید.', 422);
 }
-$upload = new GpOrderProofUpload(dirname($file).'/native-proofs', $policy);
+$upload = GpOrderProofUpload::configured(dirname($file).'/native-proofs');
 try {
-    out(db(true, static fn (array &$state): array => $upload->attach($state, $customerId, $orderId, $kind, $image, now())));
+    out(db(true, static fn (array &$state): array => $files === null
+        ? $upload->attach($state, $customerId, $orderId, $kind, $image, now())
+        : $upload->attachBatch($state, $customerId, $orderId, $kind, $files, now())));
 } catch (DomainException $error) {
     $upload->cleanup();
     fail($error->getMessage(), $error->getCode());
