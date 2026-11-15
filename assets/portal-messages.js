@@ -3,20 +3,33 @@
     const panel = document.getElementById("gpPortalMessages");
     if (!panel) return;
     const form = panel.querySelector("form");
-    const recipients = form.elements.namedItem("recipients");
+    const oldPicker = form.elements.namedItem("recipients").closest("label");
+    const recipients = document.createElement("fieldset");
+    recipients.className = "gp-message-recipients";
+    const legend = document.createElement("legend");
+    legend.textContent = "گیرندگان";
+    const all = document.createElement("input");
+    all.type = "checkbox";
+    const allLabel = document.createElement("label");
+    allLabel.append(all, " انتخاب همهٔ مشتریان");
+    const options = document.createElement("div");
+    options.className = "gp-message-recipient-options";
+    recipients.append(legend, allLabel, options);
+    oldPicker.replaceWith(recipients);
     const status = panel.querySelector("[role=status]");
     const history = panel.querySelector("tbody");
     const smsLabels = { off: "—", queued: "در صف", sending: "در حال ارسال", accepted: "پذیرفته‌شده توسط هما", failed: "ناموفق", unavailable: "بدون شمارهٔ معتبر" };
     let pending = null;
     let generation = 0;
     let allRecipients = [];
+    let batchSize = 0;
     let templates = [];
     const chosen = new Set();
     const search = document.createElement("input");
     search.type = "search";
     search.placeholder = "نام یا شماره همراه";
     search.setAttribute("aria-label", "جست‌وجوی مشتری");
-    recipients.closest("label").before(search);
+    recipients.before(search);
     const saved = document.createElement("select");
     saved.setAttribute("aria-label", "پیام‌های آماده");
     const save = document.createElement("button");
@@ -24,23 +37,46 @@
     save.textContent = "ذخیره به‌عنوان پیام آماده";
     const count = document.createElement("small");
     search.before(saved, save);
-    recipients.closest("label").after(count);
+    recipients.after(count);
     const digits = (text) => text.replace(/[۰-۹٠-٩]/g, (digit) => String(digit.charCodeAt(0) & 15));
     const normalize = (text) => digits(text).toLowerCase().replace(/ي/g, "ی").replace(/ك/g, "ک").trim();
 
-    function renderRecipients() {
-        const query = normalize(search.value);
-        recipients.replaceChildren(...allRecipients.filter((row) => normalize(row.name + " " + row.mobile).includes(query))
-            .map((row) => new Option(row.name + (row.mobile ? " · " + row.mobile : ""), row.id, false, chosen.has(Number(row.id)))));
+    /** Keep the selected audience when filtering by name or mobile. */
+    function updateSelection() {
+        all.disabled = allRecipients.length === 0;
+        all.checked = !all.disabled && chosen.size === allRecipients.length;
+        all.indeterminate = chosen.size > 0 && !all.checked;
         count.textContent = chosen.size.toLocaleString("fa-IR") + " گیرنده انتخاب شده";
     }
-    recipients.required = false;
-    recipients.addEventListener("change", () => {
-        for (const option of recipients.options) {
-            if (option.selected) chosen.add(Number(option.value));
-            else chosen.delete(Number(option.value));
+
+    /** Render independently selectable customer rows. */
+    function renderRecipients() {
+        const query = normalize(search.value);
+        const rows = allRecipients.filter((row) => normalize(row.name + " " + row.mobile).includes(query));
+        const fragment = document.createDocumentFragment();
+        for (const row of rows) {
+            const choice = document.createElement("input");
+            choice.type = "checkbox";
+            choice.value = String(row.id);
+            choice.checked = chosen.has(Number(row.id));
+            const label = document.createElement("label");
+            label.append(choice, " " + row.name + (row.mobile ? " · " + row.mobile : ""));
+            fragment.append(label);
         }
-        count.textContent = chosen.size.toLocaleString("fa-IR") + " گیرنده انتخاب شده";
+        options.replaceChildren(fragment);
+        updateSelection();
+    }
+
+    all.addEventListener("change", () => {
+        chosen.clear();
+        if (all.checked) for (const row of allRecipients) chosen.add(Number(row.id));
+        renderRecipients();
+    });
+    options.addEventListener("change", (event) => {
+        const choice = event.target;
+        if (choice.checked) chosen.add(Number(choice.value));
+        else chosen.delete(Number(choice.value));
+        updateSelection();
     });
     search.addEventListener("input", renderRecipients);
 
@@ -88,7 +124,6 @@
             renderTemplates([]);
             renderRecipients();
             form.reset();
-            recipients.replaceChildren();
             history.replaceChildren();
             status.textContent = "";
             panel.open = false;
@@ -117,10 +152,13 @@
         const request = generation;
         try {
             const [rows, drafts] = await Promise.all([
-                req("/api/portal-messages/recipients"), req("/api/portal-messages/templates"),
+                req("/api/portal-messages/recipients?with_limit=1"), req("/api/portal-messages/templates"),
             ]);
             if (request !== generation) return;
-            allRecipients = rows;
+            allRecipients = rows.recipients;
+            batchSize = rows.max_recipients;
+            const eligible = new Set(allRecipients.map((row) => Number(row.id)));
+            for (const id of chosen) if (!eligible.has(id)) chosen.delete(id);
             renderRecipients();
             renderTemplates(drafts);
             await loadHistory();
@@ -152,19 +190,31 @@
         if (!window.confirm("ارسال به " + audience.length.toLocaleString("fa-IR") + " مشتری انجام شود؟")) return;
         const key = JSON.stringify(payload);
         if (pending?.key !== key) {
-            const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
-            pending = { key, id };
+            if (!Number.isSafeInteger(batchSize) || batchSize < 1) {
+                status.textContent = "فهرست گیرندگان را دوباره باز کنید.";
+                return;
+            }
+            const batches = [];
+            for (let offset = 0; offset < audience.length; offset += batchSize) {
+                const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+                batches.push({ ...payload, recipients: audience.slice(offset, offset + batchSize), id });
+            }
+            pending = { key, batches };
         }
+        const batches = pending.batches;
         const request = generation;
         button.disabled = true;
         status.textContent = "در حال ثبت ارسال…";
         try {
-            const message = await post("/api/portal-messages", { ...payload, id: pending.id });
-            for (const target of Object.values(message.targets)) {
+            for (const batch of batches) {
                 if (request !== generation) return;
-                if (target.sms === "queued") {
-                    status.textContent = "در حال ارسال پیامک…";
-                    await post("/api/portal-messages/sms", { id: message.id, customer_id: target.id });
+                const message = await post("/api/portal-messages", batch);
+                for (const target of Object.values(message.targets)) {
+                    if (request !== generation) return;
+                    if (target.sms === "queued") {
+                        status.textContent = "در حال ارسال پیامک…";
+                        await post("/api/portal-messages/sms", { id: message.id, customer_id: target.id });
+                    }
                 }
             }
             if (request !== generation) return;
