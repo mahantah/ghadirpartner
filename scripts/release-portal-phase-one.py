@@ -102,7 +102,11 @@ class PhaseOneRelease:
         """Prepare and lint the exact live candidate, then apply when explicitly invoked."""
         module = import_module("stage-customer-purchase-report")
         stage = module.CustomerPurchaseReportStage
-        shell_assets: tuple[str, ...] = stage.sidebar_assets + stage.console_assets
+        shell_assets: tuple[str, ...] = (
+            *stage.sidebar_assets,
+            *stage.console_assets,
+            stage.dock_asset,
+        )
         entries = (
             *(f"assets/{name}" for name in shell_assets),
             "index.php",

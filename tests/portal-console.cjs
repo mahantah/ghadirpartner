@@ -9,6 +9,11 @@ const session = fs.readFileSync(root + "/assets/session-keep-v1.js", "utf8");
 assert.doesNotMatch(stylesheet, /IRANSansWeb\.woff2/);
 assert.match(stylesheet, /Vazirmatn\.woff2/);
 assert.doesNotMatch(app, /-webkit-text-size-adjust:100%/);
+const dockCss = fs.readFileSync(root + "/assets/account-logout-access-v1.css", "utf8");
+const dockRule = dockCss.match(/#app > \.userbox\.gp-account-docked\s*\{([^}]+)\}/)[1];
+assert.match(dockRule, /right: max\(10px, env\(safe-area-inset-right, 0px\)\)/);
+assert.match(dockRule, /left: auto !important/);
+assert.match(dockCss, /> \.gp-menu-icon\s*\{\s*width: 18px !important;\s*height: 18px !important/);
 
 (async () => {
   const calls = [];
