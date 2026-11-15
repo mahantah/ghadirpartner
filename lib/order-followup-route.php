@@ -41,11 +41,12 @@ if ($m === 'GET') {
 }
 if ($p !== '/api/order-followup' || $m !== 'POST') fail('روش درخواست مجاز نیست.', 405);
 $action = $request['action'] ?? '';
+$receiptActions = ['approve_order_receipt', 'reject_order_receipt', 'adjust_order_receipt'];
 if (!(($customerId > 0 && $action === 'submit') || ($sales && in_array($action, ['return', 'ack_revision'], true))
-    || ($finance && in_array($action, ['approve', 'reject', 'manual', 'adjust'], true)))) fail('عملیات مجاز نیست.', 403);
+    || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
 $actorId = (int) $actor['id'];
 
-$result = db(true, static function (array &$state) use ($followup, $request, $action, $actorId, $orderId, $customerId): array {
+$result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $actorId, $orderId, $customerId): array {
     try {
         $index = $followup->index($state, $orderId, $customerId);
         $order = &$state['orders'][$index];
@@ -73,6 +74,9 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
             }
             unset($order['followup_events']['revision:'.$version]);
             return ['ok' => true];
+        }
+        if (in_array($action, $receiptActions, true)) {
+            return $followup->reviewOrderReceipt($order, $request, $action, $actorId, now());
         }
         return $followup->review($order, $request, $action, $actorId, now());
     } catch (DomainException $error) {

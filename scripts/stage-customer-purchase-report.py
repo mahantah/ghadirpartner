@@ -463,16 +463,17 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        old_script = '<script defer src="/assets/order-followup.js?v=1"></script>'
-        script = '<script defer src="/assets/order-followup.js?v=2"></script>'
-        if old_script in app:
-            app = self._insert(app, old_script, script)
-        elif script not in app:
+        script = '<script defer src="/assets/order-followup.js?v=3"></script>'
+        for previous_version in (1, 2):
+            old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
+            if old_script in app:
+                app = self._insert(app, old_script, script)
+        if script not in app:
             app = self._insert(
                 app, self._messages_v3, self._messages_v3 + "\n" + script
             )
-        alerts = """<button class="gp-order-alerts" type="button" id="gpOrderAlerts" aria-haspopup="dialog" hidden>
-  <span aria-hidden="true">🔔</span><span>اعلان‌های سفارش</span><span class="gp-order-alert-badge" id="gpOrderAlertsCount" hidden></span>
+        alerts = """<button class="gp-order-alerts" type="button" id="gpOrderAlerts" aria-haspopup="dialog" aria-label="اعلان‌های سفارش" title="اعلان‌های سفارش" hidden>
+  <span aria-hidden="true">🔔</span><span class="gp-order-alert-badge" id="gpOrderAlertsCount" hidden></span>
 </button>
 <dialog class="gp-order-alerts-dialog" id="gpOrderAlertsDialog" aria-labelledby="gpOrderAlertsTitle" dir="rtl">
   <div><div class="gp-order-alerts-heading"><h2 id="gpOrderAlertsTitle">اعلان‌های سفارش</h2>
@@ -481,8 +482,18 @@ class CustomerPurchaseReportStage:
 </dialog>
 """
         header = '<div id="app" class="hidden"><header>'
-        app = self._insert(app, header, header + alerts)
-        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=1">'
+        old_button = """<button class="gp-order-alerts" type="button" id="gpOrderAlerts" aria-haspopup="dialog" hidden>
+  <span aria-hidden="true">🔔</span><span>اعلان‌های سفارش</span><span class="gp-order-alert-badge" id="gpOrderAlertsCount" hidden></span>
+</button>"""
+        if old_button in app:
+            app = self._insert(app, old_button, alerts.split("\n<dialog", 1)[0])
+        elif 'id="gpOrderAlerts"' not in app:
+            app = self._insert(app, header, header + alerts)
+        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=2">'
+        old_stylesheet = stylesheet.replace("?v=2", "?v=1")
+        if old_stylesheet in app:
+            app = self._insert(app, old_stylesheet, stylesheet)
+
         dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css'
         app = self._insert(app, dock, stylesheet + "\n" + dock)
         legacy = "$('orderDetailOverlay').classList.remove('hidden')}\nfunction closeOrderDetails()"
