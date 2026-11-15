@@ -57,6 +57,11 @@ class CustomerPurchaseReportStage:
         "nav-restructure-v1.js",
         "menu-live-v4.js",
     )
+    console_assets = (
+        "production-login-v1.css",
+        "customer-ops-stabilize-v1.js",
+        "session-keep-v1.js",
+    )
     _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
     _portal_entry = _sales_entry + '\n      nav.querySelector("#gpPortalReportsMenu"),'
     _reports_entry = """nav.querySelector(':scope > #gpPortalReportsMenu') || nav.querySelector(':scope > [data-tab="salesReports"]'),"""
@@ -146,6 +151,60 @@ class CustomerPurchaseReportStage:
             raise ValueError(f"Expected a single source anchor for {anchor}")
         return source.replace(anchor, replacement, 1)
 
+    def stage_console(self, app: str, source: Path, output: Path) -> str:
+        """Patch the live login stylesheet and avoid polling an expired session."""
+        app = self._insert(
+            app,
+            "background:#f3f6fa;-webkit-text-size-adjust:100%;padding-bottom:",
+            "background:#f3f6fa;text-size-adjust:100%;padding-bottom:",
+        )
+        app = self._insert(
+            app,
+            "async function pollNotif(){try{",
+            "async function pollNotif(){if(!ME)return;try{",
+        )
+        patches = (
+            (
+                "@font-face{font-family:GhadirIranSans;src:url('/assets/fonts/IRANSansWeb.woff2') format('woff2');font-display:swap;font-weight:100 900}\n",
+                "",
+            ),
+            (
+                "if (login || notify || (err && err.status !== 401)) throw err;",
+                "if (login || notify || (err && err.status !== 401) || !ME) throw err;",
+            ),
+            (
+                "        var me = await peekMe();",
+                "        if (notify) {\n"
+                "          window.showSessionExpired();\n"
+                "          return [];\n"
+                "        }\n"
+                "        var me = await peekMe();",
+            ),
+        )
+        for name, (old, new) in zip(self.console_assets, patches, strict=True):
+            asset = Path("assets", name)
+            data = (source / asset).read_text()
+            if new:
+                data = self._insert(data, old, new)
+            else:
+                if old in data:
+                    data = self._insert(data, old, "")
+                data = data.replace("GhadirIranSans,IRANSans", "IRANSans", 1)
+            target = output / asset
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(data)
+            attribute = "href" if name.endswith(".css") else "src"
+            start = f'{attribute}="/{asset.as_posix()}?'
+            _, found, tail = app.partition(start)
+            query, end, _ = tail.partition('"')
+            if not found or not end:
+                raise ValueError(f"Expected a versioned loader for {asset}")
+            if not query.endswith("&console=1"):
+                app = self._insert(
+                    app, start + query + end, start + query + "&console=1" + end
+                )
+        return app
+
     def stage(
         self, source: Path, output: Path, partner_router: Path | None = None
     ) -> None:
@@ -234,6 +293,7 @@ class CustomerPurchaseReportStage:
                     start + query + end,
                     start + next_query + "&portalreports=4" + end,
                 )
+        app = self.stage_console(app, source, output)
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"

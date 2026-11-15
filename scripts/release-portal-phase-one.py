@@ -60,7 +60,7 @@ class PhaseOneRelease:
             except error_perm:
                 pass
 
-    def verify(self, staged: Path, sidebar_assets: tuple[str, ...]) -> None:
+    def verify(self, staged: Path, shell_assets: tuple[str, ...]) -> None:
         """Check public asset bytes and require the private report routes to reject anonymous access."""
         app = (staged / "app.html").read_text() + (
             staged / "partners/portal.html"
@@ -72,7 +72,7 @@ class PhaseOneRelease:
             "portal-phase-two.css",
             "portal-phase-two-activity.js",
             "portal-phase-two-activity-client.js",
-            *sidebar_assets,
+            *shell_assets,
         ):
             match = re.search(
                 r'["\x27](/assets/' + re.escape(asset) + r'[^"\x27]*)', app
@@ -102,9 +102,9 @@ class PhaseOneRelease:
         """Prepare and lint the exact live candidate, then apply when explicitly invoked."""
         module = import_module("stage-customer-purchase-report")
         stage = module.CustomerPurchaseReportStage
-        sidebar_assets: tuple[str, ...] = stage.sidebar_assets
+        shell_assets: tuple[str, ...] = stage.sidebar_assets + stage.console_assets
         entries = (
-            *(f"assets/{name}" for name in sidebar_assets),
+            *(f"assets/{name}" for name in shell_assets),
             "index.php",
             "app.html",
             "partners/index.php",
@@ -134,12 +134,18 @@ class PhaseOneRelease:
                 subprocess.run(
                     ["php", "-l", str(php_path)], check=True, capture_output=True
                 )
-            for name in sidebar_assets:
+            for name in shell_assets:
+                if not name.endswith(".js"):
+                    continue
                 subprocess.run(
                     ["node", "--check", str(staged / "assets" / name)], check=True
                 )
             subprocess.run(
                 ["node", str(ROOT / "tests/portal-sidebar.cjs"), str(staged)],
+                check=True,
+            )
+            subprocess.run(
+                ["node", str(ROOT / "tests/portal-console.cjs"), str(staged)],
                 check=True,
             )
             print("Live anchors and PHP syntax verified.")
@@ -169,7 +175,7 @@ class PhaseOneRelease:
                     replaced.append(path)
                     if self.read(path) != data:
                         raise RuntimeError("entry point verification failed: " + path)
-                self.verify(staged, sidebar_assets)
+                self.verify(staged, shell_assets)
             except Exception:
                 for path in reversed(replaced):
                     self.publish(path, originals[path])
