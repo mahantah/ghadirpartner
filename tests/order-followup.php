@@ -83,6 +83,31 @@ try {
     $rejected = $workflow->reviewOrderReceipt($rejectedReceipt, ['token' => $receiptToken, 'note' => 'ناخوانا'],
         'reject_order_receipt', 2, $now);
     $assert($rejected['proofs'][0]['review']['status'] === 'rejected', 'Checkout receipt rejection was not saved.');
+    $multi = array_merge($base, ['status' => 'تحویل شد']);
+    $batchKey = str_repeat('d', 32);
+    $nextKey = str_repeat('e', 32);
+    $batch = ['request_id' => $batchKey, 'files' => [
+        ['data' => $png, 'amount' => 125, 'note' => 'فیش اول'],
+        ['data' => base64_encode("%PDF-1.7\n%%EOF\n"), 'amount' => 200, 'note' => 'فیش دوم'],
+    ]];
+    $new = $workflow->submit($multi, $batch, 1, $now);
+    $assert(array_column($new['repayments'], 'claimed_amount') === [125, 200]
+        && array_map(static fn ($entry) => count($entry['proofs']), $new['repayments']) === [1, 1]
+        && $new['pending_amount'] === 325 && $new['submittable_amount'] === 475 && $new['outstanding'] === 800,
+        'Separate amounts or reserved balance were not applied.');
+    $assert(count($workflow->submit($multi, $batch, 1, $now)['repayments']) === 2, 'Batch retry duplicated receipts.');
+    $next = ['request_id' => $nextKey, 'files' => [
+        ['data' => base64_encode("%PDF-1.6\n%%EOF\n"), 'amount' => 475],
+    ]];
+    $assert(count($workflow->submit($multi, $next, 1, $now)['repayments']) === 3, 'A pending receipt blocked another payment.');
+    $workflow->review($multi, ['request_id' => $batchKey, 'amount' => 125, 'seen' => true], 'approve', 2, $now);
+    $assert($credit->debt($multi) === 675 && $multi['credit_repayments'][$batchKey]['status'] === 'approved', 'One approval affected other receipts.');
+    $changed = $batch;
+    $changed['files'][0]['amount'] = 100;
+    $denied(static function () use ($workflow, &$multi, $changed, $now) {
+        $workflow->submit($multi, $changed, 1, $now);
+    }, 409);
+    $assert($multi['credit_repayments'][$batchKey]['amount'] === 125, 'Customer overwrote an approved receipt.');
     $returned = array_merge($base, [
         'id' => 5, 'status' => 'در انتظار تأیید سفارش', 'approval_status' => 'در انتظار تأیید',
         'purchase_items' => [['product' => 'Original']], 'native_settlement' => [],

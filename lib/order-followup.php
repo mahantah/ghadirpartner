@@ -53,15 +53,21 @@ final class GpOrderFollowup
     public function summary(array $order): array
     {
         $outstanding = $this->credit->debt($order);
+        $pending = $this->pendingAmount($order);
         return [
             'order_id' => (int) $order['id'],
             'number' => (string) ($order['number'] ?? ''),
             'credit_amount' => $this->credit->amount($order),
             'outstanding' => $outstanding,
-            'can_submit' => $outstanding > 0 && ($order['status'] ?? '') === 'تحویل شد',
+            'pending_amount' => $pending,
+            'submittable_amount' => max(0, $outstanding - $pending),
+            'can_submit' => $outstanding > $pending && ($order['status'] ?? '') === 'تحویل شد',
             'can_return' => $this->canReturn($order),
             'proofs' => $this->orderProofs($order),
-            'repayments' => array_values($order['credit_repayments'] ?? []),
+            'repayments' => array_values(array_map(static function (array $payment): array {
+                unset($payment['submission_hash']);
+                return $payment;
+            }, $order['credit_repayments'] ?? [])),
             'correction' => $order['customer_correction'] ?? null,
         ];
     }
@@ -70,29 +76,67 @@ final class GpOrderFollowup
     public function submit(array &$order, array $request, int $actor, string $now): array
     {
         $key = $this->requestKey($request);
-        if (isset($order['credit_repayments'][$key])) {
-            return $this->summary($order);
-        }
-        $amount = $this->amount($request);
-        if (!$this->summary($order)['can_submit'] || $amount > $this->credit->debt($order)) {
-            throw new DomainException('بارگذاری فیش سفارش اعتباری پس از تحویل و تا سقف مانده سفارش امکان‌پذیر است.', 409);
-        }
-        foreach ($order['credit_repayments'] ?? [] as $repayment) {
-            if ($repayment['status'] === 'pending') {
-                throw new DomainException('یک فیش این سفارش در انتظار بررسی است.', 409);
-            }
-        }
         $files = $request['files'] ?? null;
-        if (!is_array($files) || !$files) {
+        if (!is_array($files) || !$files || array_values($files) !== $files) {
             throw new DomainException('تصویر یا PDF فیش را ضمیمه کنید.', 422);
         }
-        $proofs = $this->uploads->storeSelection('cash', $files);
-        $order['credit_repayments'][$key] = [
-            'id' => $key, 'status' => 'pending', 'claimed_amount' => $amount, 'amount' => 0,
-            'proofs' => $proofs, 'source' => 'customer', 'created_at' => $now, 'created_by' => $actor,
-        ];
-        $this->event($order, 'credit_proof', $key, $now);
+        $separate = !array_key_exists('amount', $request);
+        $amounts = [];
+        $total = 0;
+        if ($separate) {
+            foreach ($files as $file) {
+                if (!is_array($file)) throw new DomainException('مبلغ هر فیش را وارد کنید.', 422);
+                $amount = $this->amount($file);
+                if ($amount > PHP_INT_MAX - $total) throw new DomainException('جمع مبالغ معتبر نیست.', 422);
+                $total += $amount;
+                $amounts[] = $amount;
+            }
+        } else {
+            $total = $this->amount($request);
+            $amounts[] = $total;
+        }
+        $fingerprint = hash('sha256', serialize([$amounts, $files]));
+        $prior = $order['credit_repayments'][$key] ?? null;
+        if ($prior !== null) {
+            if (isset($prior['submission_hash']) && !hash_equals($prior['submission_hash'], $fingerprint)) {
+                throw new DomainException('این فیش قبلاً ثبت شده است. برای واریز جدید، جزئیات سفارش را دوباره باز کنید.', 409);
+            }
+            return $this->summary($order);
+        }
+        $summary = $this->summary($order);
+        if (!$summary['can_submit'] || $total > $summary['submittable_amount']) {
+            throw new DomainException('پس از تحویل می‌توانید تا سقف مانده پس از کسر فیش‌های در انتظار بررسی، فیش جدید ارسال کنید.', 409);
+        }
+        $existingHashes = [];
+        foreach ($order['credit_repayments'] ?? [] as $repayment) {
+            if (($repayment['status'] ?? '') === 'rejected') continue;
+            foreach ($repayment['proofs'] ?? [] as $proof) {
+                if (!empty($proof['proof_hash'])) $existingHashes[] = $proof['proof_hash'];
+            }
+        }
+        $proofs = $this->uploads->storeSelection('cash', $files, $existingHashes, $separate);
+        $groups = $separate ? array_map(static fn (array $proof): array => [$proof], $proofs) : [$proofs];
+        foreach ($groups as $index => $documents) {
+            $id = $index === 0 ? $key : bin2hex(random_bytes(16));
+            $order['credit_repayments'][$id] = [
+                'id' => $id, 'status' => 'pending', 'claimed_amount' => $amounts[$index], 'amount' => 0,
+                'proofs' => $documents, 'source' => 'customer', 'created_at' => $now, 'created_by' => $actor,
+                'submission_hash' => $fingerprint,
+            ];
+            $this->event($order, 'credit_proof', $id, $now);
+        }
         return $this->summary($order);
+    }
+
+    private function pendingAmount(array $order): int
+    {
+        $amount = 0;
+        foreach ($order['credit_repayments'] ?? [] as $payment) {
+            if (($payment['status'] ?? '') === 'pending') {
+                $amount += max(0, (int) ($payment['claimed_amount'] ?? 0));
+            }
+        }
+        return $amount;
     }
 
     /** Approve, reject or manually record a payment once, using the verified amount. */
