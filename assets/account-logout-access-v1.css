@@ -82,6 +82,13 @@
   #app.sidebar-collapsed > .wrap {
     margin-right: var(--gp-sidebar-rail-width) !important;
   }
+  #app.sidebar-collapsed > header > .brand {
+    display: none !important;
+  }
+  /* Keep the legacy click handler available to the visible switch. */
+  #app.sidebar-collapsed:has(> #gpSidebarSwitch) > .desktop-sidebar-open {
+    display: none !important;
+  }
   #app.sidebar-collapsed > header .topnav.topnav {
     width: var(--gp-sidebar-rail-width) !important;
     min-height: 0 !important;
