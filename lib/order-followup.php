@@ -60,6 +60,7 @@ final class GpOrderFollowup
             'outstanding' => $outstanding,
             'can_submit' => $outstanding > 0 && ($order['status'] ?? '') === 'تحویل شد',
             'can_return' => $this->canReturn($order),
+            'proofs' => array_values($order['native_settlement']['proofs'] ?? []),
             'repayments' => array_values($order['credit_repayments'] ?? []),
             'correction' => $order['customer_correction'] ?? null,
         ];

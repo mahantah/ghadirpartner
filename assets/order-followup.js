@@ -64,24 +64,47 @@
     await image.decode();
     target.replaceChildren(image);
   }
-  async function mount(root, id) {
-    if (typeof has !== "function" || !(has("finance") || has("sales"))) return;
-    const overview = root.querySelector('[data-od2-panel="overview"]');
-    const payment = root.querySelector('[data-od2-panel="payment"]');
-    if (!overview || !payment) return;
+  const allowed = () => typeof has === "function" && (has("finance") || has("sales"));
+  async function mount(root, id, activeSection) {
+    if (!root || !allowed() || root.querySelector("[data-order-followup-mounted]")) return;
+    const modern = root.querySelector('[data-od2-panel="overview"]');
+    const overview = modern || element("div");
+    const payment = root.querySelector('[data-od2-panel="payment"]') || overview;
+    if (!modern) {
+      overview.className = "gp-followup-legacy";
+      const heading = root.querySelector(".detail-head");
+      if (heading) heading.after(overview);
+      else root.prepend(overview);
+    }
+    const marker = element("span");
+    marker.hidden = true;
+    marker.dataset.orderFollowupMounted = "";
+    overview.append(marker);
     const correction = section(overview, "اصلاح سفارش مشتری");
     const credit = has("finance") ? section(payment, "بازپرداخت اعتبار") : null;
     const status = element("p");
+    const paymentStatus = credit ? element("p") : null;
+    if (paymentStatus) {
+      paymentStatus.setAttribute("role", "status");
+      credit.append(paymentStatus);
+    }
     status.setAttribute("role", "status");
+    status.textContent = "در حال دریافت وضعیت سفارش…";
+    if (paymentStatus) paymentStatus.textContent = status.textContent;
     correction.append(status);
     function safe(target, action) {
       return async () => {
-        try { await action(); } catch (error) { target.textContent = error.message; }
+        try { await action(); } catch (error) {
+          target.textContent = error.message;
+          if (target === status && paymentStatus?.textContent) paymentStatus.textContent = error.message;
+        }
       };
     }
     await safe(status, async () => {
       const data = await request(endpoint + "?order_id=" + id);
       if (!root.contains(correction)) return;
+      status.textContent = "";
+      if (paymentStatus) paymentStatus.textContent = "";
       const send = (action, fields) => request(endpoint, {order_id: id, action, ...fields});
       const review = data.correction;
       if (review?.reason) correction.append(element("p", review.reason));
@@ -90,6 +113,7 @@
         if (has("sales")) correction.append(button("اعلان بررسی شد", safe(status, async () => {
           await send("ack_revision", {version: review.version});
           status.textContent = "اعلان بررسی شد.";
+          await updateAlerts();
         })));
       }
       if (has("sales") && data.can_return && review?.status !== "requested") {
@@ -100,10 +124,22 @@
           reason.disabled = true;
           status.textContent = result.correction.reason + " · درخواست اصلاح برای مشتری ارسال شد.";
         })));
-      } else if (!review) correction.hidden = true;
+      } else if (!review) {
+        status.textContent = "امکان بازگشت این سفارش در وضعیت فعلی وجود ندارد.";
+      }
       if (!credit) return;
       const payments = data.repayments ?? [];
-      credit.hidden = !data.credit_amount && !payments.length;
+      const initialProofs = data.proofs ?? [];
+      credit.hidden = !data.credit_amount && !payments.length && (modern || !initialProofs.length);
+      if (!modern && initialProofs.length) {
+        const documents = section(credit, "مدارک پرداخت سفارش");
+        for (const [index, proof] of initialProofs.entries()) {
+          const area = element("div");
+          const prefix = proof.kind === "check" ? "چک " : "رسید ";
+          documents.append(button("مشاهده " + prefix + (index + 1).toLocaleString("fa-IR"), safe(status, () => preview(area, id, proof))), area);
+          if (proof.note) documents.append(element("p", proof.note));
+        }
+      }
       const creditStatus = element("p");
       creditStatus.setAttribute("role", "status");
       const content = element("div");
@@ -134,6 +170,7 @@
               seen: viewed.size === proofs.length, previous_amount: item.amount,
             }));
             creditStatus.textContent = "نتیجه ثبت شد.";
+            await updateAlerts();
           });
           if (item.status === "pending") block.append(button("تأیید فیش", update("approve")), button("رد فیش", update("reject")));
           else block.append(button("اصلاح مبلغ ثبت‌شده", update("adjust")));
@@ -150,7 +187,77 @@
         }
       };
       showPayments(data);
+      if (!modern && activeSection === "payment" && !credit.hidden) credit.scrollIntoView({block: "nearest"});
     })();
   }
-  window.gpOrderFollowup = {mount};
+  const shell = document.getElementById("app");
+  const trigger = document.getElementById("gpOrderAlerts");
+  const badge = document.getElementById("gpOrderAlertsCount");
+  const dialog = document.getElementById("gpOrderAlertsDialog");
+  const list = document.getElementById("gpOrderAlertsList");
+  const message = document.getElementById("gpOrderAlertsStatus");
+  let incoming = null;
+
+  async function openAlert(entry) {
+    const id = Number(entry.order_id);
+    if (!Number.isSafeInteger(id) || id < 1) return;
+    if (typeof ORD !== "undefined" && !ORD.some(order => Number(order.id) === id)) {
+      if (typeof refresh === "function") await refresh();
+      if (!ORD.some(order => Number(order.id) === id)) throw new Error("این سفارش در فهرست قابل دسترسی نیست.");
+    }
+    if (typeof window.openOrderDetails !== "function") throw new Error("جزئیات سفارش در دسترس نیست.");
+    const target = entry.kind === "credit_proof" ? "payment" : "overview";
+    dialog.close();
+    try { await window.openOrderDetails(id, target); }
+    catch (error) { dialog.showModal(); throw error; }
+  }
+
+  async function updateAlerts() {
+    if (!shell || !trigger || !badge || !dialog || !list || !message) return;
+    const visible = !shell.classList.contains("hidden") && allowed();
+    trigger.hidden = !visible;
+    if (!visible) {
+      if (dialog.open) dialog.close();
+      badge.hidden = true;
+      list.replaceChildren();
+      message.textContent = "";
+      return;
+    }
+    if (incoming) return incoming;
+    const session = typeof ME === "undefined" ? null : ME;
+    incoming = (async () => {
+      try {
+        const result = await request(endpoint + "/alerts");
+        if (typeof ME !== "undefined" && ME !== session) return;
+        const entries = result.items ?? [];
+        const count = Number(result.count) || 0;
+        badge.textContent = count.toLocaleString("fa-IR");
+        badge.hidden = count === 0;
+        trigger.setAttribute("aria-label", count ? `اعلان‌های سفارش، ${badge.textContent} مورد` : "اعلان‌های سفارش");
+        message.textContent = entries.length ? "" : "اعلان تازه‌ای برای بررسی وجود ندارد.";
+        list.replaceChildren(...entries.map(entry => {
+          const proof = entry.kind === "credit_proof";
+          const row = element("li");
+          row.append(button((proof ? "فیش واریز اعتباری" : "سفارش اصلاح‌شده") + " · " + entry.number, async () => {
+            try { await openAlert(entry); } catch (error) { message.textContent = error.message; }
+          }));
+          return row;
+        }));
+      } catch (error) {
+        if (typeof ME === "undefined" || session === ME) message.textContent = error.message;
+      }
+    })();
+    try { await incoming; } finally { incoming = null; }
+  }
+
+  if (shell && trigger && dialog) {
+    trigger.addEventListener("click", () => {
+      if (!dialog.open) dialog.showModal();
+      updateAlerts();
+    });
+    dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+    new MutationObserver(() => updateAlerts()).observe(shell, {attributes: true, attributeFilter: ["class"]});
+    updateAlerts();
+  }
+  window.gpOrderFollowup = {mount, updateAlerts};
 })();
