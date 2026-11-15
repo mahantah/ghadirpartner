@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/customer-credit.php';
+require_once __DIR__.'/order-settlement-progress.php';
 require_once __DIR__.'/order-proof-upload.php';
 
 /** Manage credit repayments and order corrections under the order database lock. */
@@ -59,6 +60,7 @@ final class GpOrderFollowup
             'number' => (string) ($order['number'] ?? ''),
             'credit_amount' => $this->credit->amount($order),
             'outstanding' => $outstanding,
+            'settlement_progress' => (new GpOrderSettlementProgress($this->credit))->read($order),
             'pending_amount' => $pending,
             'submittable_amount' => max(0, $outstanding - $pending),
             'can_submit' => $outstanding > $pending && ($order['status'] ?? '') === 'تحویل شد',

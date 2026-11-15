@@ -55,3 +55,6 @@
   .gp-followup-fields { grid-template-columns: minmax(0, 1fr); }
   .gp-followup-actions button { flex: 1 1 auto; }
 }
+
+.gp-settlement-display { display: grid; justify-items: start; gap: .25rem; min-width: 0; }
+.gp-settlement-display small { color: #405671; font-size: .76rem; line-height: 1.45; }
