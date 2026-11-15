@@ -11,7 +11,7 @@ final class GpOrderProofUpload
     /** Set the protected directory and validate upload limits. */
     public function __construct(string $directory, array $policy)
     {
-        foreach (['max_encoded_bytes', 'max_dimension', 'max_per_kind', 'max_batch_bytes'] as $key) {
+        foreach (['max_encoded_bytes', 'max_dimension', 'max_per_kind', 'max_batch_bytes', 'max_note_chars'] as $key) {
             if (!isset($policy[$key]) || !is_int($policy[$key]) || $policy[$key] < 1) {
                 throw new RuntimeException('Invalid order proof policy.');
             }
@@ -55,10 +55,8 @@ final class GpOrderProofUpload
                 throw new DomainException('نوع مدرک معتبر نیست.', 422);
             }
             foreach ($files as $encoded) {
-                if (!is_string($encoded)) {
-                    throw new DomainException('فایل معتبر نیست.', 422);
-                }
-                $totalBytes += strlen($encoded);
+                [$data] = $this->fields($encoded);
+                $totalBytes += strlen($data);
             }
         }
         if ($totalBytes > $this->policy['max_batch_bytes']) {
@@ -111,31 +109,9 @@ final class GpOrderProofUpload
         if ($legacy && $matching) {
             return ['ok' => true, 'kind' => $kind, 'count' => count($matching)];
         }
-        if (!$files || array_values($files) !== $files || count($files) > $this->policy['max_per_kind']) {
-            throw new DomainException('تعداد فایل‌ها را بررسی کنید.', 422);
-        }
-        $hashes = [];
+        $validated = $this->validateSelection($files);
         foreach ($matching as $proof) {
-            if (!empty($proof['proof_hash'])) {
-                $hashes[$proof['proof_hash']] = true;
-            }
-        }
-        $validated = [];
-        $totalBytes = 0;
-        foreach ($files as $encoded) {
-            if (!is_string($encoded)) {
-                throw new DomainException('فایل معتبر نیست.', 422);
-            }
-            $totalBytes += strlen($encoded);
-            if ($totalBytes > $this->policy['max_batch_bytes']) {
-                throw new DomainException('حجم مجموع فایل‌ها بیش از حد مجاز است.', 413);
-            }
-            [$bytes, $mime] = $this->decode($encoded);
-            $hash = hash('sha256', $bytes);
-            if (!isset($hashes[$hash])) {
-                $validated[$hash] = [$bytes, $mime];
-                $hashes[$hash] = true;
-            }
+            if (!empty($proof['proof_hash'])) unset($validated[$proof['proof_hash']]);
         }
         $count = count($matching) + count($validated);
         if ($count > $this->policy['max_per_kind']) {
@@ -144,8 +120,8 @@ final class GpOrderProofUpload
         if (!$validated) {
             return ['ok' => true, 'kind' => $kind, 'count' => $count];
         }
-        foreach ($validated as $hash => [$bytes, $mime]) {
-            $proofs[] = $this->store($kind, $bytes, $mime, $hash);
+        foreach ($validated as $hash => [$bytes, $mime, $note]) {
+            $proofs[] = $this->store($kind, $bytes, $mime, $hash, $note);
         }
         $settlement['proofs'] = $proofs;
         $settlement['proof_token'] = $proofs[0]['proof_token'];
@@ -153,6 +129,66 @@ final class GpOrderProofUpload
         $settlement['proof_updated_at'] = $now;
         $order['native_settlement'] = $settlement;
         return ['ok' => true, 'kind' => $kind, 'count' => $count];
+    }
+
+    /** Save a separate bundle of documents for a pending credit repayment. */
+    public function storeSelection(string $kind, array $files): array
+    {
+        $stored = [];
+        foreach ($this->validateSelection($files) as $hash => [$bytes, $mime, $note]) {
+            $stored[] = $this->store($kind, $bytes, $mime, $hash, $note);
+        }
+        return $stored;
+    }
+
+    /** Read the document bytes, omitting the PHP guard on the private disk file. */
+    public function read(array $proof): array
+    {
+        $token = $proof['proof_token'];
+        if (!is_string($token) || !preg_match('/^[a-f0-9]{48}$/D', $token)) {
+            throw new DomainException('فایل پیدا نشد.', 404);
+        }
+        $stream = @fopen($this->directory.'/'.$token.'.php', 'rb');
+        if ($stream === false) throw new DomainException('فایل پیدا نشد.', 404);
+        try {
+            fgets($stream);
+            $bytes = stream_get_contents($stream);
+            if ($bytes === false) throw new DomainException('فایل خوانده نشد.', 404);
+            return ['mime' => $proof['proof_mime'], 'data' => base64_encode($bytes)];
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    private function validateSelection(array $files): array
+    {
+        if (!$files || array_values($files) !== $files || count($files) > $this->policy['max_per_kind']) {
+            throw new DomainException('تعداد فایل‌ها را بررسی کنید.', 422);
+        }
+        $validated = [];
+        $totalBytes = 0;
+        foreach ($files as $file) {
+            [$encoded, $note] = $this->fields($file);
+            $totalBytes += strlen($encoded);
+            if ($totalBytes > $this->policy['max_batch_bytes']) {
+                throw new DomainException('حجم مجموع فایل‌ها بیش از حد مجاز است.', 413);
+            }
+            [$bytes, $mime] = $this->decode($encoded);
+            $hash = hash('sha256', $bytes);
+            if (!isset($validated[$hash])) $validated[$hash] = [$bytes, $mime, $note];
+        }
+        return $validated;
+    }
+
+    /** Keep support for earlier clients that send each document as a bare Base64 string. */
+    private function fields($file): array
+    {
+        $encoded = is_array($file) ? ($file['data'] ?? null) : $file;
+        $note = is_array($file) ? ($file['note'] ?? '') : '';
+        if (!is_string($encoded) || !is_string($note) || mb_strlen($note) > $this->policy['max_note_chars']) {
+            throw new DomainException('فایل یا توضیحات آن معتبر نیست.', 422);
+        }
+        return [$encoded, trim($note)];
     }
 
     /** Accept decoded photos and bounded PDF documents, checking bytes instead of file names. */
@@ -175,7 +211,7 @@ final class GpOrderProofUpload
     }
 
     /** Store each document in the existing private proof format. */
-    private function store(string $kind, string $bytes, string $mime, string $hash): array
+    private function store(string $kind, string $bytes, string $mime, string $hash, string $note): array
     {
         if (!is_dir($this->directory) && !@mkdir($this->directory, 0750, true) && !is_dir($this->directory)) {
             throw new RuntimeException('Cannot create private proof directory.');
@@ -188,6 +224,6 @@ final class GpOrderProofUpload
             throw new RuntimeException('Cannot store private proof.');
         }
         @chmod($path, 0640);
-        return ['kind' => $kind, 'proof_token' => $token, 'proof_mime' => $mime, 'proof_hash' => $hash];
+        return ['kind' => $kind, 'proof_token' => $token, 'proof_mime' => $mime, 'proof_hash' => $hash, 'note' => $note];
     }
 }

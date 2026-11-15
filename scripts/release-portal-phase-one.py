@@ -10,13 +10,12 @@ import ssl
 import subprocess
 import sys
 from ftplib import FTP_TLS, error_perm
+from importlib import import_module
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from uuid import uuid4
-
-from importlib import import_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -72,6 +71,7 @@ class PhaseOneRelease:
             "portal-phase-two.css",
             "portal-phase-two-activity.js",
             "portal-phase-two-activity-client.js",
+            "order-followup.js",
             *shell_assets,
         ):
             match = re.search(
@@ -87,6 +87,8 @@ class PhaseOneRelease:
             "/partners/api/native/order-proof",
             "/api/reports/portal-activity",
             "/api/portal-messages/templates",
+            "/api/order-followup/alerts",
+            "/partners/api/order-followup",
             "/api/reports/customer-purchases",
             "/api/portal-messages",
             "/partners/api/notifications/staff",
@@ -113,6 +115,7 @@ class PhaseOneRelease:
         entries = (
             *(f"assets/{name}" for name in shell_assets),
             stage.order_flow_library,
+            stage.credit_library,
             stage.native_proof_router,
             "index.php",
             "app.html",
@@ -143,7 +146,7 @@ class PhaseOneRelease:
                 subprocess.run(
                     ["php", "-l", str(php_path)], check=True, capture_output=True
                 )
-            for name in shell_assets:
+            for name in (*shell_assets, stage.followup_asset):
                 if not name.endswith(".js"):
                     continue
                 subprocess.run(

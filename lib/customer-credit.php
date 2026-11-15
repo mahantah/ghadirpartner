@@ -34,20 +34,34 @@ final class GpCreditModel {
         }
         return $invoice;
     }
-    /** Use existing confirmed settlement status; unreviewed receipts do not repay debt. */
-    public function debt(array $o): int {return ($o['payment_status']??'')==='تسویه کامل'?0:$this->amount($o);}
+    /** Sum approved payments only, capped at the credit allocation for this invoice. */
+    public function repaid(array $order): int {
+        $remaining=$this->amount($order);
+        $repaid=0;
+        foreach($order['credit_repayments']??[] as $payment){
+            $amount=$payment['amount']??null;
+            if(($payment['status']??'')!=='approved'||!is_int($amount)||$amount<1)continue;
+            $part=min($amount,$remaining);
+            $repaid+=$part;$remaining-=$part;
+        }
+        return $repaid;
+    }
+    /** Preserve previously closed invoices and subtract reviewed repayments from open debt. */
+    public function debt(array $o): int {
+        return ($o['payment_status']??'')==='تسویه کامل'?0:$this->amount($o)-$this->repaid($o);
+    }
     /** Build a customer-only credit balance using the injected solar-month key. */
     public function balance(array $s,int $id,string $month,callable $monthOf): array {
         $customer=[];foreach($s['customers']??[] as $c)if((int)($c['id']??0)===$id)$customer=$c;
-        $setting=$customer['monthly_credit']??[];$limit=max(0,(int)($setting['limit']??0));$debt=0;$used=0;$reserved=0;
-        foreach($s['orders']??[] as $o){if((int)($o['customer_id']??0)!==$id)continue;$amount=$this->amount($o);$debt+=$this->debt($o);if($amount>0&&$monthOf((string)($o['created_at']??''))===$month)$used+=$amount;if(($o['approval_status']??'')==='در انتظار تأیید')$reserved+=$this->debt($o);}
+        $setting=$customer['monthly_credit']??[];$limit=max(0,(int)($setting['limit']??0));$debt=0;$used=0;$repaid=0;$reserved=0;
+        foreach($s['orders']??[] as $o){if((int)($o['customer_id']??0)!==$id)continue;$amount=$this->amount($o);$debt+=$this->debt($o);if($amount>0&&$monthOf((string)($o['created_at']??''))===$month){$used+=$amount;$repaid+=$this->repaid($o);}if(($o['approval_status']??'')==='در انتظار تأیید')$reserved+=$this->debt($o);}
         $enabled=($setting['enabled']??false)===true&&!empty($customer)&&empty($customer['deleted']);
-        return ['enabled'=>$enabled,'limit'=>$limit,'monthly_used'=>$used,'outstanding'=>$debt,'reserved'=>$reserved,'available'=>$enabled?max(0,min($limit-$used,$limit-$debt)):0,'month'=>$month,'currency'=>'تومان'];
+        return ['enabled'=>$enabled,'limit'=>$limit,'monthly_used'=>$used,'monthly_repaid'=>$repaid,'outstanding'=>$debt,'reserved'=>$reserved,'available'=>$enabled?max(0,min($limit-($used-$repaid),$limit-$debt)):0,'month'=>$month,'currency'=>'تومان'];
     }
     /** Copy only scalar credit inputs so PHP references cannot mutate the before snapshot. */
     public function snapshot(array $orders): array {
         $result=[];
-        foreach($orders as $o){$copy=[];foreach(['id','customer_id','deleted','status','approval_status','payment_method','requested_payment_method','payment_status','approved_total','estimated_total','created_at','native_settlement'] as $key)if(array_key_exists($key,$o))$copy[$key]=$o[$key];$result[]=$copy;}
+        foreach($orders as $o){$copy=[];foreach(['id','customer_id','deleted','status','approval_status','payment_method','requested_payment_method','payment_status','approved_total','estimated_total','created_at','native_settlement','credit_repayments'] as $key)if(array_key_exists($key,$o))$copy[$key]=$o[$key];$result[]=$copy;}
         return $result;
     }
     /** Validate only increasing credit exposure, preserving unrelated existing order operations. */
@@ -66,7 +80,7 @@ final class GpCreditModel {
             if(!$increase||$this->amount($o)===0)continue;
             $b=$this->balance($after,(int)$o['customer_id'],$month,$monthOf);
             if(!$b['enabled'])throw new GpMonthlyCreditViolation('خرید اعتباری برای این مشتری غیرفعال است');
-            if($b['monthly_used']>$b['limit']||$b['outstanding']>$b['limit'])throw new GpMonthlyCreditViolation('مبلغ سفارش از اعتبار باقی‌مانده مشتری بیشتر است');
+            if($b['monthly_used']-$b['monthly_repaid']>$b['limit']||$b['outstanding']>$b['limit'])throw new GpMonthlyCreditViolation('مبلغ سفارش از اعتبار باقی‌مانده مشتری بیشتر است');
         }
     }
 }
