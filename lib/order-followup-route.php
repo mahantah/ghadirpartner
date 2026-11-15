@@ -32,7 +32,7 @@ if ($m === 'GET') {
                 return $followup->document($order, $token);
             }
             $summary = $followup->summary($order);
-            if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['proofs']);
+            if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['pending_amount'], $summary['submittable_amount'], $summary['proofs']);
             return $summary;
         } catch (DomainException $error) {
             fail($error->getMessage(), $error->getCode());
@@ -86,5 +86,5 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
     }
 });
 $followup->commit();
-if (!$finance && $customerId === 0) unset($result['proofs'], $result['repayments'], $result['outstanding']);
+if (!$finance && $customerId === 0) unset($result['proofs'], $result['repayments'], $result['outstanding'], $result['pending_amount'], $result['submittable_amount']);
 out($result);

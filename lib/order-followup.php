@@ -64,7 +64,10 @@ final class GpOrderFollowup
             'can_submit' => $outstanding > $pending && ($order['status'] ?? '') === 'تحویل شد',
             'can_return' => $this->canReturn($order),
             'proofs' => $this->orderProofs($order),
-            'repayments' => array_values($order['credit_repayments'] ?? []),
+            'repayments' => array_values(array_map(static function (array $payment): array {
+                unset($payment['submission_hash']);
+                return $payment;
+            }, $order['credit_repayments'] ?? [])),
             'correction' => $order['customer_correction'] ?? null,
         ];
     }
