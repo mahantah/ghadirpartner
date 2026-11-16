@@ -4,8 +4,9 @@
     const sales = navigation?.querySelector('[data-tab="salesReports"]');
     const salesPage = document.getElementById("salesReports");
     const customerMenu = navigation?.querySelector("#gpCustomers .nav-submenu");
+    const settingsMenu = navigation?.querySelector("#gpSystem .nav-submenu");
     const app = document.getElementById("app");
-    if (!sales || !salesPage || !app) return;
+    if (!sales || !salesPage || !customerMenu || !settingsMenu || !app) return;
 
     const iconSample = sales.querySelector(".gp-menu-icon");
     const iconPaths = {
@@ -60,23 +61,6 @@
     reports.append(toggle, reportMenu);
     reportMenu.append(sales);
 
-    const portal = document.createElement("div");
-    portal.id = "gpCustomerPortalMenu";
-    portal.className = "nav-group";
-    const portalToggle = toggle.cloneNode(true);
-    portalToggle.setAttribute("aria-controls", "gpCustomerPortalItems");
-    const portalLabel = portalToggle.querySelector(".gp-menu-text");
-    if (portalLabel) portalLabel.textContent = "پرتال مشتریان";
-    else portalToggle.firstChild.textContent = "پرتال مشتریان";
-    portalToggle.querySelector(".gp-menu-icon path")?.setAttribute("d", iconPaths.accounts);
-    const portalItems = document.createElement("div");
-    portalItems.id = "gpCustomerPortalItems";
-    portalItems.className = "nav-submenu";
-    portalToggle.addEventListener("click", () => {
-        portalToggle.setAttribute("aria-expanded", String(portal.classList.toggle("open")));
-    });
-    reports.after(portal);
-    portal.append(portalToggle, portalItems);
     // The legacy sidebar still tracks the catalog control to keep its existing handlers.
     navigation.querySelector(":scope > #gpNavCatalog")?.setAttribute("hidden", "");
 
@@ -87,7 +71,7 @@
         ["gpMembershipRequests", "gpMembershipPage", "درخواست‌های عضویت"],
         ["gpPortalMessages", "gpPortalMessagesPage", "ارسال پیام به مشتریان"],
     ];
-    const portalLinks = [];
+    const pageLinks = [];
     for (const [panelId, pageId, title] of pages) {
         const panel = document.getElementById(panelId);
         if (!panel) continue;
@@ -109,7 +93,7 @@
         const openPage = () => {
             if (!canViewTab(pageId)) return;
             show(pageId);
-            for (const sibling of portalItems.querySelectorAll("[data-portal-admin-view]")) {
+            for (const sibling of settingsMenu.querySelectorAll("[data-portal-admin-view]")) {
                 sibling.classList.remove("active");
             }
             if (!panel.open) panel.querySelector("summary").click();
@@ -117,8 +101,9 @@
         };
         if (panelId === "gpMembershipRequests") window.reviewRegistration = openPage;
         link.addEventListener("click", openPage);
-        portalItems.append(link);
-        portalLinks.push(link);
+        const menu = panelId === "gpPortalMessages" ? settingsMenu : customerMenu;
+        menu.append(link);
+        pageLinks.push(link);
     }
     for (const [view, title] of [
         ["accounts", "حساب‌های پرتال"],
@@ -139,18 +124,21 @@
             if (!canViewTab("portalAdmin")) return;
             show("portalAdmin");
             portalAdminView(view);
-            for (const sibling of portalItems.querySelectorAll("[data-portal-admin-view]")) {
+            for (const sibling of settingsMenu.querySelectorAll("[data-portal-admin-view]")) {
                 sibling.classList.toggle("active", sibling === button);
             }
             if (typeof setSidebar === "function") setSidebar(false);
         });
-        portalItems.append(button);
-        portalLinks.push(button);
+        settingsMenu.append(button);
     }
     const update = () => {
-        portal.hidden = !(has("admin") || has("finance"));
         reports.hidden = !canViewTab("salesReports");
-        for (const link of portalLinks) link.hidden = !canViewTab(link.dataset.tab ?? "portalAdmin");
+        for (const link of pageLinks) {
+            link.classList.toggle("hidden", !canViewTab(link.dataset.tab));
+        }
+        for (const link of settingsMenu.querySelectorAll("[data-portal-admin-view]")) {
+            link.classList.toggle("hidden", !canViewTab("portalAdmin"));
+        }
     };
     new MutationObserver(update).observe(app, { attributeFilter: ["class"] });
     update();
