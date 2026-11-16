@@ -44,6 +44,9 @@ class CustomerPurchaseReportStage:
         _recipient_assets.replace("navigation.js?v=7", "navigation.js?v=8")
         + '\n<script defer src="/assets/portal-wallet-report.js?v=1"></script>'
     )
+    _customer_menu_assets = _workspace_assets.replace(
+        "navigation.js?v=8", "navigation.js?v=9"
+    )
     _wallet_card = """
 <details id="gpPortalWallet" class="card" hidden>
   <summary>کیف پول مشتریان</summary>
@@ -771,6 +774,7 @@ class CustomerPurchaseReportStage:
         if (
             self._recipient_assets not in app
             and self._workspace_assets not in app
+            and self._customer_menu_assets not in app
             and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
@@ -787,15 +791,18 @@ class CustomerPurchaseReportStage:
                 self._sidebar_rail_assets,
                 self._recipient_assets,
                 self._workspace_assets,
+                self._customer_menu_assets,
             )
         ):
             app = self._insert(
                 app, self._report_submenu_assets, self._report_icon_assets
             )
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
-        if self._workspace_assets not in app:
-            app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
-        app = self._insert(app, self._recipient_assets, self._workspace_assets)
+        if self._customer_menu_assets not in app:
+            if self._workspace_assets not in app:
+                app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
+            app = self._insert(app, self._recipient_assets, self._workspace_assets)
+            app = self._insert(app, self._workspace_assets, self._customer_menu_assets)
         app = self._insert(
             app,
             self._section + self._card + self._activity_card,
@@ -819,27 +826,19 @@ class CustomerPurchaseReportStage:
             target.parent.mkdir(parents=True, exist_ok=True)
             if self._reports_entry not in text:
                 text = self._insert(text, self._sales_entry, self._portal_entry)
-            target.write_text(
-                self._insert(
-                    self._insert(text, self._portal_entry, self._reports_entry),
-                    self._reports_entry,
-                    self._workspace_nav_entry,
-                )
-            )
+            text = text.replace(self._workspace_nav_entry, self._reports_entry, 1)
+            target.write_text(self._insert(text, self._portal_entry, self._reports_entry))
             start = f'src="/{asset.as_posix()}?'
             _, found, tail = app.partition(start)
             query, end, _ = tail.partition('"')
             if not found or not end:
                 raise ValueError(f"Expected a versioned loader for {asset}")
-            next_query = query.removesuffix("&portalreports=3").removesuffix(
-                "&portalreports=4"
+            current_query = re.sub(r"&portalreports=[3456]$", "", query)
+            app = self._insert(
+                app,
+                start + query + end,
+                start + current_query + "&portalreports=6" + end,
             )
-            if not next_query.endswith("&portalreports=5"):
-                app = self._insert(
-                    app,
-                    start + query + end,
-                    start + next_query + "&portalreports=5" + end,
-                )
         app = self.stage_console(app, source, output)
         app = self.stage_proof_documents(app, source, output)
         index, app = self.stage_followup(index, app, source, output)
