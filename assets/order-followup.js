@@ -125,6 +125,10 @@
     badge.dataset.state = status;
     card.append(badge);
     if (review.review_note) card.append(element("p", review.review_note));
+    if (review.source === "wallet") {
+      card.append(element("p", "پرداخت از کیف پول · " + money(review.amount)));
+      return;
+    }
     const seen = new Set();
     for (const [index, proof] of proofs.entries()) {
       const suffix = proofs.length > 1 ? " " + (index + 1).toLocaleString("fa-IR") : "";
@@ -235,6 +239,24 @@
         const receipts = summary.proofs ?? [];
         const repayments = summary.repayments ?? [];
         content.replaceChildren();
+        const initial = summary.initial_payment;
+        if (initial?.cash_required > 0) {
+          content.append(element("p", "تأیید واریز اولیه: " + money(initial.cash_confirmed) +
+            " · مانده: " + money(initial.cash_remaining)));
+        }
+        const refund = summary.cancellation;
+        if (refund?.destination === "refund") {
+          const block = section(content, "بازگشت وجه سفارش");
+          block.append(element("p", money(refund.amount) + " · " +
+            (refund.status === "completed" ? "واریز شد" : "در انتظار واریز")));
+          if (refund.status === "pending") {
+            const reference = field(group(block, "gp-followup-fields"), "مرجع واریز");
+            group(block, "gp-followup-actions").append(button("ثبت بازگشت وجه", safe(creditStatus, () =>
+              update("complete_refund", {reference: reference.value}))));
+          } else if (refund.reference) {
+            block.append(element("p", refund.reference));
+          }
+        }
         if (receipts.length) {
           const documents = section(content, "مدارک پرداخت هنگام سفارش");
           for (const [index, proof] of receipts.entries()) {
@@ -255,7 +277,7 @@
             const block = section(repaymentsSection, "فیش بازپرداخت " + (index + 1).toLocaleString("fa-IR"));
             receiptCard(block, {id, proofs: item.proofs ?? [], review: item, safe, creditStatus, update});
           }
-          if (summary.outstanding > 0) {
+          if (summary.outstanding > 0 && (!summary.initial_payment || summary.can_submit)) {
             const manual = section(repaymentsSection, "ثبت دستی تسویهٔ تأییدشده");
             const fields = group(manual, "gp-followup-fields");
             const amount = field(fields, "مبلغ (تومان)", "", true);
@@ -297,7 +319,7 @@
       if (!ORD.some(order => Number(order.id) === id)) throw new Error("این سفارش در فهرست قابل دسترسی نیست.");
     }
     if (typeof window.openOrderDetails !== "function") throw new Error("جزئیات سفارش در دسترس نیست.");
-    const target = entry.kind === "credit_proof" ? "payment" : "overview";
+    const target = ["credit_proof", "refund"].includes(entry.kind) ? "payment" : "overview";
     dialog.close();
     try { await window.openOrderDetails(id, target); }
     catch (error) { dialog.showModal(); throw error; }
@@ -327,9 +349,9 @@
         trigger.setAttribute("aria-label", count ? `اعلان‌های سفارش، ${badge.textContent} مورد` : "اعلان‌های سفارش");
         message.textContent = entries.length ? "" : "اعلان تازه‌ای برای بررسی وجود ندارد.";
         list.replaceChildren(...entries.map(entry => {
-          const proof = entry.kind === "credit_proof";
+          const label = {credit_proof: "فیش واریز اعتباری", refund: "بازگشت وجه", revision: "سفارش اصلاح‌شده"}[entry.kind] ?? "اعلان سفارش";
           const row = element("li");
-          row.append(button((proof ? "فیش واریز اعتباری" : "سفارش اصلاح‌شده") + " · " + entry.number, async () => {
+          row.append(button(label + " · " + entry.number, async () => {
             try { await openAlert(entry); } catch (error) { message.textContent = error.message; }
           }));
           return row;

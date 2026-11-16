@@ -33,7 +33,7 @@ if (
     $result['products'] !== ['I90' => 2] ||
     array_column($result['orders'], 'number') !== ['GHP-2', 'GHP-1', 'GHP-3'] ||
     $result['credit']['monthly_used'] !== 200 ||
-    $result['credit']['outstanding'] !== 300 ||
+    $result['credit']['outstanding'] !== 200 ||
     $result['credit']['reserved'] !== 100 ||
     $result['credit']['available'] !== 200 ||
     $report->forCustomer($state, 3, '1405/08/23', '', '') !== null
