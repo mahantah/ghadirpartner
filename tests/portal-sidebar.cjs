@@ -7,6 +7,7 @@ const readAsset = (name) => fs.readFileSync(root + "/assets/" + name, "utf8");
 const id = "gpPortalReportsMenu";
 const sales = {};
 const reports = {};
+const portal = {};
 const unrelated = {};
 const discarded = [];
 const destinations = {
@@ -18,7 +19,7 @@ const destinations = {
   },
 };
 const nav = {
-  children: [reports, unrelated],
+  children: [reports, portal, unrelated],
   querySelector(selector) {
     if (selector === ':scope > [data-tab="salesReports"]') return this.children.includes(sales) ? sales : null;
     if (selector === ":scope > #" + id) return this.children.includes(reports) ? reports : null;
@@ -34,7 +35,7 @@ const document = {
   readyState: "complete",
   head: { appendChild() {} },
   createElement() { return {}; },
-  getElementById: (key) => destinations[key],
+  getElementById: (key) => key === "gpCustomerPortalMenu" ? portal : destinations[key],
   querySelector: (selector) => selector === ".topnav" ? nav : null,
 };
 const window = { applyPermissionVisibility() {} };
@@ -43,12 +44,16 @@ vm.runInNewContext(readAsset("menu-live-v4.js"), {
   document, window, setTimeout: (callback) => delayed.push(callback),
 });
 for (const refresh of [window.applyPermissionVisibility, ...delayed]) refresh();
-assert.deepEqual(nav.children, [reports]);
+assert.deepEqual(nav.children, [reports, portal]);
 assert.deepEqual(discarded, [unrelated]);
 for (const name of ["ui-v53435-menu2.js", "nav-restructure-v1.js"]) {
   assert.match(readAsset(name), /nav\.querySelector\(':scope > #gpPortalReportsMenu'\) \|\| nav\.querySelector\(':scope > \[data-tab="salesReports"\]'\)/);
 }
-assert.match(readAsset("portal-phase-two-navigation.js"), /reportMenu\.append\(sales\)/);
-assert.match(readAsset("portal-phase-two-navigation.js"), /"gpPortalActivityPage", [^\n]+, reportMenu\]/);
-assert.match(readAsset("portal-phase-two-navigation.js"), /"gpPortalMessagesPage", [^\n]+, customerMenu\]/);
-console.log("Portal reports menu remains in the sidebar after permission refreshes.");
+const sidebar = readAsset("portal-phase-two-navigation.js");
+assert.match(sidebar, /reportMenu\.append\(sales\)/);
+assert.match(sidebar, /portal\.id = "gpCustomerPortalMenu"/);
+assert.match(sidebar, /portalItems\.append\(link\)/);
+for (const page of ["gpPortalActivityPage", "gpPortalWalletPage", "gpCustomerReportPage", "gpPortalMessagesPage", "gpMembershipPage"]) {
+  assert.ok(sidebar.includes(page), page);
+}
+console.log("General reports and customer portal survive sidebar permission refreshes.");

@@ -40,6 +40,26 @@ class CustomerPurchaseReportStage:
         "navigation.js?v=6", "navigation.js?v=7"
     )
     _recipient_assets = _sidebar_rail_assets.replace("css?v=5", "css?v=6")
+    _workspace_assets = (
+        _recipient_assets.replace("navigation.js?v=7", "navigation.js?v=8")
+        + '\n<script defer src="/assets/portal-wallet-report.js?v=1"></script>'
+    )
+    _wallet_card = """
+<details id="gpPortalWallet" class="card" hidden>
+  <summary>کیف پول مشتریان</summary>
+  <form class="sales-custom-range">
+    <label>مشتری <select name="customer_id" required><option value="">انتخاب مشتری</option></select></label>
+    <button type="submit" class="btn2">نمایش کیف پول</button>
+  </form>
+  <p role="status"></p>
+  <dl></dl>
+  <div class="tablewrap" hidden><table>
+    <caption>گردش کیف پول</caption>
+    <thead><tr><th>زمان</th><th>نوع تراکنش</th><th>سفارش</th><th>مبلغ</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</details>
+"""
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -84,6 +104,7 @@ class CustomerPurchaseReportStage:
     _sales_entry = """nav.querySelector('[data-tab="salesReports"]'),"""
     _portal_entry = _sales_entry + '\n      nav.querySelector("#gpPortalReportsMenu"),'
     _reports_entry = """nav.querySelector(':scope > #gpPortalReportsMenu') || nav.querySelector(':scope > [data-tab="salesReports"]'),"""
+    _workspace_nav_entry = _reports_entry + "\n      $('gpCustomerPortalMenu'),"
     _customer_section = '<section id="customers" class="tab hidden">'
     _legacy_registration = (
         "let showPanel=x.dataset.portalPanel===key || "
@@ -148,6 +169,8 @@ class CustomerPurchaseReportStage:
         "assets/customer-purchase-report.js",
         "assets/portal-messages.js",
         "assets/portal-phase-two-navigation.js",
+        "assets/portal-wallet-report.js",
+        "lib/portal-wallet-report-route.php",
         "assets/portal-phase-two.css",
         "lib/portal-messages.php",
         "lib/portal-messages-routes.php",
@@ -747,6 +770,7 @@ class CustomerPurchaseReportStage:
         )
         if (
             self._recipient_assets not in app
+            and self._workspace_assets not in app
             and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
@@ -757,12 +781,37 @@ class CustomerPurchaseReportStage:
                     app = self._insert(app, self._new_assets, self._sidebar_release)
                 app = self._insert(app, self._sidebar_release, self._current_assets)
             app = self._insert(app, self._current_assets, self._report_submenu_assets)
-        if self._sidebar_rail_assets not in app and self._recipient_assets not in app:
+        if all(
+            marker not in app
+            for marker in (
+                self._sidebar_rail_assets,
+                self._recipient_assets,
+                self._workspace_assets,
+            )
+        ):
             app = self._insert(
                 app, self._report_submenu_assets, self._report_icon_assets
             )
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
-        app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
+        if self._workspace_assets not in app:
+            app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
+        app = self._insert(app, self._recipient_assets, self._workspace_assets)
+        app = self._insert(
+            app,
+            self._section + self._card + self._activity_card,
+            self._section + self._card + self._activity_card + self._wallet_card,
+        )
+        app = self._insert(
+            app,
+            "portalAdmin:['admin'],",
+            "portalAdmin:['admin'],gpPortalWalletPage:['finance'],",
+        )
+        credit_loader = "require_once __DIR__.'/lib/customer-credit-routes.php';"
+        index = self._insert(
+            index,
+            credit_loader,
+            "require __DIR__.'/lib/portal-wallet-report-route.php';\n" + credit_loader,
+        )
         for name in self.sidebar_assets:
             asset = Path("assets", name)
             text = (source / asset).read_text()
@@ -771,19 +820,25 @@ class CustomerPurchaseReportStage:
             if self._reports_entry not in text:
                 text = self._insert(text, self._sales_entry, self._portal_entry)
             target.write_text(
-                self._insert(text, self._portal_entry, self._reports_entry)
+                self._insert(
+                    self._insert(text, self._portal_entry, self._reports_entry),
+                    self._reports_entry,
+                    self._workspace_nav_entry,
+                )
             )
             start = f'src="/{asset.as_posix()}?'
             _, found, tail = app.partition(start)
             query, end, _ = tail.partition('"')
             if not found or not end:
                 raise ValueError(f"Expected a versioned loader for {asset}")
-            next_query = query.removesuffix("&portalreports=3")
-            if not next_query.endswith("&portalreports=4"):
+            next_query = query.removesuffix("&portalreports=3").removesuffix(
+                "&portalreports=4"
+            )
+            if not next_query.endswith("&portalreports=5"):
                 app = self._insert(
                     app,
                     start + query + end,
-                    start + next_query + "&portalreports=4" + end,
+                    start + next_query + "&portalreports=5" + end,
                 )
         app = self.stage_console(app, source, output)
         app = self.stage_proof_documents(app, source, output)
