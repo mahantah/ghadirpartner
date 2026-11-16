@@ -77,6 +77,8 @@
     });
     reports.after(portal);
     portal.append(portalToggle, portalItems);
+    // The legacy sidebar still tracks the catalog control to keep its existing handlers.
+    navigation.querySelector(":scope > #gpNavCatalog")?.setAttribute("hidden", "");
 
     const pages = [
         ["gpCustomerPurchaseReport", "gpCustomerReportPage", "خرید و اعتبار هر مشتری"],
