@@ -73,7 +73,8 @@ class CustomerPurchaseReportStage:
     dock_asset = "account-logout-access-v1.css"
     proof_asset = "order-details-v2-approved-20261024.js"
     _credit_base_hashes = {
-        "d1a5e6706afca7d98619dc7ce9c6dee7fb4417da5d8be6c58b8621fe7afa8d8b"
+        "d1a5e6706afca7d98619dc7ce9c6dee7fb4417da5d8be6c58b8621fe7afa8d8b",
+        "9342209c672e847095bceaca176cd3b72ffdba8fcd3247aec6ed0283073ad55f",
     }
     credit_library = "lib/customer-credit.php"
     followup_bridge = "production-order-details-bridge-v1.js"
@@ -152,6 +153,8 @@ class CustomerPurchaseReportStage:
         "lib/portal-messages-routes.php",
         "lib/order-proof-upload.php",
         "lib/order-followup.php",
+        "lib/credit-checkout.php",
+        "lib/order-wallet.php",
         "lib/order-settlement-progress.php",
         "lib/order-followup-route.php",
         "config/order-followup.yaml",
@@ -432,7 +435,8 @@ class CustomerPurchaseReportStage:
             router,
             history,
             """        if($revisionIndex!==null){
-            $revisionService->preserveRevision($s['orders'][$revisionIndex],$o,$paymentFiles??[],$o['updated_at']);
+            try{$revisionService->preserveRevision($s['orders'][$revisionIndex],$o,$paymentFiles??[],$o['updated_at']);}
+            catch(DomainException $error){fail($error->getMessage(),$error->getCode());}
         }
 """
             + history,
@@ -454,6 +458,72 @@ class CustomerPurchaseReportStage:
             router,
             "    sms_status($customer,$order,'','order_created');",
             "    if($revisionId>0)out($order);\n    sms_status($customer,$order,'','order_created');",
+        )
+
+    def stage_credit_checkout(self, router: str, *, partner: bool) -> str:
+        """Bind credit checkout to priced orders and guard the existing approval entry points."""
+        if partner:
+            revision = "$revisionService->preserveRevision($s['orders'][$revisionIndex],$o,$paymentFiles??[],$o['updated_at']);"
+            if revision in router:
+                router = self._insert(
+                    router,
+                    revision,
+                    "try{" + revision + "}\n"
+                    "            catch(DomainException $error){fail($error->getMessage(),$error->getCode());}",
+                )
+        if partner and "->initialize($o,$prior,$walletAmount)" not in router:
+            order = "$c=$s['customers'][$ci];$o=$x;"
+            router = self._insert(
+                router,
+                order,
+                order
+                + "\n        if($isCustomer){"
+                + "$o=array_intersect_key($o,array_flip(['invoice_type','address_id','notes']));"
+                + "}",
+            )
+            history = "        $history=$isCustomer?'سفارش توسط مشتری با فاکتور "
+            router = self._insert(
+                router,
+                history,
+                """        if($isCustomer){
+            require_once dirname(__DIR__).'/lib/credit-checkout.php';
+            $prior=$revisionIndex===null?null:$s['orders'][$revisionIndex];
+            $walletAmount=$x['settlement_details']['wallet_amount']??0;
+            if(!is_int($walletAmount)||$walletAmount<0)fail('مبلغ کیف پول معتبر نیست.',422);
+            try{
+                (new GpCreditCheckout())->initialize($o,$prior,$walletAmount);
+                (new GpOrderWallet())->assertReservation($s,$o);
+            }
+            catch(DomainException $error){fail($error->getMessage(),$error->getCode());}
+        }
+"""
+                + history,
+            )
+        if "->assertApproval($o," in router:
+            return router
+        approval = (
+            "$o['approved_total']=max(0,$total);"
+            if partner
+            else "$o['approved_total']=max(0,(int)($x['total']??$o['estimated_total']??0));"
+        )
+        total = "$total" if partner else "(int)($x['total']??$o['estimated_total']??0)"
+        library = "dirname(__DIR__)" if partner else "__DIR__"
+        route = router.index("if($p==='/api/customer-order/approve'")
+        end = router.index("\n", route)
+        return (
+            router[:route]
+            + self._insert(
+                router[route:end],
+                approval,
+                f"require_once {library}.'/lib/credit-checkout.php';"
+                + "try{"
+                + f"(new GpCreditCheckout())->assertApproval($o,{total});"
+                + "(new GpOrderWallet())->purchase($s,$o,now());}"
+                + "catch(DomainException $error){fail($error->getMessage(),$error->getCode());}"
+                + "(new GpCreditCheckout())->recordApproval($o);"
+                + approval,
+            )
+            + router[end:]
         )
 
     def stage_settlement_progress(self, index: str, app: str) -> tuple[str, str]:
@@ -505,8 +575,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=4"></script>'
-        for previous_version in (1, 2, 3):
+        script = '<script defer src="/assets/order-followup.js?v=5"></script>'
+        for previous_version in (1, 2, 3, 4):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)
@@ -787,7 +857,9 @@ class CustomerPurchaseReportStage:
             path = output / name
             path.parent.mkdir(parents=True, exist_ok=True)
             copyfile(self._package / name, path)
-        (output / "index.php").write_text(index)
+        (output / "index.php").write_text(
+            self.stage_credit_checkout(index, partner=False)
+        )
         (output / "app.html").write_text(app)
         if router is not None:
             target = output / "partners"
@@ -810,12 +882,15 @@ class CustomerPurchaseReportStage:
                 output / "config/portal-membership.yaml",
             )
             (target / "index.php").write_text(
-                self.stage_order_revision(
-                    self.stage_checkout_proofs(
-                        self.stage_panel_switches(app, router, source, output),
-                        source,
-                        output,
-                    )
+                self.stage_credit_checkout(
+                    self.stage_order_revision(
+                        self.stage_checkout_proofs(
+                            self.stage_panel_switches(app, router, source, output),
+                            source,
+                            output,
+                        )
+                    ),
+                    partner=True,
                 )
             )
             web = (source / "partners/portal.html").read_text()

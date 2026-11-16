@@ -37,7 +37,7 @@ $after['orders'][1]['estimated_total']=70;$after['customers'][0]['monthly_credit
 try{$model->assertChanges($state,$after,'1405/08',$monthOf);throw new LogicException('disabled_accepted');}catch(GpMonthlyCreditViolation $e){}
 $state['orders'][0]['status']='لغو شد';if($model->balance($state,1,'1405/08',$monthOf)['available']!==100)throw new Exception('cancel_reservation');
 $state['orders'][0]=$order;$state['orders'][0]['payment_status']='تسویه کامل';if($model->balance($state,1,'1405/08',$monthOf)['available']!==100)throw new Exception('repayment');
-$state['orders'][0]['created_at']='1405/08/01';if($model->balance($state,1,'1405/08',$monthOf)['available']!==70)throw new Exception('monthly_quota_recycled');
+$state['orders'][0]['created_at']='1405/08/01';if($model->balance($state,1,'1405/08',$monthOf)['available']!==100)throw new Exception('monthly_credit_did_not_revolve');
 $state['orders'][0]['approval_status']='رد شده';if($model->balance($state,1,'1405/08',$monthOf)['available']!==100)throw new Exception('rejected_reservation');
 $state['orders'][0]=$order;$ref=&$state['orders'][0];$snapshot=$model->snapshot($state['orders']);$ref['estimated_total']=99;if($snapshot[0]['estimated_total']!==30)throw new Exception('reference_leak');unset($ref);
 $unrelated=$state;$unrelated['orders'][0]['status']='ارسال شد';$unrelated['customers'][0]['monthly_credit']['enabled']=false;$model->assertChanges($state,$unrelated,'1405/08',$monthOf);
@@ -68,7 +68,7 @@ function out(array $data): void {throw new CreditFixtureResponse($data);}
 /** Capture validation failures. */
 function fail(string $message,int $status=400): void {throw new RuntimeException($message,$status);}
 $p='/api/customer-credit';$m='GET';$_GET=['id'=>999];$fixtureUser=['customer_id'=>1,'roles'=>['customer'],'username'=>'fixture'];
-try{include dirname(__DIR__).'/lib/customer-credit-routes.php';throw new LogicException('missing response');}catch(CreditFixtureResponse $e){if($e->data['outstanding']!==100)throw new LogicException('customer identity bypass');}
+try{include dirname(__DIR__).'/lib/customer-credit-routes.php';throw new LogicException('missing response');}catch(CreditFixtureResponse $e){if($e->data['reserved']!==100)throw new LogicException('customer identity bypass');}
 $m='POST';$fixtureRequest=['id'=>1,'enabled'=>true,'limit'=>200];
 foreach([['customer'],['sales']] as $roles){$fixtureUser['roles']=$roles;try{include dirname(__DIR__).'/lib/customer-credit-routes.php';throw new LogicException('unauthorized settings accepted');}catch(RuntimeException $e){if($e->getCode()!==403)throw $e;}}
 $fixtureUser['roles']=['finance'];try{include dirname(__DIR__).'/lib/customer-credit-routes.php';throw new LogicException('missing finance response');}catch(CreditFixtureResponse $e){if($e->data['limit']!==200)throw new LogicException('finance setting not saved');}

@@ -1,6 +1,22 @@
 <?php
 declare(strict_types=1);
 
+/** Save the correction message alongside the order mutation so customers receive the reason once. */
+function gp_send_order_correction(array &$state, array $order, array $summary, int $actorId): void
+{
+    $id = (int) $order['customer_id'];
+    $config = json_decode((string) file_get_contents(dirname(__DIR__).'/config/portal-messages.yaml'), true, 512, JSON_THROW_ON_ERROR);
+    $messages = new GpPortalMessages($config);
+    $audience = $messages->recipients($state, 'is_customer_user', 'clean_mobile');
+    if (!isset($audience[$id])) fail('حساب امن مشتری برای دریافت درخواست اصلاح پیدا نشد.', 409);
+    $instructions = "\nبرای اصلاح و ارسال دوباره، سفارش را از بخش «سفارش‌های من» باز کنید.";
+    $reason = mb_strcut($summary['correction']['reason'], 0, $config['max_body_bytes'] - strlen($instructions)).$instructions;
+    $messages->create($state, [
+        'id' => $summary['correction']['request_id'], 'title' => 'اصلاح سفارش '.$order['number'], 'body' => $reason,
+        'recipients' => [$id], 'app' => true, 'sms' => false,
+    ], $audience, $actorId, now());
+}
+
 if (!in_array($p, ['/api/order-followup', '/api/order-followup/alerts', '/api/order-followup/document'], true)) return;
 
 require_once __DIR__.'/order-followup.php';
@@ -32,7 +48,8 @@ if ($m === 'GET') {
                 return $followup->document($order, $token);
             }
             $summary = $followup->summary($order);
-            if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['pending_amount'], $summary['submittable_amount'], $summary['settlement_progress'], $summary['proofs']);
+            if ($customerId > 0) $summary['wallet'] = (new GpOrderWallet())->read($state, $customerId);
+            if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['pending_amount'], $summary['submittable_amount'], $summary['settlement_progress'], $summary['proofs'], $summary['initial_payment'], $summary['cancellation']);
             return $summary;
         } catch (DomainException $error) {
             fail($error->getMessage(), $error->getCode());
@@ -42,29 +59,31 @@ if ($m === 'GET') {
 if ($p !== '/api/order-followup' || $m !== 'POST') fail('روش درخواست مجاز نیست.', 405);
 $action = $request['action'] ?? '';
 $receiptActions = ['approve_order_receipt', 'reject_order_receipt', 'adjust_order_receipt'];
-if (!(($customerId > 0 && $action === 'submit') || ($sales && in_array($action, ['return', 'ack_revision'], true))
-    || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
+if (!(($customerId > 0 && in_array($action, ['submit', 'cancel_credit_order'], true)) || ($sales && in_array($action, ['return', 'ack_revision'], true))
+    || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust', 'complete_refund'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
 $actorId = (int) $actor['id'];
 
 $result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $actorId, $orderId, $customerId): array {
     try {
         $index = $followup->index($state, $orderId, $customerId);
         $order = &$state['orders'][$index];
-        if ($action === 'submit') return $followup->submit($order, $request, $actorId, now());
+        if ($action === 'submit') {
+            $summary = isset($request['wallet_amount'])
+                ? $followup->submitWithWallet($state, $order, $request, $actorId, now())
+                : $followup->submit($order, $request, $actorId, now());
+            return $summary + ['wallet' => (new GpOrderWallet())->read($state, $customerId)];
+        }
+        if ($action === 'cancel_credit_order') {
+            (new GpOrderWallet())->cancel($state, $order, $request, $actorId, now());
+            return $followup->summary($order);
+        }
+        if ($action === 'complete_refund') {
+            (new GpOrderWallet())->completeRefund($order, $request, $actorId, now());
+            return $followup->summary($order);
+        }
         if ($action === 'return') {
             $summary = $followup->returnOrder($order, $request, $actorId, now());
-            $id = (int) $order['customer_id'];
-            $config = json_decode((string) file_get_contents(dirname(__DIR__).'/config/portal-messages.yaml'), true, 512, JSON_THROW_ON_ERROR);
-            $messages = new GpPortalMessages($config);
-            $audience = $messages->recipients($state, 'is_customer_user', 'clean_mobile');
-            if (!isset($audience[$id])) fail('حساب امن مشتری برای دریافت درخواست اصلاح پیدا نشد.', 409);
-            $instructions = "\nبرای اصلاح و ارسال دوباره، سفارش را از بخش «سفارش‌های من» باز کنید.";
-            $reason = mb_strcut($summary['correction']['reason'], 0, $config['max_body_bytes'] - strlen($instructions)).$instructions;
-            $messageId = $summary['correction']['request_id'];
-            $messages->create($state, [
-                'id' => $messageId, 'title' => 'اصلاح سفارش '.$order['number'], 'body' => $reason,
-                'recipients' => [$id], 'app' => true, 'sms' => false,
-            ], $audience, $actorId, now());
+            gp_send_order_correction($state, $order, $summary, $actorId);
             return $summary;
         }
         if ($action === 'ack_revision') {
@@ -76,7 +95,17 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
             return ['ok' => true];
         }
         if (in_array($action, $receiptActions, true)) {
-            return $followup->reviewOrderReceipt($order, $request, $action, $actorId, now());
+            $summary = $followup->reviewOrderReceipt($order, $request, $action, $actorId, now());
+            $token = $request['token'] ?? '';
+            if ($action === 'reject_order_receipt' && $summary['can_return']
+                && ($summary['initial_payment']['cash_remaining'] ?? 0) > 0
+                && ($order['order_receipt_reviews'][$token]['status'] ?? '') === 'rejected') {
+                $summary = $followup->returnOrder($order, [
+                    'request_id' => bin2hex(random_bytes(16)), 'note' => $order['order_receipt_reviews'][$token]['review_note'],
+                ], $actorId, now());
+                gp_send_order_correction($state, $order, $summary, $actorId);
+            }
+            return $summary;
         }
         return $followup->review($order, $request, $action, $actorId, now());
     } catch (DomainException $error) {

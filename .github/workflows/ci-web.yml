@@ -119,6 +119,8 @@ jobs:
           node --check assets/customer-purchase-report.js
           php -l scripts/release-customer-credit.php
           php tests/customer-credit.php
+          php tests/credit-wallet.php
+          php tests/order-followup.php
           php tests/customer-credit-release.php
           php -l scripts/release-credit-menu.php
           php tests/credit-menu-release.php

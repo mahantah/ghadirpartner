@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/customer-credit.php';
+require_once __DIR__.'/credit-checkout.php';
 require_once __DIR__.'/order-settlement-progress.php';
 require_once __DIR__.'/order-proof-upload.php';
 
@@ -10,6 +11,7 @@ final class GpOrderFollowup
 {
     private GpCreditModel $credit;
     private GpOrderProofUpload $uploads;
+    private GpCreditCheckout $checkout;
     private array $policy;
 
     /** Inject the balance model, transaction-scoped upload store and validated limits. */
@@ -21,6 +23,7 @@ final class GpOrderFollowup
             }
         }
         $this->credit = $credit;
+        $this->checkout = new GpCreditCheckout();
         $this->uploads = $uploads;
         $this->policy = $policy;
     }
@@ -63,7 +66,10 @@ final class GpOrderFollowup
             'settlement_progress' => (new GpOrderSettlementProgress($this->credit))->read($order),
             'pending_amount' => $pending,
             'submittable_amount' => max(0, $outstanding - $pending),
-            'can_submit' => $outstanding > $pending && ($order['status'] ?? '') === 'تحویل شد',
+            'can_submit' => $outstanding > $pending && $this->checkout->canRepay($order),
+            'initial_payment' => $this->checkout->summary($order),
+            'cancellation' => $order['customer_credit_cancel'] ?? null,
+            'can_cancel' => isset($order['credit_checkout']) && ($order['customer_correction']['status'] ?? '') === 'requested',
             'can_return' => $this->canReturn($order),
             'proofs' => $this->orderProofs($order),
             'repayments' => array_values(array_map(static function (array $payment): array {
@@ -107,7 +113,7 @@ final class GpOrderFollowup
         }
         $summary = $this->summary($order);
         if (!$summary['can_submit'] || $total > $summary['submittable_amount']) {
-            throw new DomainException('پس از تحویل می‌توانید تا سقف مانده پس از کسر فیش‌های در انتظار بررسی، فیش جدید ارسال کنید.', 409);
+            throw new DomainException('پس از تأیید اولیه سفارش می‌توانید تا سقف مانده پس از کسر فیش‌های در انتظار بررسی، فیش جدید ارسال کنید.', 409);
         }
         $existingHashes = [];
         foreach ($order['credit_repayments'] ?? [] as $repayment) {
@@ -130,6 +136,42 @@ final class GpOrderFollowup
         return $this->summary($order);
     }
 
+    /** Apply a chosen wallet payment and register any bank receipts atomically. */
+    public function submitWithWallet(array &$state, array &$order, array $request, int $actor, string $now): array
+    {
+        $walletAmount = $request['wallet_amount'] ?? null;
+        if (!is_int($walletAmount) || $walletAmount < 1 || $walletAmount > $this->policy['max_amount']) {
+            throw new DomainException('مبلغ پرداخت از کیف پول معتبر نیست.', 422);
+        }
+        $key = $this->requestKey($request);
+        $walletKey = substr(hash('sha256', 'wallet:'.$key), 0, 32);
+        $hash = hash('sha256', serialize([$walletAmount, $request['files'] ?? []]));
+        $previous = $order['credit_repayments'][$walletKey] ?? null;
+        if ($previous !== null) {
+            if (($previous['submission_hash'] ?? '') !== $hash) {
+                throw new DomainException('این درخواست با مبلغ یا مدارک دیگری ثبت شده است.', 409);
+            }
+            return $this->summary($order);
+        }
+        if (isset($order['credit_repayments'][$key])) {
+            throw new DomainException('این شناسه قبلاً برای فیش واریزی ثبت شده است.', 409);
+        }
+        $summary = $this->summary($order);
+        if (!$summary['can_submit'] || $walletAmount > $summary['submittable_amount']) {
+            throw new DomainException('پرداخت از کیف پول از مبلغ قابل تسویه بیشتر است.', 409);
+        }
+        if (!is_array($request['files'] ?? [])) {
+            throw new DomainException('مدارک پرداخت معتبر نیست.', 422);
+        }
+        (new GpOrderWallet())->repay($state, $order, $walletKey, $walletAmount, $actor, $now);
+        $order['credit_repayments'][$walletKey]['submission_hash'] = $hash;
+        if (!empty($request['files'])) {
+            unset($request['amount']);
+            return $this->submit($order, $request, $actor, $now);
+        }
+        return $this->summary($order);
+    }
+
     private function pendingAmount(array $order): int
     {
         $amount = 0;
@@ -147,6 +189,9 @@ final class GpOrderFollowup
         $key = $this->requestKey($request);
         $existing = $order['credit_repayments'][$key] ?? null;
         if ($action === 'manual') {
+            if (isset($order['credit_checkout']) && !$this->checkout->canRepay($order)) {
+                throw new DomainException('تسویه اعتبار پس از تأیید اولیه سفارش امکان‌پذیر است.', 409);
+            }
             if ($existing !== null) {
                 return $this->summary($order);
             }
@@ -160,7 +205,7 @@ final class GpOrderFollowup
         } elseif ($existing === null) {
             throw new DomainException('فیش پیدا نشد.', 404);
         } elseif ($action === 'adjust') {
-            if ($existing['status'] !== 'approved') {
+            if ($existing['status'] !== 'approved' || ($existing['source'] ?? '') === 'wallet') {
                 throw new DomainException('فقط مبلغ تسویه تأییدشده قابل اصلاح است.', 409);
             }
             $previousAmount = $request['previous_amount'] ?? null;
@@ -198,6 +243,9 @@ final class GpOrderFollowup
         if (!is_string($token) || ($receipts[$token]['kind'] ?? '') !== 'cash') {
             throw new DomainException('فیش واریزی این سفارش پیدا نشد.', 404);
         }
+        if (isset($order['customer_credit_cancel'])) {
+            throw new DomainException('تغییر فیش سفارش لغوشده مجاز نیست.', 409);
+        }
         $existing = $order['order_receipt_reviews'][$token] ?? [];
         $status = $existing['status'] ?? 'pending';
         $isAdjustment = $action === 'adjust_order_receipt';
@@ -214,6 +262,7 @@ final class GpOrderFollowup
         }
         $note = $this->note($request, $rejected || $isAdjustment);
         $amount = $rejected ? 0 : $this->amount($request);
+        $this->checkout->assertReceipt($order, (int) ($existing['amount'] ?? 0), $amount);
         $record = ['status' => $rejected ? 'rejected' : 'approved', 'amount' => $amount,
             'review_note' => $note, 'reviewed_by' => $actor, 'reviewed_at' => $now];
         $entry = $record + ['action' => $action, 'previous_amount' => $existing['amount'] ?? null];
@@ -279,8 +328,14 @@ final class GpOrderFollowup
         foreach ($proofs as $proof) {
             $kind = $proof['kind'] ?? '';
             $method = $order['requested_payment_method'] ?? '';
-            if (isset($newFiles[$kind]) || ($kind !== $method && ($method !== 'mixed'
-                || (int) ($order['native_settlement'][$kind.'_amount'] ?? 0) < 1))) continue;
+            $confirmed = isset($previous['credit_checkout']) && $kind === 'cash'
+                && ($previous['order_receipt_reviews'][$proof['proof_token']]['status'] ?? '') === 'approved';
+            if ($confirmed && !empty($proof['proof_hash'])
+                && in_array($proof['proof_hash'], array_column($order['native_settlement']['proofs'] ?? [], 'proof_hash'), true)) {
+                throw new DomainException('این فیش قبلاً تأیید شده است. فقط فیش جدید را بارگذاری کنید.', 409);
+            }
+            if (!$confirmed && (isset($newFiles[$kind]) || ($kind !== $method && ($method !== 'mixed'
+                || (int) ($order['native_settlement'][$kind.'_amount'] ?? 0) < 1)))) continue;
             $order['native_settlement']['proofs'][] = $proof;
         }
         $current = $order['native_settlement']['proofs'][0] ?? null;
@@ -300,7 +355,7 @@ final class GpOrderFollowup
         foreach ($state['orders'] ?? [] as $order) {
             if (!empty($order['deleted'])) continue;
             foreach ($order['followup_events'] ?? [] as $event) {
-                if ($event['kind'] === 'credit_proof' ? !$showCredit : !$showCorrections) continue;
+                if (in_array($event['kind'], ['credit_proof', 'refund'], true) ? !$showCredit : !$showCorrections) continue;
                 $items[] = $event + ['order_id' => (int) $order['id'], 'number' => (string) $order['number']];
             }
         }
