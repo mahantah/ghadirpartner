@@ -1,22 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/** Save the correction message alongside the order mutation so customers receive the reason once. */
-function gp_send_order_correction(array &$state, array $order, array $summary, int $actorId): void
-{
-    $id = (int) $order['customer_id'];
-    $config = json_decode((string) file_get_contents(dirname(__DIR__).'/config/portal-messages.yaml'), true, 512, JSON_THROW_ON_ERROR);
-    $messages = new GpPortalMessages($config);
-    $audience = $messages->recipients($state, 'is_customer_user', 'clean_mobile');
-    if (!isset($audience[$id])) fail('حساب امن مشتری برای دریافت درخواست اصلاح پیدا نشد.', 409);
-    $instructions = "\nبرای اصلاح و ارسال دوباره، سفارش را از بخش «سفارش‌های من» باز کنید.";
-    $reason = mb_strcut($summary['correction']['reason'], 0, $config['max_body_bytes'] - strlen($instructions)).$instructions;
-    $messages->create($state, [
-        'id' => $summary['correction']['request_id'], 'title' => 'اصلاح سفارش '.$order['number'], 'body' => $reason,
-        'recipients' => [$id], 'app' => true, 'sms' => false,
-    ], $audience, $actorId, now());
-}
-
 if (!in_array($p, ['/api/order-followup', '/api/order-followup/alerts', '/api/order-followup/document'], true)) return;
 
 require_once __DIR__.'/order-followup.php';
@@ -63,7 +47,23 @@ if (!(($customerId > 0 && in_array($action, ['submit', 'cancel_credit_order'], t
     || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust', 'complete_refund'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
 $actorId = (int) $actor['id'];
 
-$result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $actorId, $orderId, $customerId): array {
+/** Save the correction message alongside the order mutation so customers receive the reason once. */
+$sendCorrection = static function (array &$state, array $order, array $summary, int $actorId): void
+{
+    $id = (int) $order['customer_id'];
+    $config = json_decode((string) file_get_contents(dirname(__DIR__).'/config/portal-messages.yaml'), true, 512, JSON_THROW_ON_ERROR);
+    $messages = new GpPortalMessages($config);
+    $audience = $messages->recipients($state, 'is_customer_user', 'clean_mobile');
+    if (!isset($audience[$id])) fail('حساب امن مشتری برای دریافت درخواست اصلاح پیدا نشد.', 409);
+    $instructions = "\nبرای اصلاح و ارسال دوباره، سفارش را از بخش «سفارش‌های من» باز کنید.";
+    $reason = mb_strcut($summary['correction']['reason'], 0, $config['max_body_bytes'] - strlen($instructions)).$instructions;
+    $messages->create($state, [
+        'id' => $summary['correction']['request_id'], 'title' => 'اصلاح سفارش '.$order['number'], 'body' => $reason,
+        'recipients' => [$id], 'app' => true, 'sms' => false,
+    ], $audience, $actorId, now());
+};
+
+$result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $actorId, $orderId, $customerId, $sendCorrection): array {
     try {
         $index = $followup->index($state, $orderId, $customerId);
         $order = &$state['orders'][$index];
@@ -83,7 +83,7 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
         }
         if ($action === 'return') {
             $summary = $followup->returnOrder($order, $request, $actorId, now());
-            gp_send_order_correction($state, $order, $summary, $actorId);
+            $sendCorrection($state, $order, $summary, $actorId);
             return $summary;
         }
         if ($action === 'ack_revision') {
@@ -103,7 +103,7 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
                 $summary = $followup->returnOrder($order, [
                     'request_id' => bin2hex(random_bytes(16)), 'note' => $order['order_receipt_reviews'][$token]['review_note'],
                 ], $actorId, now());
-                gp_send_order_correction($state, $order, $summary, $actorId);
+                $sendCorrection($state, $order, $summary, $actorId);
             }
             return $summary;
         }

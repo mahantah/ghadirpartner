@@ -80,4 +80,33 @@ $monthEnd = $credit->balance($state, 3, '1405/09', $month);
 walletCheck($monthEnd['outstanding'] === 130 && $monthEnd['available'] === 70 && $monthEnd['reserved'] === 0, 'Repayment or month rollover changed debt incorrectly.');
 walletCheck($wallet->read($state, 3)['available'] === 0, 'Retry debited the wallet twice.');
 
+$combo = $purchase;
+$combo['id'] = 6;
+$combo['number'] = 'GHP-000006';
+$combo['credit_checkout']['credit_reserved'] = 70;
+$combo['credit_repayments'] = [];
+$state['orders'] = [$combo];
+$state['customer_wallet'][3]['second_fixture'] = ['amount' => 20];
+$combinedRequest = [
+    'request_id' => str_repeat('b', 32), 'wallet_amount' => 20,
+    'files' => [['amount' => 50, 'data' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ1sAAAAASUVORK5CYII=']],
+];
+$summary = $followup->submitWithWallet($state, $combo, $combinedRequest, 9, $date);
+$summary = $followup->submitWithWallet($state, $combo, $combinedRequest, 9, $date);
+walletCheck($summary['outstanding'] === 50 && $summary['pending_amount'] === 50 && count($summary['repayments']) === 2, 'Combined wallet and pending bank settlement needs independent ledger entries.');
+$state['orders'] = [$combo];
+walletCheck($credit->balance($state, 3, '1405/09', $month)['available'] === 150, 'Pending receipts must leave the invoice balance intact.');
+
+$refund = $order;
+$refund['id'] = 7;
+$refund['status'] = 'نیازمند اصلاح سفارش';
+$refund['approval_status'] = 'نیازمند اصلاح';
+$refund['customer_correction']['status'] = 'requested';
+unset($refund['customer_credit_cancel']);
+$walletBalance = $wallet->read($state, 3)['balance'];
+$refundRequest = $wallet->cancel($state, $refund, ['destination' => 'refund'], 9, $date);
+walletCheck($refundRequest['status'] === 'pending' && $wallet->read($state, 3)['balance'] === $walletBalance, 'Refund choice credited the wallet.');
+$wallet->completeRefund($refund, ['reference' => 'REF-7'], 2, $date);
+walletCheck($refund['customer_credit_cancel']['status'] === 'completed' && empty($refund['followup_events']), 'Completed refund was not acknowledged.');
+
 echo "PASS: cash gate, preserved evidence, wallet/refund choice isolation, wallet holds, repayment and rollover\n";

@@ -101,7 +101,11 @@ final class GpCreditCheckout
     {
         if (($order['status'] ?? '') === 'تحویل شد') return true;
         $cash = $this->summary($order);
-        return $cash !== null && $cash['cash_remaining'] === 0 && ($order['approval_status'] ?? '') === 'تأیید شده';
+        if (($order['approval_status'] ?? '') !== 'تأیید شده') return false;
+        if ($cash !== null) return $cash['cash_remaining'] === 0;
+        return ($order['requested_payment_method'] ?? '') === 'credit'
+            && ($order['payment_status'] ?? '') === 'اعتباری'
+            && ($order['credit_status'] ?? '') === 'تأیید شده';
     }
 
     /** Prevent edits that would reverse or overstate a confirmed initial payment. */
