@@ -95,9 +95,10 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
             return ['ok' => true];
         }
         if (in_array($action, $receiptActions, true)) {
-            $summary = $followup->reviewOrderReceipt($order, $request, $action, $actorId, now());
             $token = $request['token'] ?? '';
-            if ($action === 'reject_order_receipt' && $summary['can_return']
+            $wasPending = is_string($token) && ($order['order_receipt_reviews'][$token]['status'] ?? 'pending') === 'pending';
+            $summary = $followup->reviewOrderReceipt($order, $request, $action, $actorId, now());
+            if ($action === 'reject_order_receipt' && $wasPending && $summary['can_return']
                 && ($summary['initial_payment']['cash_remaining'] ?? 0) > 0
                 && ($order['order_receipt_reviews'][$token]['status'] ?? '') === 'rejected') {
                 $summary = $followup->returnOrder($order, [
