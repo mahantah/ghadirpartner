@@ -18,11 +18,16 @@ final class GpIranKishWalletClient
     public static function configured(string $path): ?self
     {
         $config = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-        foreach (['enabled', 'terminal_id', 'acceptor_id', 'pass_phrase', 'public_key_path', 'purchase_suffix', 'rsa_padding'] as $key) {
+        $privateSettings = null;
+        foreach (['enabled', 'terminal_id', 'acceptor_id', 'pass_phrase', 'purchase_suffix', 'rsa_padding', 'public_key_path'] as $key) {
             if (!preg_match('/^\$\{([A-Z_]+)\}$/D', $config[$key] ?? '', $name)) {
                 throw new RuntimeException('Invalid Iran Kish environment reference.');
             }
             $config[$key] = getenv($name[1]);
+            if ($config[$key] === false) {
+                $privateSettings = $privateSettings ?? self::privateSettings($path, $config['private_settings_file']);
+                $config[$key] = $privateSettings[$key] ?? false;
+            }
             if ($key === 'enabled' && $config[$key] !== '1') return null;
         }
         if (!preg_match('/^\d{8}$/D', (string) $config['terminal_id'])
@@ -34,13 +39,40 @@ final class GpIranKishWalletClient
             || !preg_match('~^https://[a-z0-9.-]+/partners/api/wallet/irankish/callback$~D', $config['callback'] ?? '')
             || !is_int($config['max_rials']) || $config['max_rials'] < 10 || $config['max_rials'] > 999999999999
             || !is_int($config['request_timeout_seconds']) || $config['request_timeout_seconds'] < 1
-            || !is_string($config['public_key_path']) || substr($config['public_key_path'], 0, 1) !== '/'
-            || !is_readable($config['public_key_path']) || !function_exists('curl_init')) {
+            || !function_exists('curl_init')) {
             throw new RuntimeException('Invalid Iran Kish wallet configuration.');
         }
-        $config['public_key'] = (string) file_get_contents($config['public_key_path']);
+        $keyPath = $config['public_key_path'];
+        if ($keyPath !== false) {
+            if (!is_string($keyPath) || substr($keyPath, 0, 1) !== '/' || !is_readable($keyPath)) {
+                throw new RuntimeException('Invalid Iran Kish public key file.');
+            }
+            $config['public_key'] = (string) file_get_contents($keyPath);
+        } else {
+            $config['public_key'] = $privateSettings['public_key'] ?? '';
+        }
         if (!openssl_pkey_get_public($config['public_key'])) throw new RuntimeException('Invalid Iran Kish public key.');
         return new self($config);
+    }
+
+    /** Read settings from the hosting account home, above the deployed web root. */
+    private static function privateSettings(string $policyPath, string $filename): array
+    {
+        if (!preg_match('/^[a-z0-9-]+\.json$/D', $filename)) {
+            throw new RuntimeException('Invalid Iran Kish private settings filename.');
+        }
+        $filename = dirname($policyPath, 3).'/'.$filename;
+        if (!file_exists($filename) && !is_link($filename)) return [];
+        if (is_link($filename) || !is_file($filename) || !is_readable($filename)
+            || (fileperms($filename) & 0077) !== 0) {
+            throw new RuntimeException('Iran Kish private settings must be a private, regular file.');
+        }
+        $settings = json_decode((string) file_get_contents($filename), true, 32, JSON_THROW_ON_ERROR);
+        if (!is_array($settings)) throw new RuntimeException('Invalid Iran Kish private settings.');
+        foreach ($settings as $value) {
+            if (!is_string($value)) throw new RuntimeException('Invalid Iran Kish private settings value.');
+        }
+        return $settings;
     }
 
     /** Validate the portal amount in tomans and return the documented rial amount. */

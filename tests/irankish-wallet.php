@@ -81,3 +81,43 @@ if (!$service->reconcile($id, 1, '', $now) || !$service->reconcile($id, 0, 'AB12
     throw new LogicException('Confirmed payment was not posted exactly once.');
 }
 echo "Iran Kish envelope, amount checks, ownership and wallet posting passed.\n";
+
+$home = sys_get_temp_dir().'/gp-irankish-'.bin2hex(random_bytes(8));
+$configDirectory = $home.'/public_html/config';
+mkdir($configDirectory, 0700, true);
+$policyPath = $configDirectory.'/wallet.yaml';
+$settingsPath = $home.'/irankish-wallet-settings.json';
+copy(__DIR__.'/../config/irankish-wallet.yaml', $policyPath);
+try {
+    if (GpIranKishWalletClient::configured($policyPath) !== null) {
+        throw new LogicException('Wallet must be disabled without host settings.');
+    }
+    file_put_contents($settingsPath, json_encode([
+        'enabled' => '1', 'terminal_id' => $config['terminal_id'], 'acceptor_id' => $config['acceptor_id'],
+        'pass_phrase' => $config['pass_phrase'], 'purchase_suffix' => '00', 'rsa_padding' => 'pkcs1',
+        'public_key' => $config['public_key'],
+    ], JSON_THROW_ON_ERROR));
+    chmod($settingsPath, 0644);
+    try {
+        GpIranKishWalletClient::configured($policyPath);
+        throw new LogicException('Wallet accepted a broadly readable settings file.');
+    } catch (RuntimeException $error) {
+        if ($error->getMessage() !== 'Iran Kish private settings must be a private, regular file.') throw $error;
+    }
+    chmod($settingsPath, 0600);
+    clearstatcache(true, $settingsPath);
+    $client = GpIranKishWalletClient::configured($policyPath);
+    if ($client === null || $client->rials(250) !== 2500) throw new LogicException('Private host settings did not load.');
+    putenv('GP_IKC_WALLET_ENABLED=0');
+    if (GpIranKishWalletClient::configured($policyPath) !== null) {
+        throw new LogicException('Explicit host environment must override the private file.');
+    }
+} finally {
+    putenv('GP_IKC_WALLET_ENABLED');
+    if (is_file($settingsPath)) unlink($settingsPath);
+    unlink($policyPath);
+    rmdir($configDirectory);
+    rmdir(dirname($configDirectory));
+    rmdir($home);
+}
+echo "Private host configuration, file permissions and environment precedence passed.\n";
