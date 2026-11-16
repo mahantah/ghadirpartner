@@ -6,6 +6,7 @@
   "public_key_path": "${GP_IKC_PUBLIC_KEY_PATH}",
   "purchase_suffix": "${GP_IKC_PURCHASE_SUFFIX}",
   "rsa_padding": "${GP_IKC_RSA_PADDING}",
+  "private_settings_file": "irankish-wallet-settings.json",
   "gateway": "https://ikc.shaparak.ir",
   "callback": "https://ghadirpartner.ir/partners/api/wallet/irankish/callback",
   "request_timeout_seconds": 8,
