@@ -10,5 +10,6 @@
   "gateway": "https://ikc.shaparak.ir",
   "callback": "https://ghadirpartner.ir/partners/api/wallet/irankish/callback",
   "request_timeout_seconds": 8,
+  "token_lifetime_seconds": 600,
   "max_rials": 999999999999
 }

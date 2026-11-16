@@ -401,6 +401,7 @@ final class GpOrderFollowup
         return in_array($order['status'] ?? '', ['در انتظار تأیید سفارش', 'ثبت شده'], true)
             && (int) ($order['customer_id'] ?? 0) > 0
             && in_array($order['source'] ?? '', ['customer', ''], true)
+            && empty($order['irankish_order_payment']['claim'])
             && !empty($order['purchase_items']) && empty($order['approved_at'])
             && empty($order['exit_items']) && ($order['payment_status'] ?? '') !== 'تسویه کامل' && $this->credit->repaid($order) === 0
             && !$this->hasAllocatedStock($order);

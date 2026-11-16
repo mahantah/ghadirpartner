@@ -126,6 +126,7 @@ class CustomerPurchaseReportStage:
     _credit_base_hashes = {
         "d1a5e6706afca7d98619dc7ce9c6dee7fb4417da5d8be6c58b8621fe7afa8d8b",
         "9342209c672e847095bceaca176cd3b72ffdba8fcd3247aec6ed0283073ad55f",
+        "ccd1e9706b31c9e37ce9b8529a27e886e8b820094f6caf7b0b8878688d6c33ab",
     }
     credit_library = "lib/customer-credit.php"
     followup_bridge = "production-order-details-bridge-v1.js"
@@ -210,6 +211,7 @@ class CustomerPurchaseReportStage:
         "lib/credit-checkout.php",
         "lib/order-wallet.php",
         "lib/irankish-wallet.php",
+        "lib/irankish-order-payment.php",
         "lib/irankish-wallet-client.php",
         "lib/irankish-wallet-route.php",
         "config/irankish-wallet.yaml",
@@ -558,6 +560,8 @@ class CustomerPurchaseReportStage:
 """
                 + history,
             )
+        if partner:
+            router = self.stage_irankish_order_payment(router)
         if "->assertApproval($o," in router:
             return router
         approval = (
@@ -583,6 +587,30 @@ class CustomerPurchaseReportStage:
                 + approval,
             )
             + router[end:]
+        )
+
+    def stage_irankish_order_payment(self, router: str) -> str:
+        """Patch the installed or newly staged checkout using the same pricing anchor."""
+        anchor = "                (new GpCreditCheckout())->initialize($o,$prior,$walletAmount);"
+        marker = "->initialize($o,$prior,$x['settlement_details']??[],$walletAmount);"
+        if marker in router:
+            return router
+        return self._insert(
+            router,
+            anchor,
+            """                require_once dirname(__DIR__).'/lib/irankish-order-payment.php';
+                if(($x['settlement_details']['cash_online']??false)===true){
+                    require_once dirname(__DIR__).'/lib/irankish-wallet-client.php';
+                    $client=GpIranKishWalletClient::configured(dirname(__DIR__).'/config/irankish-wallet.yaml');
+                    if($client===null)fail('پرداخت آنلاین سفارش در دسترس نیست.',503);
+                    $amount=$x['settlement_details']['cash_amount']??null;
+                    if(!is_int($amount))fail('مبلغ پرداخت آنلاین معتبر نیست.',422);
+                    $client->rials($amount);
+                }
+                if(!isset($prior['irankish_order_payment'])&&($x['settlement_details']['cash_online']??false)!==true)
+                    (new GpCreditCheckout())->initialize($o,$prior,$walletAmount);
+                (new GpIranKishOrderPayment())->initialize($o,$prior,$x['settlement_details']??[],$walletAmount);
+""".rstrip(),
         )
 
     def stage_settlement_progress(self, index: str, app: str) -> tuple[str, str]:

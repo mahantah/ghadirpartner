@@ -11,7 +11,7 @@ $config = [
     'pass_phrase' => '001122334455AABB', 'public_key' => openssl_pkey_get_details($key)['key'],
     'purchase_suffix' => '00', 'rsa_padding' => 'pkcs1',
     'callback' => 'https://ghadirpartner.ir/partners/api/wallet/irankish/callback',
-    'max_rials' => 999999999999,
+    'max_rials' => 999999999999, 'token_lifetime_seconds' => 600,
 ];
 $state = ['customers' => [['id' => 1], ['id' => 2]]];
 $bank = [];
@@ -81,6 +81,37 @@ if (!$service->reconcile($id, 1, '', $now) || !$service->reconcile($id, 0, 'AB12
     throw new LogicException('Confirmed payment was not posted exactly once.');
 }
 echo "Iran Kish envelope, amount checks, ownership and wallet posting passed.\n";
+
+$order = [
+    'id' => 7, 'customer_id' => 1, 'estimated_total' => 500, 'status' => 'در انتظار تأیید سفارش',
+    'requested_payment_method' => 'mixed', 'native_settlement' => ['check_amount' => 100, 'credit_amount' => 50],
+];
+(new GpIranKishOrderPayment())->initialize($order, null, ['cash_online' => true, 'cash_amount' => 250], 0);
+$state['orders'][] = $order;
+$orderAttempt = $service->startOrder(1, 7, $now)['id'];
+if ($service->orderLaunch($orderAttempt)['token'] !== 'AB123' || $service->report(1)['balance'] !== 250
+    || count($service->report(1)['payments']) !== 1 || $service->reconcile($orderAttempt, 2, '', $now)) {
+    throw new LogicException('Order launch, ownership or ledger separation failed.');
+}
+$bank['retrievalReferenceNumber'] = '123456789013';
+try {
+    $service->reconcile($orderAttempt, 0, 'AB123', $now);
+    throw new LogicException('Expected an interrupted confirmation.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'Fixture confirmation response lost.') throw $error;
+}
+if (($state['orders'][0]['irankish_order_payment']['claim'] ?? '') !== $orderAttempt) {
+    throw new LogicException('Confirmation claim was not persisted before bank I/O.');
+}
+$result = $service->recheckOrder(1, 7, $now);
+$summary = (new GpCreditCheckout())->summary($state['orders'][0]);
+if ($result['receipt']['reference'] !== '123456789013' || $summary['cash_remaining'] !== 100
+    || $summary['cash_confirmed'] !== 250 || $service->report(1)['balance'] !== 250
+    || !$service->reconcile($orderAttempt, 0, 'AB123', $now) || $confirmed !== 2
+    || empty($service->startOrder(1, 7, $now)['confirmed'])) {
+    throw new LogicException('Order reconciliation did not post exactly once to the cash portion.');
+}
+echo "Iran Kish order allocation, interrupted confirmation and separate wallet balance passed.\n";
 
 $home = sys_get_temp_dir().'/gp-irankish-'.bin2hex(random_bytes(8));
 $configDirectory = $home.'/public_html/config';
