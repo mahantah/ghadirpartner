@@ -121,7 +121,7 @@ final class GpIranKishWallet
             if (empty($attempt['order_id']) || empty($attempt['token']) || $attempt['expires_at'] <= time()) return null;
             try {
                 $order = $state['orders'][$orders->index($state, $attempt['order_id'], $attempt['customer_id'])];
-            } catch (DomainException) {
+            } catch (DomainException $error) {
                 return null;
             }
             $online = $order['irankish_order_payment'] ?? [];
@@ -207,7 +207,7 @@ final class GpIranKishWallet
         return ($this->database)(true, static function (array &$state) use ($orders, $payment, $claim): bool {
             try {
                 $index = $orders->index($state, $payment['order_id'], $payment['customer_id']);
-            } catch (DomainException) {
+            } catch (DomainException $error) {
                 return false;
             }
             $order = &$state['orders'][$index];
