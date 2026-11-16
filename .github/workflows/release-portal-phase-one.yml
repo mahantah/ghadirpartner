@@ -33,6 +33,7 @@ jobs:
           node --check assets/portal-phase-two-activity.js
           node --check assets/portal-phase-two-activity-client.js
           php tests/customer-purchase-report.php
+          php tests/portal-wallet-report.php
           php tests/portal-membership.php
           php tests/portal-messages.php
           php tests/portal-activity.php

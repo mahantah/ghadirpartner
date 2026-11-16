@@ -68,6 +68,7 @@ class PhaseOneRelease:
             "customer-purchase-report.js",
             "portal-messages.js",
             "portal-phase-two-navigation.js",
+            "portal-wallet-report.js",
             "portal-phase-two.css",
             "portal-phase-two-activity.js",
             "portal-phase-two-activity-client.js",
@@ -89,6 +90,7 @@ class PhaseOneRelease:
             "/api/reports/portal-activity",
             "/api/portal-messages/templates",
             "/api/order-followup/alerts",
+            "/api/reports/portal-wallet",
             "/partners/api/order-followup",
             "/api/reports/customer-purchases",
             "/api/portal-messages",
@@ -148,7 +150,11 @@ class PhaseOneRelease:
                 subprocess.run(
                     ["php", "-l", str(php_path)], check=True, capture_output=True
                 )
-            for name in (*shell_assets, stage.followup_asset):
+            for name in (
+                *shell_assets,
+                stage.followup_asset,
+                "portal-wallet-report.js",
+            ):
                 if not name.endswith(".js"):
                     continue
                 subprocess.run(
