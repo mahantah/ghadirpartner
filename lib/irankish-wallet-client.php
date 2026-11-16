@@ -38,6 +38,7 @@ final class GpIranKishWalletClient
             || $config['gateway'] !== 'https://ikc.shaparak.ir'
             || !preg_match('~^https://[a-z0-9.-]+/partners/api/wallet/irankish/callback$~D', $config['callback'] ?? '')
             || !is_int($config['max_rials']) || $config['max_rials'] < 10 || $config['max_rials'] > 999999999999
+            || !is_int($config['token_lifetime_seconds'] ?? null) || $config['token_lifetime_seconds'] < 1
             || !is_int($config['request_timeout_seconds']) || $config['request_timeout_seconds'] < 1
             || !function_exists('curl_init')) {
             throw new RuntimeException('Invalid Iran Kish wallet configuration.');
@@ -79,9 +80,15 @@ final class GpIranKishWalletClient
     public function rials(int $tomans): int
     {
         if ($tomans < 1 || $tomans > intdiv($this->config['max_rials'], 10)) {
-            throw new DomainException('مبلغ شارژ به تومان معتبر نیست.', 422);
+            throw new DomainException('مبلغ پرداخت به تومان معتبر نیست.', 422);
         }
         return $tomans * 10;
+    }
+
+    /** Limit token reuse to the issuance interval agreed with Iran Kish. */
+    public function tokenLifetime(): int
+    {
+        return $this->config['token_lifetime_seconds'];
     }
 
     /** Produce the page URL for a browser form containing only the token. */

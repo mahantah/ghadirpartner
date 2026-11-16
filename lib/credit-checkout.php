@@ -34,7 +34,7 @@ final class GpCreditCheckout
     {
         if (!isset($order['credit_checkout'])) return null;
         $required = $order['credit_checkout']['cash_required'];
-        $confirmed = 0;
+        $confirmed = (int) ($order['irankish_order_payment']['receipt']['amount'] ?? 0);
         foreach ($order['order_receipt_reviews'] ?? [] as $review) {
             if (($review['status'] ?? '') === 'approved') $confirmed += $review['amount'];
         }
@@ -55,7 +55,7 @@ final class GpCreditCheckout
             throw new DomainException('برای تغییر مبلغ، سفارش را برای اصلاح برگردانید.', 409);
         }
         if ($cash['cash_remaining'] > 0) {
-            throw new DomainException('ابتدا فیش‌های سهم نقدی سفارش را تأیید کنید.', 409);
+            throw new DomainException('ابتدا سهم نقدی سفارش را تسویه و تأیید کنید.', 409);
         }
     }
 
@@ -63,6 +63,8 @@ final class GpCreditCheckout
     public function recordApproval(array &$order): void
     {
         if (!isset($order['credit_checkout'])) return;
+        // Legacy approval still accounts for the cheque portion of a mixed order.
+        if (($order['native_settlement']['check_amount'] ?? 0) > 0) return;
         $credit = $order['credit_checkout']['credit_reserved'];
         $order['payment_method'] = $credit > 0 ? 'credit' : 'cash';
         $order['payment_method_label'] = $credit > 0 ? 'اعتباری' : 'تسویه نقدی یا کیف پول';
@@ -81,6 +83,13 @@ final class GpCreditCheckout
             || in_array($order['approval_status'] ?? '', ['رد شده', 'تأیید نشد'], true);
         $wasCancelled = !empty($prior['deleted']) || ($prior['status'] ?? '') === 'لغو شد'
             || in_array($prior['approval_status'] ?? '', ['رد شده', 'تأیید نشد'], true);
+        $bank = $prior['irankish_order_payment'] ?? [];
+        if (!empty($bank['claim']) && ($cancelled || ($order['status'] ?? '') === 'نیازمند اصلاح سفارش')) {
+            throw new DomainException('ابتدا نتیجه پرداخت آنلاین را بررسی کنید.', 409);
+        }
+        if (!empty($bank['receipt']) && ($order['irankish_order_payment']['receipt'] ?? null) !== $bank['receipt']) {
+            throw new DomainException('رسید ایران‌کیش قابل تغییر نیست.', 409);
+        }
         if (!$cancelled && $wasCancelled) {
             throw new DomainException('بازگرداندن سفارش لغوشده به گردش مالی مجاز نیست.', 409);
         }
@@ -114,7 +123,9 @@ final class GpCreditCheckout
         $cash = $this->summary($order);
         if ($cash === null) return;
         $confirmed = $cash['cash_confirmed'] - $previous + $amount;
-        if ($confirmed > $cash['cash_required']) {
+        $bank = $order['irankish_order_payment'] ?? [];
+        $onlineReserved = empty($bank['receipt']) ? (int) ($bank['amount'] ?? 0) : 0;
+        if ($confirmed > $cash['cash_required'] - $onlineReserved) {
             throw new DomainException('مبلغ ثبت‌شده از سهم نقدی سفارش بیشتر است.', 409);
         }
         if (($order['approval_status'] ?? '') === 'تأیید شده' && $confirmed < $cash['cash_required']) {

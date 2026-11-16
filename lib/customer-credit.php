@@ -95,7 +95,7 @@ final class GpCreditModel {
     /** Copy only scalar credit inputs so PHP references cannot mutate the before snapshot. */
     public function snapshot(array $orders): array {
         $result=[];
-        foreach($orders as $o){$copy=[];foreach(['id','customer_id','deleted','status','approval_status','payment_method','requested_payment_method','payment_status','approved_total','estimated_total','created_at','native_settlement','credit_repayments','credit_checkout','order_receipt_reviews','customer_credit_cancel'] as $key)if(array_key_exists($key,$o))$copy[$key]=$o[$key];$result[]=$copy;}
+        foreach($orders as $o){$copy=[];foreach(['id','customer_id','deleted','status','approval_status','payment_method','requested_payment_method','payment_status','approved_total','estimated_total','created_at','native_settlement','credit_repayments','credit_checkout','order_receipt_reviews','customer_credit_cancel','irankish_order_payment'] as $key)if(array_key_exists($key,$o))$copy[$key]=$o[$key];$result[]=$copy;}
         return $result;
     }
     /** Validate only increasing credit exposure, preserving unrelated existing order operations. */

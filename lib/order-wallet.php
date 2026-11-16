@@ -102,6 +102,9 @@ final class GpOrderWallet
             return $order['customer_credit_cancel'];
         }
 
+        if (!empty($order['irankish_order_payment']['claim'])) {
+            throw new DomainException('ابتدا نتیجه پرداخت آنلاین را بررسی کنید.', 409);
+        }
         $checkout = (new GpCreditCheckout())->summary($order);
         if ($checkout === null || ($order['customer_correction']['status'] ?? '') !== 'requested'
             || ($order['status'] ?? '') !== 'نیازمند اصلاح سفارش' || !empty($order['approved_at'])) {
