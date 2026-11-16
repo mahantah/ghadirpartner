@@ -96,6 +96,10 @@ $summary = $followup->submitWithWallet($state, $combo, $combinedRequest, 9, $dat
 walletCheck($summary['outstanding'] === 50 && $summary['pending_amount'] === 50 && count($summary['repayments']) === 2, 'Combined wallet and pending bank settlement needs independent ledger entries.');
 $state['orders'] = [$combo];
 walletCheck($credit->balance($state, 3, '1405/09', $month)['available'] === 150, 'Pending receipts must leave the invoice balance intact.');
+$summary = $followup->review($combo, [
+    'request_id' => $combinedRequest['request_id'], 'amount' => 50, 'seen' => true,
+], 'approve', 2, $date);
+walletCheck($summary['settlement_progress']['label'] === 'تسویه کامل', 'Verified cash, wallet and credit repayment did not settle the whole invoice.');
 
 $refund = $order;
 $refund['id'] = 7;

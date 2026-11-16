@@ -25,12 +25,15 @@ final class GpOrderSettlementProgress
         $fullCredit = ($order['requested_payment_method'] ?? '') !== 'mixed'
             && $invoice > 0 && $this->credit->amount($order) >= $invoice;
         $settled = $outstanding === 0;
+        $initial = (new GpCreditCheckout())->summary($order);
+        $checkoutVerified = ($order['approval_status'] ?? '') === 'تأیید شده'
+            && $initial !== null && $initial['cash_remaining'] === 0;
         return [
             'paid' => $paid,
             'outstanding' => $outstanding,
             'settled' => $settled,
             'label' => $settled
-                ? ($fullCredit || ($order['payment_status'] ?? '') === 'تسویه کامل' ? 'تسویه کامل' : 'بخش اعتباری تسویه شد')
+                ? ($fullCredit || $checkoutVerified || ($order['payment_status'] ?? '') === 'تسویه کامل' ? 'تسویه کامل' : 'بخش اعتباری تسویه شد')
                 : 'پرداخت بخشی',
         ];
     }
