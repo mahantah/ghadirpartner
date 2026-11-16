@@ -50,6 +50,9 @@ class CustomerPurchaseReportStage:
     _wallet_credit_assets = _customer_menu_assets.replace(
         "portal-wallet-report.js?v=1", "portal-wallet-report.js?v=2"
     )
+    _irankish_assets = _wallet_credit_assets.replace(
+        "portal-wallet-report.js?v=2", "portal-wallet-report.js?v=3"
+    )
     _wallet_card = """
 <details id="gpPortalWallet" class="card" hidden>
   <summary>کیف پول مشتریان</summary>
@@ -75,9 +78,22 @@ class CustomerPurchaseReportStage:
   </form>
   <p role="status"></p>""",
     )
+    _wallet_ipg_card = _wallet_credit_card.replace(
+        "<th>سفارش</th>", "<th>سفارش یا شماره پیگیری</th>"
+    )
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
+    _irankish_portal = """
+<section id="gpIranKishWallet" class="card" hidden>
+  <h2>شارژ آنلاین کیف پول</h2>
+  <p>موجودی قابل استفاده: <output></output></p>
+  <form><label>مبلغ به تومان <input name="amount" inputmode="numeric" required></label>
+    <button type="submit">پرداخت با ایران‌کیش</button></form>
+  <p role="status"></p><ul aria-label="پرداخت‌های اخیر"></ul>
+</section>
+<script defer src="/assets/irankish-wallet.js?v=1"></script>
+"""
     _activity_route = "require dirname(__DIR__).'/lib/portal-activity-routes.php';"
     _activity_card = """
 <details id="gpPortalActivity" class="card" hidden>
@@ -193,6 +209,11 @@ class CustomerPurchaseReportStage:
         "lib/order-followup.php",
         "lib/credit-checkout.php",
         "lib/order-wallet.php",
+        "lib/irankish-wallet.php",
+        "lib/irankish-wallet-client.php",
+        "lib/irankish-wallet-route.php",
+        "config/irankish-wallet.yaml",
+        "assets/irankish-wallet.js",
         "lib/order-settlement-progress.php",
         "lib/order-followup-route.php",
         "config/order-followup.yaml",
@@ -788,6 +809,7 @@ class CustomerPurchaseReportStage:
             and self._workspace_assets not in app
             and self._customer_menu_assets not in app
             and self._wallet_credit_assets not in app
+            and self._irankish_assets not in app
             and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
@@ -806,26 +828,30 @@ class CustomerPurchaseReportStage:
                 self._workspace_assets,
                 self._customer_menu_assets,
                 self._wallet_credit_assets,
+                self._irankish_assets,
             )
         ):
             app = self._insert(
                 app, self._report_submenu_assets, self._report_icon_assets
             )
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
-        if self._wallet_credit_assets not in app:
+        if self._wallet_credit_assets not in app and self._irankish_assets not in app:
             if self._customer_menu_assets not in app:
                 if self._workspace_assets not in app:
                     app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
                 app = self._insert(app, self._recipient_assets, self._workspace_assets)
                 app = self._insert(app, self._workspace_assets, self._customer_menu_assets)
             app = self._insert(app, self._customer_menu_assets, self._wallet_credit_assets)
-        if self._wallet_credit_card not in app:
-            app = self._insert(
-                app,
-                self._section + self._card + self._activity_card,
-                self._section + self._card + self._activity_card + self._wallet_card,
-            )
-            app = self._insert(app, self._wallet_card, self._wallet_credit_card)
+        app = self._insert(app, self._wallet_credit_assets, self._irankish_assets)
+        if self._wallet_ipg_card not in app:
+            if self._wallet_credit_card not in app:
+                app = self._insert(
+                    app,
+                    self._section + self._card + self._activity_card,
+                    self._section + self._card + self._activity_card + self._wallet_card,
+                )
+                app = self._insert(app, self._wallet_card, self._wallet_credit_card)
+            app = self._insert(app, self._wallet_credit_card, self._wallet_ipg_card)
         app = self._insert(
             app,
             "portalAdmin:['admin'],",
@@ -895,6 +921,13 @@ class CustomerPurchaseReportStage:
                 proof_route,
                 "require dirname(__DIR__).'/lib/order-followup-route.php';\n"
                 + proof_route,
+            )
+            wallet_router = "require dirname(__DIR__).'/lib/order-followup-route.php';"
+            router = self._insert(
+                router,
+                wallet_router,
+                "require dirname(__DIR__).'/lib/irankish-wallet-route.php';\n"
+                + wallet_router,
             )
             stock = "function warehouse_free_stock($s,$product){$n=0;"
             router = self._insert(
@@ -1004,6 +1037,7 @@ class CustomerPurchaseReportStage:
             web = self._insert(
                 web, "</body></html>", self._activity_client + "\n</body></html>"
             )
+            web = self._insert(web, "</header>", "</header>" + self._irankish_portal)
             (target / "portal.html").write_text(web)
 
     @classmethod

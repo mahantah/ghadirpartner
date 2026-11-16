@@ -1,0 +1,13 @@
+{
+  "enabled": "${GP_IKC_WALLET_ENABLED}",
+  "terminal_id": "${GP_IKC_TERMINAL_ID}",
+  "acceptor_id": "${GP_IKC_ACCEPTOR_ID}",
+  "pass_phrase": "${GP_IKC_PASS_PHRASE}",
+  "public_key_path": "${GP_IKC_PUBLIC_KEY_PATH}",
+  "purchase_suffix": "${GP_IKC_PURCHASE_SUFFIX}",
+  "rsa_padding": "${GP_IKC_RSA_PADDING}",
+  "gateway": "https://ikc.shaparak.ir",
+  "callback": "https://ghadirpartner.ir/partners/api/wallet/irankish/callback",
+  "request_timeout_seconds": 8,
+  "max_rials": 999999999999
+}
