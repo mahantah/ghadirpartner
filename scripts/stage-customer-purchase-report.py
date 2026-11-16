@@ -47,6 +47,9 @@ class CustomerPurchaseReportStage:
     _customer_menu_assets = _workspace_assets.replace(
         "navigation.js?v=8", "navigation.js?v=9"
     )
+    _wallet_credit_assets = _customer_menu_assets.replace(
+        "portal-wallet-report.js?v=1", "portal-wallet-report.js?v=2"
+    )
     _wallet_card = """
 <details id="gpPortalWallet" class="card" hidden>
   <summary>کیف پول مشتریان</summary>
@@ -63,6 +66,15 @@ class CustomerPurchaseReportStage:
   </table></div>
 </details>
 """
+    _wallet_credit_card = _wallet_card.replace(
+        '  <p role="status"></p>',
+        """  <form class="sales-custom-range hidden" data-wallet-credit>
+    <label>مبلغ افزایش موجودی (تومان) <input name="amount" type="text" inputmode="numeric" required></label>
+    <label>علت افزایش موجودی <input name="note" type="text" required></label>
+    <button type="submit" class="btn2">افزایش دستی موجودی</button>
+  </form>
+  <p role="status"></p>""",
+    )
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -775,6 +787,7 @@ class CustomerPurchaseReportStage:
             self._recipient_assets not in app
             and self._workspace_assets not in app
             and self._customer_menu_assets not in app
+            and self._wallet_credit_assets not in app
             and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
@@ -792,22 +805,27 @@ class CustomerPurchaseReportStage:
                 self._recipient_assets,
                 self._workspace_assets,
                 self._customer_menu_assets,
+                self._wallet_credit_assets,
             )
         ):
             app = self._insert(
                 app, self._report_submenu_assets, self._report_icon_assets
             )
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
-        if self._customer_menu_assets not in app:
-            if self._workspace_assets not in app:
-                app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
-            app = self._insert(app, self._recipient_assets, self._workspace_assets)
-            app = self._insert(app, self._workspace_assets, self._customer_menu_assets)
-        app = self._insert(
-            app,
-            self._section + self._card + self._activity_card,
-            self._section + self._card + self._activity_card + self._wallet_card,
-        )
+        if self._wallet_credit_assets not in app:
+            if self._customer_menu_assets not in app:
+                if self._workspace_assets not in app:
+                    app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
+                app = self._insert(app, self._recipient_assets, self._workspace_assets)
+                app = self._insert(app, self._workspace_assets, self._customer_menu_assets)
+            app = self._insert(app, self._customer_menu_assets, self._wallet_credit_assets)
+        if self._wallet_credit_card not in app:
+            app = self._insert(
+                app,
+                self._section + self._card + self._activity_card,
+                self._section + self._card + self._activity_card + self._wallet_card,
+            )
+            app = self._insert(app, self._wallet_card, self._wallet_credit_card)
         app = self._insert(
             app,
             "portalAdmin:['admin'],",

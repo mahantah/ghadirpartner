@@ -3,14 +3,22 @@ declare(strict_types=1);
 
 require_once __DIR__.'/credit-checkout.php';
 
-/** Record confirmed customer funds in the same transaction as the linked order. */
+/** Record confirmed customer funds in the wallet ledger. */
 final class GpOrderWallet
 {
     /** Project the customer's wallet from audited transactions visible to that customer. */
-    public function read(array $state, int $customerId, int $exceptOrder = 0): array
+    public function read(array $state, int $customerId, int $exceptOrder = 0, bool $staff = false): array
     {
         $entries = array_values($state['customer_wallet'][$customerId] ?? []);
         $balance = array_sum(array_column($entries, 'amount'));
+        if (!$staff) {
+            foreach ($entries as &$entry) {
+                if (($entry['source'] ?? '') === 'manual_credit') {
+                    unset($entry['note'], $entry['actor_id']);
+                }
+            }
+            unset($entry);
+        }
         $reserved = 0;
         foreach ($state['orders'] ?? [] as $order) {
             if ((int) ($order['customer_id'] ?? 0) !== $customerId || (int) $order['id'] === $exceptOrder
@@ -21,6 +29,41 @@ final class GpOrderWallet
         return [
             'balance' => $balance, 'reserved' => $reserved, 'available' => max(0, $balance - $reserved),
             'transactions' => array_reverse($entries),
+        ];
+    }
+
+    /** Record a positive staff credit once under the wallet ledger's write lock. */
+    public function creditManually(array &$state, int $customerId, array $request, int $actor, string $now, array $policy): void
+    {
+        $maxAmount = $policy['max_amount'] ?? null;
+        $maxNoteChars = $policy['max_note_chars'] ?? null;
+        if (!is_int($maxAmount) || $maxAmount < 1 || !is_int($maxNoteChars) || $maxNoteChars < 1) {
+            throw new RuntimeException('Invalid wallet credit policy.');
+        }
+        $amount = $request['amount'] ?? null;
+        if (!is_int($amount) || $amount < 1 || $amount > $maxAmount) {
+            throw new DomainException('مبلغ معتبر به تومان وارد کنید.', 422);
+        }
+        $note = is_string($request['note'] ?? null) ? trim($request['note']) : '';
+        if ($note === '' || mb_strlen($note, 'UTF-8') > $maxNoteChars) {
+            throw new DomainException('علت افزایش موجودی را بررسی کنید.', 422);
+        }
+        $requestId = $request['request_id'] ?? null;
+        if (!is_string($requestId) || !preg_match('/^[a-f0-9]{32}$/D', $requestId)) {
+            throw new DomainException('شناسه درخواست معتبر نیست.', 422);
+        }
+
+        $key = 'manual:'.$requestId;
+        $saved = $state['customer_wallet'][$customerId][$key] ?? null;
+        if ($saved !== null) {
+            if ($saved['amount'] !== $amount || $saved['note'] !== $note || $saved['actor_id'] !== $actor) {
+                throw new DomainException('درخواست افزایش موجودی قبلاً با مشخصات دیگری ثبت شده است.', 409);
+            }
+            return;
+        }
+        $state['customer_wallet'][$customerId][$key] = [
+            'amount' => $amount, 'source' => 'manual_credit', 'order_id' => 0, 'number' => '',
+            'note' => $note, 'actor_id' => $actor, 'at' => $now,
         ];
     }
 

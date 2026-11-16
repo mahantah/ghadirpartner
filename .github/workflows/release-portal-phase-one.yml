@@ -1,10 +1,10 @@
 name: Release portal phase one
 on:
   pull_request:
-    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/release-portal-phase-one.py', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*', 'lib/order-followup*.php']
+    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/release-portal-phase-one.py', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*', 'assets/portal-wallet-report.js', 'lib/order-wallet.php', 'lib/portal-wallet-report-route.php', 'lib/order-followup*.php', 'tests/portal-wallet-report.php']
   push:
     branches: [main]
-    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*', 'lib/order-followup*.php']
+    paths: ['.github/workflows/release-portal-phase-one.yml', 'scripts/stage-customer-purchase-report.py', 'assets/portal-phase-two*', 'assets/portal-wallet-report.js', 'lib/order-wallet.php', 'lib/portal-wallet-report-route.php', 'lib/order-followup*.php', 'tests/portal-wallet-report.php']
   workflow_dispatch:
 permissions:
   contents: read
