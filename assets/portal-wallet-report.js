@@ -24,6 +24,7 @@
         order_cancellation: "بازگشت وجه سفارش به کیف پول",
         credit_repayment: "تسویهٔ اعتبار",
         manual_credit: "افزایش دستی موجودی",
+        irankish_credit: "شارژ آنلاین ایران‌کیش",
     };
     let generation = 0;
     let loadingCustomers = false;
@@ -55,7 +56,7 @@
             const row = document.createElement("tr");
             const label = types[movement.source] ?? "تراکنش کیف پول";
             const description = movement.note ? label + " · " + movement.note : label;
-            for (const value of [formatDate(movement.at), description, movement.number, money(movement.amount)]) {
+            for (const value of [formatDate(movement.at), description, movement.number || movement.reference, money(movement.amount)]) {
                 const cell = document.createElement("td");
                 cell.textContent = value || "—";
                 row.append(cell);
