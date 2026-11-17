@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 import type { WidgetSettings } from '../../shared/contracts';
 import type { AppConfig } from '../config/AppConfig';
+import type { AppDiagnostics } from '../diagnostics/AppDiagnostics';
 
 const TRAY_ICON =
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA/0lEQVR4nNWXOw7CMAyGXcRKRhZyguZaHItrwQk6MXIBmIjSxHZj18HCUpem8v/JrzrT6TK/wdEOnuIAAEfu8Hl9mIicbzN5NmEpsBLuAWlSMEqc8r2KQP0BF7o9wqVfsgitxLd8ZYCS0lIc81lqubehOwA7Bzh7LffmXYhJ7EcVAUyce28KsCUihRAB1M5DTPnRQqiLsBbV5H8XgJX9L0CdZ00HAAjnQIhpJaQVLU0cgd5i64VTpcASQj2KKQisNjhg8y7AxLhIDGlDCcSwOdA7KTMAtbFYQISYyI2LjIAlBOeruReMXMsB2n2zicCIhZTzjd6MvuZ2Nfuluf+OP9Y9ZX6x1xgKAAAAAElFTkSuQmCC';
@@ -14,7 +15,10 @@ export class DesktopWidgetController {
   private exiting = false;
   private compact: boolean;
 
-  public constructor(private readonly config: AppConfig['ui']) {
+  public constructor(
+    private readonly config: AppConfig['ui'],
+    private readonly diagnostics: AppDiagnostics,
+  ) {
     this.compact = config.start_compact;
   }
 
@@ -200,7 +204,15 @@ export class DesktopWidgetController {
         window.hide();
       }
     });
-    void window.loadFile(join(__dirname, 'index.html'));
+    window.webContents.on('preload-error', (_event, path, error) => {
+      this.diagnostics.showStartupFailure(new Error(`Preload failed: ${path}; ${error.message}`));
+    });
+    window.webContents.on('render-process-gone', (_event, details) => {
+      this.diagnostics.showStartupFailure(new Error(`Renderer stopped: ${details.reason}`));
+    });
+    void window.loadFile(join(__dirname, 'index.html')).catch((error: unknown) => {
+      this.diagnostics.showStartupFailure(error);
+    });
     this.window = window;
   }
 
