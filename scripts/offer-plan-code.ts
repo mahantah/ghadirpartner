@@ -32,7 +32,7 @@ declare function jalaliToGregorianIso(value: string): string;
   class OfferPlanEditor {
     private catalog: string[] | null = null;
     private scopes = new Map<string, string[]>();
-    private ready = new Set<string>();
+    private ready = new Map<string, HTMLFieldSetElement>();
     private offers = new Map<string, number>();
     constructor(
       private readonly doc: Document,
@@ -41,7 +41,7 @@ declare function jalaliToGregorianIso(value: string): string;
     ) {}
     /** Prefixes distinguish the page from the customer-operation modal. */
     markup(prefix: string): string {
-      return `<div class="gp-offer-editor"><div class="gp-offer-row"><label>نوع تخفیف<select id="${prefix}DiscountType"><option value="none">بدون تخفیف مبلغی</option><option value="percent">درصد تخفیف</option><option value="amount">مبلغ تخفیف (تومان)</option></select></label><label>مقدار تخفیف<input id="${prefix}Discount" inputmode="numeric" placeholder="درصد یا مبلغ به تومان"></label></div><label>کد تخفیف<input id="${prefix}PromoCode" dir="ltr" placeholder="مثال GHADIR10" autocomplete="off"><span class="small">برای تخفیف درصدی یا مبلغی، کد دلخواه و غیرتکراری وارد کنید.</span></label><div class="gp-offer-row"><label>تاریخ شروع (شمسی)<input id="${prefix}StartDate" dir="ltr" placeholder="۱۴۰۵/۰۸/۰۹" inputmode="numeric"></label><label>تاریخ پایان (شمسی)<input id="${prefix}EndDate" dir="ltr" placeholder="۱۴۰۵/۰۸/۳۰" inputmode="numeric"></label></div><label>سقف کل دفعات استفاده<input id="${prefix}MaxUses" inputmode="numeric" placeholder="خالی یا صفر = نامحدود"><span id="${prefix}UsageCount" class="small">سقف برای مجموع استفاده همه مشتریان است؛ هر سفارش موفق یک استفاده محسوب می‌شود.</span></label><label>کالاهای مشمول تخفیف<select id="${prefix}Products" multiple aria-describedby="${prefix}ProductHint" disabled></select><span id="${prefix}ProductHint" class="small">بدون انتخاب = همه کالاها. برای چند انتخاب در کامپیوتر Ctrl را نگه دارید.</span></label><button type="button" id="${prefix}AllProducts">همه کالاها</button><div id="${prefix}CatalogStatus" role="status">در حال دریافت کالاها…</div><button type="button" id="${prefix}CatalogRetry">دریافت دوباره کالاها</button><button type="button" class="gp-offer-delete" id="${prefix}Delete" disabled>حذف طرح / کد تخفیف</button></div>`;
+      return `<div class="gp-offer-editor"><div class="gp-offer-row"><label>نوع تخفیف<select id="${prefix}DiscountType"><option value="none">بدون تخفیف مبلغی</option><option value="percent">درصد تخفیف</option><option value="amount">مبلغ تخفیف (تومان)</option></select></label><label>مقدار تخفیف<input id="${prefix}Discount" inputmode="numeric" placeholder="درصد یا مبلغ به تومان"></label></div><label>کد تخفیف<input id="${prefix}PromoCode" dir="ltr" placeholder="مثال GHADIR10" autocomplete="off"><span class="small">برای تخفیف درصدی یا مبلغی، کد دلخواه و غیرتکراری وارد کنید.</span></label><div class="gp-offer-row"><label>تاریخ شروع (شمسی)<input id="${prefix}StartDate" dir="ltr" placeholder="۱۴۰۵/۰۸/۰۹" inputmode="numeric"></label><label>تاریخ پایان (شمسی)<input id="${prefix}EndDate" dir="ltr" placeholder="۱۴۰۵/۰۸/۳۰" inputmode="numeric"></label></div><label>سقف کل دفعات استفاده<input id="${prefix}MaxUses" inputmode="numeric" placeholder="خالی یا صفر = نامحدود"><span id="${prefix}UsageCount" class="small">سقف برای مجموع استفاده همه مشتریان است؛ هر سفارش موفق یک استفاده محسوب می‌شود.</span></label><fieldset id="${prefix}Products" class="gp-offer-products" aria-describedby="${prefix}ProductHint" disabled><legend>کالاهای مشمول تخفیف</legend><span id="${prefix}ProductHint" class="small">کنار هر کالا تیک بزنید. بدون انتخاب، تخفیف شامل همه کالاهاست.</span><div class="gp-offer-product-list"></div></fieldset><button type="button" id="${prefix}AllProducts">همه کالاها</button><div id="${prefix}CatalogStatus" role="status">در حال دریافت کالاها…</div><button type="button" id="${prefix}CatalogRetry">دریافت دوباره کالاها</button><button type="button" class="gp-offer-delete" id="${prefix}Delete" disabled>حذف طرح / کد تخفیف</button></div>`;
     }
     /** Restore existing financial fields so changing the audience cannot erase them. */
     fill(prefix: string, source: OfferSource = {}): void {
@@ -58,7 +58,10 @@ declare function jalaliToGregorianIso(value: string): string;
         usage.textContent = `استفاده‌شده: ${Number(source.usage_count || 0).toLocaleString("fa-IR")} بار — سقف برای مجموع همه مشتریان؛ صفر یا خالی = نامحدود.`;
       const names = source.products ?? (source.product ? [source.product] : []);
       this.scopes.set(prefix, names);
-      if (this.ready.has(prefix)) this.selectNames(prefix, names);
+      if (
+        this.ready.get(prefix) === this.doc.getElementById(prefix + "Products")
+      )
+        this.selectNames(prefix, names);
       this.field(prefix + "DiscountType").value =
         source.discount_type || "none";
       this.field(prefix + "PromoCode").value = source.promo_code || "";
@@ -73,20 +76,20 @@ declare function jalaliToGregorianIso(value: string): string;
         remove.onclick = () => {
           void this.remove(this.offers.get(prefix) || 0);
         };
-      const select = this.productField(prefix);
+      const group = this.productField(prefix);
       const status = this.doc.getElementById(prefix + "CatalogStatus");
       const retry = this.doc.getElementById(prefix + "CatalogRetry");
       const allProducts = this.doc.getElementById(prefix + "AllProducts");
       if (allProducts)
         allProducts.onclick = () => {
           this.scopes.set(prefix, []);
-          this.selectNames(prefix, []);
+          if (this.ready.get(prefix) === group) this.selectNames(prefix, []);
         };
       if (retry)
         retry.onclick = () => {
           void this.mount(prefix);
         };
-      select.disabled = true;
+      group.disabled = true;
       this.ready.delete(prefix);
       try {
         if (this.catalog === null) {
@@ -105,26 +108,17 @@ declare function jalaliToGregorianIso(value: string): string;
             return row.name;
           });
         }
+        if (this.doc.getElementById(prefix + "Products") !== group) return;
         const selected = this.scopes.get(prefix) ?? [];
         const names = [...new Set([...this.catalog, ...selected])];
-        select.replaceChildren();
-        for (const name of names) {
-          const option = this.doc.createElement("option");
-          option.value = name;
-          option.textContent = name;
-          option.selected = selected.includes(name);
-          select.append(option);
-        }
-        select.disabled = false;
-        this.ready.add(prefix);
-        select.onchange = () =>
-          this.scopes.set(
-            prefix,
-            Array.from(select.selectedOptions, (o) => o.value),
-          );
-        if (status)
-          status.textContent =
-            "خالی بگذارید تا تخفیف برای همه کالاها باشد؛ یا یک یا چند کالا انتخاب کنید.";
+        const list = this.productList(group);
+        list.replaceChildren(...names.map((name) => this.productChoice(name)));
+        this.selectNames(prefix, selected);
+        group.disabled = false;
+        this.ready.set(prefix, group);
+        group.onchange = () =>
+          this.scopes.set(prefix, this.checkedProducts(group));
+        if (status) status.textContent = "";
         if (retry) retry.hidden = true;
       } catch (error: unknown) {
         if (status)
@@ -134,29 +128,59 @@ declare function jalaliToGregorianIso(value: string): string;
       }
     }
     private selectNames(prefix: string, names: string[]): void {
-      const select = this.productField(prefix);
-      const existing = new Set(
-        Array.from(select.options, (option) => option.value),
+      const list = this.productList(this.productField(prefix));
+      const inputs = list.querySelectorAll<HTMLInputElement>(
+        'input[type="checkbox"]',
       );
+      const existing = new Set(Array.from(inputs, (input) => input.value));
       for (const name of names)
-        if (!existing.has(name)) {
-          const option = this.doc.createElement("option");
-          option.value = name;
-          option.textContent = name;
-          select.append(option);
-        }
-      for (const option of this.productField(prefix).options)
-        option.selected = names.includes(option.value);
+        if (!existing.has(name)) list.append(this.productChoice(name));
+      for (const input of list.querySelectorAll<HTMLInputElement>(
+        'input[type="checkbox"]',
+      ))
+        input.checked = names.includes(input.value);
     }
-    private productField(prefix: string): HTMLSelectElement {
-      const field = this.field(prefix + "Products");
-      if (!(field instanceof HTMLSelectElement))
+    private checkedProducts(group: HTMLFieldSetElement): string[] {
+      return Array.from(
+        group.querySelectorAll<HTMLInputElement>(
+          'input[type="checkbox"]:checked',
+        ),
+        (input) => input.value,
+      );
+    }
+    private productChoice(name: string): HTMLElement {
+      const row = this.doc.createElement("div");
+      row.className = "gp-offer-product cl-toggle-switch";
+      const label = this.doc.createElement("label");
+      label.className = "cl-switch";
+      const input = this.doc.createElement("input");
+      input.type = "checkbox";
+      input.dataset.gpToggle = "1";
+      input.value = name;
+      const check = this.doc.createElement("span");
+      check.setAttribute("aria-hidden", "true");
+      const title = this.doc.createElement("strong");
+      title.textContent = name;
+      label.append(input, check, title);
+      row.append(label);
+      return row;
+    }
+    private productList(group: HTMLFieldSetElement): HTMLElement {
+      const list = group.querySelector(".gp-offer-product-list");
+      if (!(list instanceof HTMLElement))
+        throw new Error("فهرست انتخاب کالاها در دسترس نیست");
+      return list;
+    }
+    private productField(prefix: string): HTMLFieldSetElement {
+      const field = this.doc.getElementById(prefix + "Products");
+      if (!(field instanceof HTMLFieldSetElement))
         throw new Error("انتخاب کالاها در دسترس نیست");
       return field;
     }
     /** Validate before I/O and submit canonical numeric amounts and codes. */
     read(prefix: string, source: OfferSource = {}): DiscountPayload {
-      if (!this.ready.has(prefix))
+      const group = this.productField(prefix);
+      if (this.ready.get(prefix) !== group)
         throw new Error("ابتدا فهرست کالاهای طرح را دریافت کنید");
       const startDate = this.date(prefix + "StartDate");
       const endDate = this.date(prefix + "EndDate");
@@ -168,10 +192,7 @@ declare function jalaliToGregorianIso(value: string): string;
       const maxUses = Number(rawLimit || 0);
       if (!Number.isSafeInteger(maxUses) || maxUses < 0)
         throw new Error("سقف استفاده معتبر نیست");
-      const products = Array.from(
-        this.productField(prefix).selectedOptions,
-        (option) => option.value,
-      );
+      const products = this.checkedProducts(group);
       const type = this.field(prefix + "DiscountType").value;
       const codeField = this.field(prefix + "PromoCode");
       const code = codeField.value.replace(/\s+/gu, "").toUpperCase();

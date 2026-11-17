@@ -209,12 +209,15 @@ class CustomerPurchaseReportStage:
 """
     automation_form_assets = ("automation-forms.css", "automation-forms.js")
     anime_asset = "anime-waapi-4.5.0.min.js"
+    offer_editor_assets = ("offer-plan-code.css", "offer-plan-code.js")
     _files = (
         "assets/automation-forms.css",
         "assets/automation-forms.js",
         "assets/anime-waapi-4.5.0.min.js",
         "assets/anime-4.5.0.LICENSE.txt",
         "assets/automation-animated-checkbox.css",
+        "assets/offer-plan-code.css",
+        "assets/offer-plan-code.js",
         "lib/portal-panel-switches.php",
         "lib/portal-panel-switches-route.php",
         "lib/customer-purchase-report.php",
@@ -1055,6 +1058,12 @@ class CustomerPurchaseReportStage:
             """map(([category,rows],idx)=>`<details class="sms-template-group" ${idx===0?'open':''}>""",
             'map(([category,rows])=>`<details class="sms-template-group" open>',
         )
+        for name in self.offer_editor_assets:
+            app = self._insert(
+                app,
+                f'/assets/{name}?v=20261031scope"',
+                f'/assets/{name}?v=20261117checks"',
+            )
         app = self.stage_console(app, source, output)
         app = self.stage_proof_documents(app, source, output)
         index, app = self.stage_followup(index, app, source, output)
