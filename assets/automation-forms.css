@@ -27,3 +27,32 @@
     gap: 0.25rem;
     min-inline-size: 0;
 }
+
+#app #gpPortalWallet .gp-wallet-picker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) max-content;
+    align-items: end;
+}
+
+#app #gpPortalWallet .gp-wallet-picker :is(input, select) {
+    box-sizing: border-box;
+    inline-size: 100%;
+    min-block-size: 3rem;
+    margin: 0;
+}
+
+#app #gpPortalWallet .gp-wallet-picker > button {
+    align-self: end;
+    min-block-size: 3rem;
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    #app #gpPortalWallet .gp-wallet-picker {
+        grid-template-columns: minmax(0, 1fr) max-content;
+    }
+
+    #app #gpPortalWallet .gp-wallet-picker > label:first-child {
+        grid-column: 1 / -1;
+    }
+}

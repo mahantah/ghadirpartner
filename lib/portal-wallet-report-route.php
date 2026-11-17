@@ -21,10 +21,31 @@ if ($writeWallet) {
 
 $rawCustomer = $_GET['customer_id'] ?? null;
 if (!$writeWallet && $rawCustomer === null) {
-    out(db(false, static function (array $state): array {
+    $query = $_GET['q'] ?? '';
+    if (!is_string($query) || strlen($query) > 240 || !preg_match('//u', $query)) {
+        fail('عبارت جست‌وجو معتبر نیست.', 422);
+    }
+    out(db(false, static function (array $state) use ($query): array {
+        $normalize = static function (string $value): string {
+            return trim(strtr($value, [
+                'ي' => 'ی', 'ك' => 'ک', '‌' => ' ',
+                '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+                '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+                '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+                '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            ]));
+        };
+        $term = $normalize($query);
         $rows = [];
         foreach ($state['customers'] ?? [] as $customer) {
             if (!empty($customer['deleted']) || (int) ($customer['id'] ?? 0) < 1) continue;
+            if ($term !== '') {
+                $searchable = implode(' ', array_map($normalize, [
+                    (string) ($customer['name'] ?? ''), (string) ($customer['company'] ?? ''),
+                    (string) ($customer['code'] ?? ''), (string) ($customer['mobile'] ?? ''),
+                ]));
+                if (stripos($searchable, $term) === false) continue;
+            }
             $rows[] = [
                 'id' => (int) $customer['id'],
                 'name' => (string) ($customer['name'] ?? ''),
