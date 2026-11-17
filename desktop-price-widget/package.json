@@ -34,6 +34,7 @@
   "build": {
     "appId": "ir.ghadirpartner.liveprices",
     "productName": "Ghadir Partner Live Prices",
+    "directories": { "output": "release" },
     "files": [
       "dist/**/*",
       "package.json"
