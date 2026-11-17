@@ -9,17 +9,14 @@ export class PriceSnapshotRepository {
   /**
    * Loads the last known visible prices.
    *
-   * @returns Stored snapshot, or an empty snapshot when none exists.
+   * @returns Stored snapshot, or an empty snapshot when none exists or the cache is invalid.
    */
   public async load(): Promise<SnapshotStore> {
     try {
       const raw = await readFile(this.filePath, 'utf8');
       const parsed: unknown = JSON.parse(raw);
       return SnapshotStoreSchema.parse(parsed);
-    } catch (error: unknown) {
-      if (this.isMissingFile(error)) {
-        return {};
-      }
+    } catch {
       return {};
     }
   }
@@ -32,13 +29,5 @@ export class PriceSnapshotRepository {
   public async save(snapshot: SnapshotStore): Promise<void> {
     await mkdir(dirname(this.filePath), { recursive: true });
     await writeFile(this.filePath, JSON.stringify(snapshot, null, 2), 'utf8');
-  }
-
-  private isMissingFile(error: unknown): boolean {
-    return (
-      error instanceof Error &&
-      'code' in error &&
-      (error as NodeJS.ErrnoException).code === 'ENOENT'
-    );
   }
 }
