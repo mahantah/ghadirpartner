@@ -13,10 +13,12 @@ import { GhadirPartnerClient } from './clients/GhadirPartnerClient';
 import { AppConfigLoader, type AppConfig } from './config/AppConfig';
 import { PriceSnapshotRepository } from './repositories/PriceSnapshotRepository';
 import { DesktopWidgetController } from './services/DesktopWidgetController';
+import { AppDiagnostics } from './diagnostics/AppDiagnostics';
 import { PriceMapper } from './services/PriceMapper';
 import { PriceServiceFacade } from './services/PriceServiceFacade';
 
 export class PriceWidgetApplication {
+  public constructor(private readonly diagnostics: AppDiagnostics) {}
   private widget: DesktopWidgetController | null = null;
   private facade: PriceServiceFacade | null = null;
   private config: AppConfig | null = null;
@@ -47,9 +49,13 @@ export class PriceWidgetApplication {
     this.facade = new PriceServiceFacade(client, repository, mapper);
 
     this.widget = new DesktopWidgetController(this.config.ui);
-    this.widget.initializeAutoStart();
     this.registerIpc();
     this.widget.start();
+    try {
+      this.widget.initializeAutoStart();
+    } catch (error: unknown) {
+      this.diagnostics.record(error);
+    }
     this.beginPolling(this.config.refresh.interval_seconds);
 
     app.on('activate', () => this.widget?.show());
