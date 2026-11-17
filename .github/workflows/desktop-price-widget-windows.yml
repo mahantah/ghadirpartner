@@ -42,6 +42,13 @@ jobs:
           if ($appProcess.HasExited) {
             throw "Packaged app exited during launch: $($appProcess.ExitCode)"
           }
+          if ($appProcess.MainWindowHandle -eq 0) {
+            throw "Packaged app has no visible window after startup; check config and renderer."
+          }
+          $errorLog = Join-Path $env:APPDATA '@ghadir\\desktop-price-widget\\desktop-errors.log'
+          if (Test-Path $errorLog) {
+            throw "Application startup errors detected: $(Get-Content $errorLog -Raw)"
+          }
           Stop-Process -Id $appProcess.Id -Force
       - name: Upload Windows installer and portable packages
         uses: actions/upload-artifact@v4
