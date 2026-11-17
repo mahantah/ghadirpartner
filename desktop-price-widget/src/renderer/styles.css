@@ -245,3 +245,27 @@ button {
   text-align: center;
   color: #64748b;
 }
+
+.startup-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 16px 11px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+.startup-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #f77f00;
+}
+.icon-button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+.product-list {
+  max-height: calc(100vh - 212px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
