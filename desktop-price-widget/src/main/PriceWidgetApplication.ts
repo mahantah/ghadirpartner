@@ -48,7 +48,7 @@ export class PriceWidgetApplication {
     const mapper = new PriceMapper(this.config.price_labels, this.config.ui.hide_zero_prices);
     this.facade = new PriceServiceFacade(client, repository, mapper);
 
-    this.widget = new DesktopWidgetController(this.config.ui);
+    this.widget = new DesktopWidgetController(this.config.ui, this.diagnostics);
     this.registerIpc();
     this.widget.start();
     try {
