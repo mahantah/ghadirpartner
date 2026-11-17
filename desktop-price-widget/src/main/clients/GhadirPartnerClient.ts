@@ -32,22 +32,18 @@ export class GhadirPartnerClient {
    * @param password Account password. It is sent only to the portal and is not persisted.
    */
   public async login(identity: string, password: string): Promise<void> {
-    await this.request(
-      this.config.endpoints.login,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: identity, password }),
-      },
-      undefined,
-    );
+    await this.requestVoid(this.config.endpoints.login, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mobile: identity, password }),
+    });
   }
 
   /**
    * Ends the current Ghadir Partner session.
    */
   public async logout(): Promise<void> {
-    await this.request(this.config.endpoints.logout, { method: 'POST' }, undefined);
+    await this.requestVoid(this.config.endpoints.logout, { method: 'POST' });
   }
 
   /**
@@ -56,7 +52,7 @@ export class GhadirPartnerClient {
    * @returns Current portal identity.
    */
   public async me(): Promise<MeResponse> {
-    return this.request(this.config.endpoints.me, { method: 'GET' }, MeSchema);
+    return this.requestJson(this.config.endpoints.me, { method: 'GET' }, MeSchema);
   }
 
   /**
@@ -65,34 +61,46 @@ export class GhadirPartnerClient {
    * @returns Live catalog and permitted price columns.
    */
   public async catalog(): Promise<RawCatalog> {
-    return this.request(this.config.endpoints.catalog, { method: 'GET' }, RawCatalogSchema);
+    return this.requestJson(
+      this.config.endpoints.catalog,
+      { method: 'GET' },
+      RawCatalogSchema,
+    );
   }
 
-  private async request<T>(
+  private async requestVoid(endpoint: string, init: RequestInit): Promise<void> {
+    await this.fetchResponse(endpoint, init);
+  }
+
+  private async requestJson<T>(
     endpoint: string,
     init: RequestInit,
-    schema: ZodType<T> | undefined,
+    schema: ZodType<T>,
   ): Promise<T> {
+    const response = await this.fetchResponse(endpoint, init);
+    const payload: unknown = await response.json();
+    return schema.parse(payload);
+  }
+
+  private async fetchResponse(endpoint: string, init: RequestInit): Promise<Response> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.request_timeout_ms);
 
     try {
-      const response = await this.electronSession.fetch(new URL(endpoint, this.config.base_url), {
-        ...init,
-        signal: controller.signal,
-      });
+      const response = await this.electronSession.fetch(
+        new URL(endpoint, this.config.base_url).toString(),
+        {
+          ...init,
+          signal: controller.signal,
+        },
+      );
 
       if (!response.ok) {
         const message = (await response.text()).trim() || `HTTP ${response.status}`;
         throw new GhadirApiError(message, response.status);
       }
 
-      if (schema === undefined) {
-        return undefined as T;
-      }
-
-      const payload: unknown = await response.json();
-      return schema.parse(payload);
+      return response;
     } finally {
       clearTimeout(timeout);
     }
