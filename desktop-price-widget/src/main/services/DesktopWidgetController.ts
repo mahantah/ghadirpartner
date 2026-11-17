@@ -120,12 +120,16 @@ export class DesktopWidgetController {
       const current = app.getLoginItemSettings().openAtLogin;
       const preferencePath = this.startupPreferencePath();
       if (existsSync(preferencePath)) {
-        const preference: unknown = JSON.parse(readFileSync(preferencePath, 'utf8'));
-        if (this.isStartupPreference(preference)) {
-          if (preference.enabled !== current) {
-            app.setLoginItemSettings({ openAtLogin: preference.enabled, openAsHidden: false });
+        try {
+          const preference: unknown = JSON.parse(readFileSync(preferencePath, 'utf8'));
+          if (this.isStartupPreference(preference)) {
+            if (preference.enabled !== current) {
+              app.setLoginItemSettings({ openAtLogin: preference.enabled, openAsHidden: false });
+            }
+            return;
           }
-          return;
+        } catch {
+          // Recover invalid local preferences using validated application defaults.
         }
       }
       app.setLoginItemSettings({
