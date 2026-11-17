@@ -11,6 +11,7 @@
     const creditButton = creditForm?.querySelector('button[type="submit"]');
     const reportButton = form.querySelector('button[type="submit"]');
     const customer = form.elements.namedItem("customer_id");
+    const search = form.elements.namedItem("customer_search");
     const status = panel.querySelector("[role=status]");
     const totals = panel.querySelector("dl");
     const table = panel.querySelector(".tablewrap");
@@ -27,7 +28,8 @@
         irankish_credit: "شارژ آنلاین ایران‌کیش",
     };
     let generation = 0;
-    let loadingCustomers = false;
+    let listGeneration = 0;
+    let searchTimer = 0;
     let savingCredit = false;
     const pendingCredits = new Map();
 
@@ -66,28 +68,45 @@
         table.hidden = !wallet.transactions.length;
     }
 
-    /** Load only the selectable customer fields when the wallet panel opens. */
+    /** Replace the selector only for the latest search in the current staff session. */
     async function loadCustomers() {
-        if (loadingCustomers || customer.options.length > 1 || !has("finance")) return;
-        loadingCustomers = true;
-        const request = generation;
+        if (!has("finance") || panel.hidden) return;
+        const request = ++listGeneration;
+        const query = new URLSearchParams({q: search.value.trim()});
         status.textContent = "در حال دریافت فهرست مشتریان…";
         try {
-            const customers = await req(endpoint);
-            if (request !== generation) return;
+            const customers = await req(endpoint + "?" + query);
+            if (request !== listGeneration) return;
+            const placeholder = customers.length ? "انتخاب مشتری" : "مشتری پیدا نشد";
+            customer.replaceChildren(new Option(placeholder, ""));
             for (const entry of customers) {
                 customer.add(new Option(
                     [entry.name, entry.company, entry.code].filter(Boolean).join(" · "),
                     String(entry.id),
                 ));
             }
-            status.textContent = customers.length ? "" : "مشتری فعالی پیدا نشد.";
+            status.textContent = customers.length ? "" : "مشتری مطابق جست‌وجو پیدا نشد.";
         } catch {
-            if (request === generation) status.textContent = "دریافت فهرست مشتریان ناموفق بود.";
-        } finally {
-            loadingCustomers = false;
+            if (request === listGeneration) status.textContent = "دریافت فهرست مشتریان ناموفق بود.";
         }
     }
+
+    /** Clear the old recipient before offering results for a different search. */
+    function queueSearch(immediate = false) {
+        window.clearTimeout(searchTimer);
+        listGeneration++;
+        customer.replaceChildren(new Option("انتخاب مشتری", ""));
+        customer.dispatchEvent(new Event("change"));
+        if (immediate) void loadCustomers();
+        else searchTimer = window.setTimeout(loadCustomers, 250);
+    }
+
+    search.addEventListener("input", () => queueSearch());
+    search.addEventListener("keydown", event => {
+        if (event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        queueSearch(true);
+    });
 
     customer.addEventListener("change", () => {
         generation++;
@@ -97,7 +116,7 @@
         clear();
     });
     panel.addEventListener("toggle", () => {
-        if (panel.open) void loadCustomers();
+        if (panel.open && customer.options.length <= 1) void loadCustomers();
     });
 
     form.addEventListener("submit", async event => {
@@ -137,7 +156,7 @@
         }
         const request = ++generation;
         savingCredit = true;
-        for (const control of [customer, reportButton, creditAmount, creditNote, creditButton]) control.disabled = true;
+        for (const control of [search, customer, reportButton, creditAmount, creditNote, creditButton]) control.disabled = true;
         status.textContent = "در حال ثبت افزایش موجودی…";
         try {
             const wallet = await req(endpoint, {
@@ -159,7 +178,7 @@
             }
         } finally {
             savingCredit = false;
-            for (const control of [customer, reportButton, creditAmount, creditNote, creditButton]) control.disabled = false;
+            for (const control of [search, customer, reportButton, creditAmount, creditNote, creditButton]) control.disabled = false;
         }
     });
 
@@ -170,6 +189,9 @@
         panel.hidden = hidden;
         if (!hidden) return;
         generation++;
+        listGeneration++;
+        window.clearTimeout(searchTimer);
+        search.value = "";
         panel.open = false;
         customer.replaceChildren(new Option("انتخاب مشتری", ""));
         creditForm?.reset();

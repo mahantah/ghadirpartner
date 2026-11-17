@@ -84,6 +84,17 @@ class CustomerPurchaseReportStage:
     _wallet_ipg_card = _wallet_credit_card.replace(
         "<th>سفارش</th>", "<th>سفارش یا شماره پیگیری</th>"
     )
+    _wallet_search_card = _wallet_ipg_card.replace(
+        '  <form class="sales-custom-range">\n    <label>مشتری ',
+        '  <form class="sales-custom-range gp-wallet-picker">\n'
+        '    <label>جست‌وجوی مشتری <input type="search" name="customer_search" '
+        'placeholder="نام، موبایل یا کد مشتری" maxlength="80" autocomplete="off"></label>\n'
+        '    <label>مشتری ',
+        1,
+    )
+    _wallet_search_assets = _settings_menu_assets.replace(
+        "portal-wallet-report.js?v=3", "portal-wallet-report.js?v=4"
+    )
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -947,6 +958,7 @@ class CustomerPurchaseReportStage:
             and self._wallet_credit_assets not in app
             and self._irankish_assets not in app
             and self._settings_menu_assets not in app
+            and self._wallet_search_assets not in app
             and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
@@ -967,6 +979,7 @@ class CustomerPurchaseReportStage:
                 self._wallet_credit_assets,
                 self._irankish_assets,
                 self._settings_menu_assets,
+                self._wallet_search_assets,
             )
         ):
             app = self._insert(
@@ -975,7 +988,7 @@ class CustomerPurchaseReportStage:
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
         if all(
             marker not in app
-            for marker in (self._wallet_credit_assets, self._irankish_assets, self._settings_menu_assets)
+            for marker in (self._wallet_credit_assets, self._irankish_assets, self._settings_menu_assets, self._wallet_search_assets)
         ):
             if self._customer_menu_assets not in app:
                 if self._workspace_assets not in app:
@@ -983,10 +996,11 @@ class CustomerPurchaseReportStage:
                 app = self._insert(app, self._recipient_assets, self._workspace_assets)
                 app = self._insert(app, self._workspace_assets, self._customer_menu_assets)
             app = self._insert(app, self._customer_menu_assets, self._wallet_credit_assets)
-        if self._settings_menu_assets not in app:
+        if self._settings_menu_assets not in app and self._wallet_search_assets not in app:
             app = self._insert(app, self._wallet_credit_assets, self._irankish_assets)
             app = self._insert(app, self._irankish_assets, self._settings_menu_assets)
-        if self._wallet_ipg_card not in app:
+        app = self._insert(app, self._settings_menu_assets, self._wallet_search_assets)
+        if self._wallet_ipg_card not in app and self._wallet_search_card not in app:
             if self._wallet_credit_card not in app:
                 app = self._insert(
                     app,
@@ -995,6 +1009,7 @@ class CustomerPurchaseReportStage:
                 )
                 app = self._insert(app, self._wallet_card, self._wallet_credit_card)
             app = self._insert(app, self._wallet_credit_card, self._wallet_ipg_card)
+        app = self._insert(app, self._wallet_ipg_card, self._wallet_search_card)
         app = self._insert(
             app,
             "portalAdmin:['admin'],",
@@ -1030,7 +1045,11 @@ class CustomerPurchaseReportStage:
             '<link rel="stylesheet" href="/assets/automation-forms.css?v=1">\n'
             '<script defer src="/assets/automation-forms.js?v=1"></script>'
         )
-        app = self._insert(app, closing, "\n" + form_loaders + closing)
+        old_form_styles = 'href="/assets/automation-forms.css?v=1"'
+        new_form_styles = 'href="/assets/automation-forms.css?v=2"'
+        if new_form_styles not in app:
+            app = self._insert(app, closing, "\n" + form_loaders + closing)
+            app = self._insert(app, old_form_styles, new_form_styles)
         app = self._insert(
             app,
             """map(([category,rows],idx)=>`<details class="sms-template-group" ${idx===0?'open':''}>""",

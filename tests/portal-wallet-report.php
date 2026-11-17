@@ -4,7 +4,7 @@ declare(strict_types=1);
 $p = '/api/reports/portal-wallet';
 $role = 'finance';
 $state = [
-    'customers' => [['id' => 1, 'name' => 'مشتری', 'mobile' => 'private'], ['id' => 2, 'deleted' => true]],
+    'customers' => [['id' => 1, 'name' => 'مشتری یک', 'code' => 'GP-123', 'mobile' => '09121234567'], ['id' => 2, 'mobile' => '09129999999', 'deleted' => true]],
     'customer_wallet' => [1 => [['amount' => 900]], 2 => [['amount' => 8000]]],
     'orders' => [['id' => 10, 'customer_id' => 1, 'approval_status' => 'در انتظار تأیید', 'credit_checkout' => ['wallet_reserved' => 200]]],
 ];
@@ -61,9 +61,19 @@ function walletReportRequest(string $roleName, array $query, int $status, ?array
 }
 
 $customers = walletReportRequest('finance', [], 200);
-if ($customers !== [['id' => 1, 'name' => 'مشتری', 'company' => '', 'code' => '']]) {
+if ($customers !== [['id' => 1, 'name' => 'مشتری یک', 'company' => '', 'code' => 'GP-123']]) {
     throw new LogicException('Customer selector disclosed excess fields or deleted accounts.');
 }
+foreach (['مشتري', 'gp-۱۲۳', '۰۹۱۲۱۲۳۴۵۶۷'] as $query) {
+    if (walletReportRequest('finance', ['q' => $query], 200) !== $customers) {
+        throw new LogicException('Wallet selector did not match the requested customer search field.');
+    }
+}
+if (walletReportRequest('finance', ['q' => '09129999999'], 200) !== []) {
+    throw new LogicException('Search included a deleted customer.');
+}
+walletReportRequest('sales', ['q' => '09121234567'], 403);
+walletReportRequest('finance', ['q' => []], 422);
 $wallet = walletReportRequest('admin', ['customer_id' => '1'], 200);
 if ($wallet['balance'] !== 900 || $wallet['reserved'] !== 200 || $wallet['available'] !== 700) {
     throw new LogicException('Wallet does not reconcile.');
