@@ -4,7 +4,7 @@ import {
   IPC_CHANNELS,
   type CatalogSnapshot,
   type GhadirPriceBridge,
-  type SessionState,
+  type SessionState,\n  type WidgetSettings,
 } from '../shared/contracts';
 
 class PreloadBridge {
@@ -20,6 +20,19 @@ class PreloadBridge {
         ipcRenderer.invoke(IPC_CHANNELS.session) as Promise<SessionState>,
       refresh: (): Promise<CatalogSnapshot> =>
         ipcRenderer.invoke(IPC_CHANNELS.refresh) as Promise<CatalogSnapshot>,
+      widgetSettings: (): Promise<WidgetSettings> =>
+        ipcRenderer.invoke(IPC_CHANNELS.widgetSettings) as Promise<WidgetSettings>,
+      setCompact: (compact: boolean): Promise<WidgetSettings> =>
+        ipcRenderer.invoke(IPC_CHANNELS.setCompact, compact) as Promise<WidgetSettings>,
+      setAutoStart: (enabled: boolean): Promise<WidgetSettings> =>
+        ipcRenderer.invoke(IPC_CHANNELS.setAutoStart, enabled) as Promise<WidgetSettings>,
+      onLayout: (listener: (settings: WidgetSettings) => void): (() => void) => {
+        const handler = (_event: Electron.IpcRendererEvent, settings: WidgetSettings): void => {
+          listener(settings);
+        };
+        ipcRenderer.on(IPC_CHANNELS.layout, handler);
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.layout, handler);
+      },
       onCatalog: (listener: (snapshot: CatalogSnapshot) => void): (() => void) => {
         const handler = (_event: Electron.IpcRendererEvent, snapshot: CatalogSnapshot): void => {
           listener(snapshot);
