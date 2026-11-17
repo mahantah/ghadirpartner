@@ -47,6 +47,10 @@ export class PriceWidgetApplication {
     this.widget.start();
     this.beginPolling(this.config.refresh.interval_seconds);
 
+    app.on('activate', () => this.widget?.show());
+    app.on('before-quit', () => this.stopPolling());
+  }
+
   private registerIpc(): void {
     ipcMain.handle(
       IPC_CHANNELS.login,
