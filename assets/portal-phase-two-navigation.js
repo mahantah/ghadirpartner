@@ -10,6 +10,7 @@
 
     const iconSample = sales.querySelector(".gp-menu-icon");
     const iconPaths = {
+        gpCustomerConsignmentsPage: "M4 7h16v13H4zM3 7l3-4h12l3 4M9 12h6m-3-3v6",
         gpPortalWalletPage: "M3 6h18v13H3zM21 10h-6v5h6m-4-2.5h.01",
         gpCustomerReportPage: "M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm-2 5h20M6 15h4",
         gpPortalActivityPage: "M2 12h4l3-7 4 14 3-7h6",
@@ -63,6 +64,7 @@
         ["gpCustomerPurchaseReport", "gpCustomerReportPage", "خرید و اعتبار هر مشتری"],
         ["gpPortalActivity", "gpPortalActivityPage", "فعالیت کاربران و سبدهای خرید"],
         ["gpPortalWallet", "gpPortalWalletPage", "کیف پول مشتریان"],
+        ["gpCustomerConsignments", "gpCustomerConsignmentsPage", "کالاهای امانی"],
         ["gpMembershipRequests", "gpMembershipPage", "درخواست‌های عضویت"],
         ["gpPortalMessages", "gpPortalMessagesPage", "ارسال پیام به مشتریان"],
     ];

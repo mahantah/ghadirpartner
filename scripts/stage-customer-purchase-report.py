@@ -95,6 +95,36 @@ class CustomerPurchaseReportStage:
     _wallet_search_assets = _settings_menu_assets.replace(
         "portal-wallet-report.js?v=3", "portal-wallet-report.js?v=4"
     )
+    _consignment_assets = _wallet_search_assets.replace(
+        "navigation.js?v=10", "navigation.js?v=11"
+    ).replace("portal-phase-two.css?v=6", "portal-phase-two.css?v=7")
+    _consignment_script = '<script defer src="/assets/customer-consignments.js?v=1"></script>'
+    _consignment_card = """
+<details id="gpCustomerConsignments" class="card" hidden>
+  <summary>کالاهای امانی</summary>
+  <form class="sales-custom-range" data-consignment-send>
+    <label>مشتری <select name="customer_id" required><option value="">انتخاب مشتری</option></select></label>
+    <label>کالا <select name="product" required><option value="">انتخاب کالا</option></select></label>
+    <label>تعداد تحویلی <input name="quantity" inputmode="numeric" required></label>
+    <label>توضیحات <input name="note" placeholder="اختیاری"></label>
+    <button type="submit" class="btn2">ثبت تحویل امانی</button>
+  </form>
+  <form class="sales-custom-range hidden" data-consignment-return>
+    <p data-consignment-recipient></p>
+    <label>تعداد برگشتی <input name="quantity" inputmode="numeric" required></label>
+    <label>توضیحات برگشت <input name="note" placeholder="اختیاری"></label>
+    <button type="submit" class="btn2">ثبت برگشت</button>
+    <button type="button" class="btn2" data-consignment-cancel>انصراف</button>
+  </form>
+  <p role="status"></p>
+  <button type="button" class="btn2" data-consignment-refresh>تازه‌سازی</button>
+  <div class="tablewrap"><table>
+    <caption>تحویل و برگشت کالای امانی</caption>
+    <thead><tr><th>مشتری</th><th>کالا</th><th>تاریخ تحویل</th><th>تحویلی</th><th>برگشتی</th><th>مانده</th><th>سوابق</th><th>عملیات</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</details>
+"""
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -217,6 +247,10 @@ class CustomerPurchaseReportStage:
         "assets/anime-waapi-4.5.0.min.js",
         "assets/anime-4.5.0.LICENSE.txt",
         "assets/automation-animated-checkbox.css",
+        "assets/customer-consignments.js",
+        "config/customer-consignments.yaml",
+        "lib/customer-consignments.php",
+        "lib/customer-consignments-route.php",
         "assets/account-logout-access-v1.js",
         "assets/offer-plan-code.css",
         "assets/offer-plan-code.js",
@@ -964,6 +998,7 @@ class CustomerPurchaseReportStage:
             and self._irankish_assets not in app
             and self._settings_menu_assets not in app
             and self._wallet_search_assets not in app
+            and self._consignment_assets not in app
             and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
@@ -985,6 +1020,7 @@ class CustomerPurchaseReportStage:
                 self._irankish_assets,
                 self._settings_menu_assets,
                 self._wallet_search_assets,
+                self._consignment_assets,
             )
         ):
             app = self._insert(
@@ -993,7 +1029,7 @@ class CustomerPurchaseReportStage:
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
         if all(
             marker not in app
-            for marker in (self._wallet_credit_assets, self._irankish_assets, self._settings_menu_assets, self._wallet_search_assets)
+            for marker in (self._wallet_credit_assets, self._irankish_assets, self._settings_menu_assets, self._wallet_search_assets, self._consignment_assets)
         ):
             if self._customer_menu_assets not in app:
                 if self._workspace_assets not in app:
@@ -1001,10 +1037,12 @@ class CustomerPurchaseReportStage:
                 app = self._insert(app, self._recipient_assets, self._workspace_assets)
                 app = self._insert(app, self._workspace_assets, self._customer_menu_assets)
             app = self._insert(app, self._customer_menu_assets, self._wallet_credit_assets)
-        if self._settings_menu_assets not in app and self._wallet_search_assets not in app:
+        if all(marker not in app for marker in (self._settings_menu_assets, self._wallet_search_assets, self._consignment_assets)):
             app = self._insert(app, self._wallet_credit_assets, self._irankish_assets)
             app = self._insert(app, self._irankish_assets, self._settings_menu_assets)
-        app = self._insert(app, self._settings_menu_assets, self._wallet_search_assets)
+        if self._consignment_assets not in app:
+            app = self._insert(app, self._settings_menu_assets, self._wallet_search_assets)
+            app = self._insert(app, self._wallet_search_assets, self._consignment_assets)
         if self._wallet_ipg_card not in app and self._wallet_search_card not in app:
             if self._wallet_credit_card not in app:
                 app = self._insert(
@@ -1015,16 +1053,26 @@ class CustomerPurchaseReportStage:
                 app = self._insert(app, self._wallet_card, self._wallet_credit_card)
             app = self._insert(app, self._wallet_credit_card, self._wallet_ipg_card)
         app = self._insert(app, self._wallet_ipg_card, self._wallet_search_card)
+        app = self._insert(app, self._wallet_search_card, self._wallet_search_card + self._consignment_card)
         app = self._insert(
             app,
             "portalAdmin:['admin'],",
             "portalAdmin:['admin'],gpPortalWalletPage:['finance'],",
+        )
+        app = self._insert(
+            app,
+            "gpPortalWalletPage:['finance'],",
+            "gpPortalWalletPage:['finance'],gpCustomerConsignmentsPage:['admin','sales'],",
         )
         credit_loader = "require_once __DIR__.'/lib/customer-credit-routes.php';"
         index = self._insert(
             index,
             credit_loader,
             "require __DIR__.'/lib/portal-wallet-report-route.php';\n" + credit_loader,
+        )
+        wallet_route = "require __DIR__.'/lib/portal-wallet-report-route.php';"
+        index = self._insert(
+            index, wallet_route, "require __DIR__.'/lib/customer-consignments-route.php';\n" + wallet_route
         )
         for name in self.sidebar_assets:
             asset = Path("assets", name)
@@ -1060,6 +1108,7 @@ class CustomerPurchaseReportStage:
             """map(([category,rows],idx)=>`<details class="sms-template-group" ${idx===0?'open':''}>""",
             'map(([category,rows])=>`<details class="sms-template-group" open>',
         )
+        app = self._insert(app, closing, "\n" + self._consignment_script + closing)
         for name in self.offer_editor_assets:
             app = self._insert(
                 app,

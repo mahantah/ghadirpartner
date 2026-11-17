@@ -1,6 +1,6 @@
 #app>header #gpPortalReportsMenu[hidden],#app>header #gpPortalReportsMenu button[hidden],#app>header #gpCustomers button[hidden] {display:none!important}
 .gp-report-page {min-width:0}
-.gp-report-page details[open] > summary {display:none}
+.gp-report-page > details[open] > summary {display:none}
 .gp-report-page table {width:100%;border-collapse:collapse;margin-block:12px 20px;background:white;color:#102a43}
 .gp-report-page caption {text-align:start;font-size:1.05em;font-weight:700;padding:8px 4px;color:#102a43}
 .gp-report-page th,.gp-report-page td {padding:9px 12px;border-bottom:1px solid #e1e8ee;text-align:start}
