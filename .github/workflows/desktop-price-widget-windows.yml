@@ -1,6 +1,9 @@
 name: Build desktop live-price installer
 
 on:
+  push:
+    branches:
+      - feature/desktop-live-prices
   pull_request:
     paths:
       - "desktop-price-widget/**"
