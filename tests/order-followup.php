@@ -64,6 +64,23 @@ try {
     $workflow->review($order, ['request_id' => $manual, 'amount' => 80, 'previous_amount' => 100, 'note' => 'اصلاح مبلغ'], 'adjust', 2, $now);
     $assert($credit->debt($order) === 470 && count($order['credit_repayments'][$manual]['adjustments']) === 1, 'Manual adjustment lost the audit or balance.');
     $settlementProgress = new GpOrderSettlementProgress($credit);
+    $pendingCredit = array_replace($base, [
+        'approval_status' => 'در انتظار تأیید', 'payment_status' => 'پرداخت نشده', 'approved_total' => 0,
+        'status' => 'در انتظار تأیید سفارش',
+    ]);
+    $assert($settlementProgress->read($pendingCredit) === [
+        'awaiting_approval' => true, 'label' => 'اعتباری · در انتظار تأیید',
+    ], 'Pending credit order was shown as ordinary unpaid.');
+    $pendingMixed = array_replace($pendingCredit, ['requested_payment_method' => 'mixed']);
+    $assert($settlementProgress->read($pendingMixed)['label'] === 'ترکیبی با اعتبار · در انتظار تأیید', 'Mixed credit request was mislabeled.');
+    foreach ([
+        ['requested_payment_method' => 'cash'],
+        ['approval_status' => 'رد شده'],
+        ['approval_status' => 'تأیید شده'],
+        ['status' => 'لغو شد'],
+    ] as $change) {
+        $assert($settlementProgress->read(array_replace($pendingCredit, $change)) === null, 'Unrelated payment inherited the pending credit label.');
+    }
     $display = $settlementProgress->read($order);
     $assert($display === [
         'paid' => 330, 'outstanding' => 470, 'settled' => false, 'label' => 'پرداخت بخشی',
