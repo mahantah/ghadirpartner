@@ -1,28 +1,31 @@
 <?php
 declare(strict_types=1);
 
-if (!in_array($p, ['/api/wallet/irankish', '/api/wallet/irankish/callback', '/api/orders/irankish', '/api/orders/irankish/launch'], true)) return;
+if (!in_array($p, ['/api/wallet/irankish', '/api/wallet/irankish/callback', '/api/orders/irankish', '/api/orders/irankish/launch', '/api/orders/irankish/result'], true)) return;
 
 require_once __DIR__.'/irankish-wallet.php';
 header('Cache-Control: no-store');
 $walletCallback = $p === '/api/wallet/irankish/callback';
 $orderPayment = $p === '/api/orders/irankish';
 $orderLaunch = $p === '/api/orders/irankish/launch';
-$orderReturn = false;
+$orderReturn = $p === '/api/orders/irankish/result';
 if ($orderLaunch && $m !== 'GET') fail('روش درخواست مجاز نیست.', 405);
-if ($walletCallback && $m !== 'POST') fail('روش درخواست مجاز نیست.', 405);
+if ($orderReturn && $m !== 'GET') fail('روش درخواست مجاز نیست.', 405);
+if ($walletCallback && !in_array($m, ['POST', 'GET'], true)) fail('روش درخواست مجاز نیست.', 405);
 if (!$walletCallback && !in_array($m, ['GET', 'POST'], true)) fail('روش درخواست مجاز نیست.', 405);
 $walletCustomerId = 0;
-if (!$walletCallback && !$orderLaunch) {
+if (!$walletCallback && !$orderLaunch && !$orderReturn) {
     $walletUser = auth();
     if (!is_customer_user($walletUser) || user_has_staff_role($walletUser)
         || ($walletCustomerId = (int) ($walletUser['customer_id'] ?? 0)) < 1) fail('دسترسی مجاز نیست.', 403);
 }
 
+if ($walletCallback || $orderReturn || $orderLaunch) session_write_close();
+
 try {
     $walletClient = GpIranKishWalletClient::configured(dirname(__DIR__).'/config/irankish-wallet.yaml');
     if ($walletClient === null) {
-        if (!$walletCallback && !$orderLaunch && $m === 'GET') out(['enabled' => false]);
+        if (!$walletCallback && !$orderLaunch && !$orderReturn && $m === 'GET') out(['enabled' => false]);
         fail($orderPayment || $orderLaunch ? 'پرداخت آنلاین سفارش فعال نیست.' : 'شارژ آنلاین فعال نیست.', 503);
     }
     $walletGateway = new GpIranKishWallet($walletClient, Closure::fromCallable('db'));
@@ -45,20 +48,29 @@ try {
             .'<script nonce="'.$nonce.'">document.forms[0].submit()</script></html>';
         exit;
     }
+    if ($orderReturn) {
+        $id = $_GET['id'] ?? null;
+        $verified = GpIranKishCheckout::validId($id) && $walletGateway->returnFromOrderBank($id, now());
+        header('Content-Type: text/html; charset=utf-8');
+        header('Referrer-Policy: no-referrer');
+        header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+        $message = $verified ? 'پرداخت تأیید شد.' : 'پرداخت هنوز تأیید نشده است.';
+        echo '<!doctype html><html lang="fa" dir="rtl"><title>نتیجه پرداخت قدیر پارتنر</title>'
+            .'<meta name="viewport" content="width=device-width, initial-scale=1">'
+            .'<main><h1>'.$message.'</h1><p><a href="ghadirpartner://checkout/return">بازگشت به اپ قدیر پارتنر</a></p>'
+            .'<p><a href="/partners/">ورود به سایت قدیر پارتنر</a></p></main></html>';
+        exit;
+    }
     if ($walletCallback) {
-        $walletId = $_POST['requestId'] ?? $_POST['RequestId'] ?? '';
-        $walletToken = $_POST['token'] ?? $_POST['tokenIdentity'] ?? '';
-        if (is_string($walletId) && preg_match('/^[a-f0-9]{20}$/D', $walletId) && is_string($walletToken)) {
-            $orderReturn = $walletGateway->isOrderAttempt($walletId);
-            $verified = $walletGateway->reconcile($walletId, 0, $walletToken, now());
-            if ($orderReturn) {
-                header('Content-Type: text/html; charset=utf-8');
-                $message = $verified ? 'پرداخت روی سفارش ثبت شد.' : 'پرداخت هنوز تأیید نشده است.';
-                echo '<!doctype html><html lang="fa" dir="rtl"><title>نتیجه پرداخت</title>'
-                    .'<meta name="viewport" content="width=device-width, initial-scale=1">'
-                    .'<main><h1>'.$message.'</h1><p>به اپ قدیر پارتنر برگردید و وضعیت پرداخت سفارش را بررسی کنید.</p></main></html>';
-                exit;
-            }
+        $bankReturn = array_change_key_case($_POST + $_GET, CASE_LOWER);
+        $walletId = $bankReturn['requestid'] ?? '';
+        $walletToken = $bankReturn['tokenidentity'] ?? $bankReturn['token'] ?? '';
+        if (GpIranKishCheckout::validId($walletId) && $walletGateway->isOrderAttempt($walletId)) {
+            header('Location: /partners/api/orders/irankish/result?id='.$walletId, true, 303);
+            exit;
+        }
+        if (GpIranKishCheckout::validId($walletId) && is_string($walletToken)) {
+            $walletGateway->reconcile($walletId, 0, $walletToken, now());
         }
         header('Location: /partners/?wallet=return#gpIranKishWallet', true, 303);
         exit;
@@ -73,6 +85,14 @@ try {
     $walletInput = input();
     $walletAction = $walletInput['action'] ?? null;
     if ($orderPayment) {
+        if (in_array($walletAction, ['recheck_checkout', 'return_checkout_to_wallet'], true)) {
+            $id = $walletInput['checkout_id'] ?? null;
+            if (!GpIranKishCheckout::validId($id)) fail('شناسه پرداخت معتبر نیست.', 422);
+            if ($walletAction === 'recheck_checkout') out($walletGateway->recheckCheckout($walletCustomerId, $id, now()));
+            $returned = $walletGateway->returnCheckoutToWallet($walletCustomerId, $id, now());
+            if (isset($returned['error'])) throw $returned['error'];
+            out($returned);
+        }
         $orderId = $walletInput['order_id'] ?? null;
         if (!is_int($orderId) || $orderId < 1) fail('شماره سفارش معتبر نیست.', 422);
         if ($walletAction === 'start') out($walletGateway->startOrder($walletCustomerId, $orderId, now()));
@@ -90,7 +110,10 @@ try {
 } catch (DomainException $error) {
     fail($error->getMessage(), $error->getCode());
 } catch (Throwable $error) {
-    if ($orderReturn) fail('به اپ برگردید و وضعیت پرداخت سفارش را دوباره بررسی کنید.', 502);
+    if ($orderReturn) {
+        header('Location: /partners/api/orders/irankish/result', true, 303);
+        exit;
+    }
     if ($walletCallback) {
         header('Location: /partners/?wallet=return#gpIranKishWallet', true, 303);
         exit;

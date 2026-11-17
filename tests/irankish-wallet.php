@@ -152,3 +152,44 @@ try {
     rmdir($home);
 }
 echo "Private host configuration, file permissions and environment precedence passed.\n";
+
+$checkout = new GpIranKishCheckout();
+$draft = $order;
+$draft['id'] = 8;
+$request = ['customer_id' => 1, 'notes' => 'fixture'];
+$fingerprint = $checkout->fingerprint($request, $draft, 0, 0);
+$prepaid = $service->startCheckout(1, 250, $fingerprint, $now)['checkout_id'];
+if ($service->startCheckout(1, 250, $fingerprint, $now)['checkout_id'] !== $prepaid
+    || $service->orderLaunch($prepaid)['token'] !== 'AB123'
+    || count($state['orders']) !== 1) {
+    throw new LogicException('Checkout published an order or requested an extra token before payment.');
+}
+try {
+    $checkout->apply($state, $draft, $prepaid, $fingerprint);
+    throw new LogicException('An unpaid checkout was accepted.');
+} catch (DomainException $error) {
+    if ($error->getCode() !== 409) throw $error;
+}
+$bank['retrievalReferenceNumber'] = '123456789014';
+$bank['isVerified'] = true;
+if (!$service->returnFromOrderBank($prepaid, $now) || !$service->recheckCheckout(1, $prepaid, $now)['confirmed']
+    || count($state['orders']) !== 1 || $service->report(1)['balance'] !== 250) {
+    throw new LogicException('Bank return did not verify independently from publishing the order.');
+}
+$checkout->apply($state, $draft, $prepaid, $fingerprint);
+$state['orders'][] = $draft;
+if ($draft['irankish_order_payment']['receipt']['reference'] !== '123456789014'
+    || $checkout->completed($state, $prepaid, 1)['id'] !== 8
+    || !isset($service->returnCheckoutToWallet(1, $prepaid, $now)['error'])) {
+    throw new LogicException('The confirmed checkout was not consumed exactly once.');
+}
+$abandoned = $service->startCheckout(1, 250, str_repeat('d', 64), $now)['checkout_id'];
+$bank['retrievalReferenceNumber'] = '123456789015';
+$bank['isVerified'] = true;
+if (!$service->returnFromOrderBank($abandoned, $now)) throw new LogicException('Unable to confirm abandoned fixture.');
+$service->returnCheckoutToWallet(1, $abandoned, $now);
+$service->returnCheckoutToWallet(1, $abandoned, $now);
+if ($service->report(1)['balance'] !== 500 || $service->recheckCheckout(1, $abandoned, $now)['confirmed']) {
+    throw new LogicException('Abandoned checkout was not released to the wallet exactly once.');
+}
+echo "Iran Kish checkout stays private until a confirmed payment is applied exactly once.\n";
