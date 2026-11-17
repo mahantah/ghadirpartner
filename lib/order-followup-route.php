@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require __DIR__.'/order-shipping-receipts-route.php';
+
 if (!in_array($p, ['/api/order-followup', '/api/order-followup/alerts', '/api/order-followup/document'], true)) return;
 
 require_once __DIR__.'/order-followup.php';

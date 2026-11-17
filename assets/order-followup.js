@@ -165,6 +165,7 @@
   }
   const allowed = () => typeof has === "function" && (has("finance") || has("sales"));
   async function mount(root, id, activeSection) {
+    window.gpOrderShippingReceipts?.mount(root, id);
     if (!root || !allowed() || root.querySelector("[data-order-followup-mounted]")) return;
     const modern = root.querySelector('[data-od2-panel="overview"]');
     const overview = modern || element("div");

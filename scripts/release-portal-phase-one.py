@@ -78,6 +78,8 @@ class PhaseOneRelease:
             "portal-phase-two-activity-client.js",
             "order-followup.js",
             "order-followup.css",
+            "order-shipping-receipts.js",
+            "order-shipping-receipts.css",
             *stage.automation_form_assets,
             *stage.offer_editor_assets,
             stage.dock_script,
@@ -104,6 +106,8 @@ class PhaseOneRelease:
             "/api/customer-consignments",
             "/partners/api/wallet/irankish",
             "/partners/api/order-followup",
+            "/api/order-shipping-receipts",
+            "/partners/api/order-shipping-receipts",
             "/api/reports/customer-purchases",
             "/api/portal-messages",
             "/partners/api/notifications/staff",
@@ -172,6 +176,7 @@ class PhaseOneRelease:
                 "portal-wallet-report.js",
                 "customer-consignments.js",
                 "irankish-wallet.js",
+                "order-shipping-receipts.js",
             ):
                 if not name.endswith(".js"):
                     continue
