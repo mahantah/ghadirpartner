@@ -196,7 +196,13 @@ class CustomerPurchaseReportStage:
   </table></div>
 </details>
 """
+    automation_form_assets = ("automation-forms.css", "automation-forms.js")
+    anime_asset = "anime-waapi-4.5.0.min.js"
     _files = (
+        "assets/automation-forms.css",
+        "assets/automation-forms.js",
+        "assets/anime-waapi-4.5.0.min.js",
+        "assets/anime-4.5.0.LICENSE.txt",
         "assets/automation-animated-checkbox.css",
         "lib/portal-panel-switches.php",
         "lib/portal-panel-switches-route.php",
@@ -1020,6 +1026,16 @@ class CustomerPurchaseReportStage:
                 start + query + end,
                 start + current_query + "&portalreports=6" + end,
             )
+        form_loaders = (
+            '<link rel="stylesheet" href="/assets/automation-forms.css?v=1">\n'
+            '<script defer src="/assets/automation-forms.js?v=1"></script>'
+        )
+        app = self._insert(app, closing, "\n" + form_loaders + closing)
+        app = self._insert(
+            app,
+            """map(([category,rows],idx)=>`<details class="sms-template-group" ${idx===0?'open':''}>""",
+            'map(([category,rows])=>`<details class="sms-template-group" open>',
+        )
         app = self.stage_console(app, source, output)
         app = self.stage_proof_documents(app, source, output)
         index, app = self.stage_followup(index, app, source, output)

@@ -1,0 +1,29 @@
+/* Form actions use their label width, including in grid cells and mobile toolbars. */
+#app .tab :is(form, .grid, .toolbar, .quick-actions, .inv-actions, .sales-custom-range)
+  > :is(button, input[type="submit"], a.btn2):not(:where(table *, .order-menu *, .od2-image-button)) {
+    box-sizing: border-box;
+    inline-size: fit-content !important;
+    max-inline-size: 100%;
+    min-inline-size: 0 !important;
+    justify-self: start;
+    align-self: center;
+    flex: 0 1 auto !important;
+}
+
+#app .tab :is(.toolbar, .inv-actions, .sales-custom-range) {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-inline-size: 0;
+}
+
+#app .tab form :is(input, select, textarea) {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+#app .gp-report-page .sales-custom-range > label {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    min-inline-size: 0;
+}

@@ -61,6 +61,7 @@ class PhaseOneRelease:
 
     def verify(self, staged: Path, shell_assets: tuple[str, ...]) -> None:
         """Check public asset bytes and require the private report routes to reject anonymous access."""
+        stage = import_module("stage-customer-purchase-report").CustomerPurchaseReportStage
         app = (staged / "app.html").read_text() + (
             staged / "partners/portal.html"
         ).read_text()
@@ -76,6 +77,7 @@ class PhaseOneRelease:
             "portal-phase-two-activity-client.js",
             "order-followup.js",
             "order-followup.css",
+            *stage.automation_form_assets,
             *shell_assets,
         ):
             match = re.search(
@@ -86,6 +88,9 @@ class PhaseOneRelease:
             with urlopen(self.site + match[1], timeout=20) as response:
                 if response.read() != (staged / "assets" / asset).read_bytes():
                     raise RuntimeError("public asset mismatch: " + asset)
+        with urlopen(f"{self.site}/assets/{stage.anime_asset}", timeout=20) as response:
+            if response.read() != (staged / "assets" / stage.anime_asset).read_bytes():
+                raise RuntimeError("public Anime.js module mismatch")
         for route in (
             "/partners/api/native/panel-switches",
             "/partners/api/native/order-proof",
@@ -155,6 +160,8 @@ class PhaseOneRelease:
                 )
             for name in (
                 *shell_assets,
+                *stage.automation_form_assets,
+                stage.anime_asset,
                 stage.followup_asset,
                 "portal-wallet-report.js",
                 "irankish-wallet.js",
