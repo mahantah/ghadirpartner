@@ -55,10 +55,15 @@ class PriceWidgetController {
       this.render();
     });
 
-    const session = await window.ghadirPrices.session();
-    this.applySession(session);
-    if (session.authenticated) {
-      await this.refresh();
+    try {
+      const session = await window.ghadirPrices.session();
+      this.applySession(session);
+      if (session.authenticated) {
+        await this.refresh();
+      }
+    } catch (error: unknown) {
+      this.applySession({ authenticated: false, identity: '' });
+      this.loginError.textContent = this.errorMessage(error);
     }
   }
 
