@@ -32,7 +32,8 @@ final class GpIranKishCheckout
     public function apply(array &$state, array &$order, string $id, string $fingerprint): void
     {
         $payment = $this->owned($state, $id, (int) $order['customer_id']);
-        if (!empty($payment['submitted_order_id']) || !empty($payment['returned_to_wallet']) || !hash_equals($payment['checkout'], $fingerprint)
+        if (!empty($payment['submitted_order_id']) || !empty($payment['returned_to_wallet'])
+            || !empty($payment['released']) || !hash_equals($payment['checkout'], $fingerprint)
             || $payment['amount'] !== ($order['irankish_order_payment']['amount'] ?? null)) {
             throw new DomainException('اطلاعات سفارش پس از پرداخت تغییر کرده است.', 409);
         }

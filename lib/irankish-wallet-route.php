@@ -40,9 +40,9 @@ try {
         header('Referrer-Policy: no-referrer');
         $nonce = bin2hex(random_bytes(16));
         header("Content-Security-Policy: script-src 'nonce-$nonce'; default-src 'none'; form-action https://ikc.shaparak.ir; frame-ancestors 'none'; base-uri 'none'");
-        echo '<!doctype html><html lang="fa" dir="rtl"><title>پرداخت سفارش</title>'
+        echo '<!doctype html><html lang="fa" dir="rtl"><title>پرداخت ایران‌کیش</title>'
             .'<meta name="viewport" content="width=device-width, initial-scale=1">'
-            .'<main><h1>پرداخت سفارش قدیر پارتنر</h1><form method="post" action="'.$target.'">'
+            .'<main><h1>پرداخت قدیر پارتنر</h1><form method="post" action="'.$target.'">'
             .'<input type="hidden" name="tokenIdentity" value="'.$bankToken.'">'
             .'<button type="submit">ورود به درگاه ایران‌کیش</button></form></main>'
             .'<script nonce="'.$nonce.'">document.forms[0].submit()</script></html>';
@@ -65,7 +65,10 @@ try {
         $bankReturn = array_change_key_case($_POST + $_GET, CASE_LOWER);
         $walletId = $bankReturn['requestid'] ?? '';
         $walletToken = $bankReturn['tokenidentity'] ?? $bankReturn['token'] ?? '';
-        if (GpIranKishCheckout::validId($walletId) && $walletGateway->isOrderAttempt($walletId)) {
+        if (GpIranKishCheckout::validId($walletId)
+            && ($walletGateway->isOrderAttempt($walletId) || $walletGateway->isNativeWalletAttempt($walletId))) {
+            $bankCode = $bankReturn['responsecode'] ?? '';
+            if (is_string($walletToken) && is_string($bankCode)) $walletGateway->recordDecline($walletId, $walletToken, $bankCode);
             header('Location: /partners/api/orders/irankish/result?id='.$walletId, true, 303);
             exit;
         }
@@ -85,11 +88,13 @@ try {
     $walletInput = input();
     $walletAction = $walletInput['action'] ?? null;
     if ($orderPayment) {
-        if (in_array($walletAction, ['recheck_checkout', 'return_checkout_to_wallet'], true)) {
+        if (in_array($walletAction, ['recheck_checkout', 'release_checkout', 'return_checkout_to_wallet'], true)) {
             $id = $walletInput['checkout_id'] ?? null;
             if (!GpIranKishCheckout::validId($id)) fail('شناسه پرداخت معتبر نیست.', 422);
             if ($walletAction === 'recheck_checkout') out($walletGateway->recheckCheckout($walletCustomerId, $id, now()));
-            $returned = $walletGateway->returnCheckoutToWallet($walletCustomerId, $id, now());
+            $returned = $walletAction === 'release_checkout'
+                ? $walletGateway->releaseCheckout($walletCustomerId, $id)
+                : $walletGateway->returnCheckoutToWallet($walletCustomerId, $id, now());
             if (isset($returned['error'])) throw $returned['error'];
             out($returned);
         }
@@ -99,12 +104,11 @@ try {
         if ($walletAction === 'recheck') out($walletGateway->recheckOrder($walletCustomerId, $orderId, now()));
         fail('عملیات پرداخت معتبر نیست.', 422);
     }
-    if ($walletAction === 'start' && is_int($walletInput['amount'] ?? null)) {
-        out($walletGateway->start($walletCustomerId, $walletInput['amount'], now()));
+    if (in_array($walletAction, ['start', 'start_native'], true) && is_int($walletInput['amount'] ?? null)) {
+        out($walletGateway->start($walletCustomerId, $walletInput['amount'], now(), $walletAction === 'start_native'));
     }
     if ($walletAction === 'recheck' && is_string($walletInput['id'] ?? null) && preg_match('/^[a-f0-9]{20}$/D', $walletInput['id'])) {
-        out(['credited' => !$walletGateway->isOrderAttempt($walletInput['id'])
-            && $walletGateway->reconcile($walletInput['id'], $walletCustomerId, '', now())]);
+        out($walletGateway->recheckWallet($walletCustomerId, $walletInput['id'], now()));
     }
     fail('درخواست شارژ معتبر نیست.', 422);
 } catch (DomainException $error) {
