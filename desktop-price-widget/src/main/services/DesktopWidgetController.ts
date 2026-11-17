@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, nativeImage, screen, Tray } from 'electron';
 import { join } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 import type { WidgetSettings } from '../../shared/contracts';
 import type { AppConfig } from '../config/AppConfig';
@@ -100,6 +101,7 @@ export class DesktopWidgetController {
       throw new Error('اجرای خودکار فقط در نسخه نصب‌شده ویندوز قابل تنظیم است.');
     }
     app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false });
+    writeFileSync(this.startupPreferencePath(), JSON.stringify({ enabled }), 'utf8');
     return this.settings();
   }
 
@@ -109,9 +111,25 @@ export class DesktopWidgetController {
   public initializeAutoStart(): void {
     if (process.platform === 'win32' && app.isPackaged) {
       const current = app.getLoginItemSettings().openAtLogin;
-      if (!current && this.config.auto_start_on_install) {
-        app.setLoginItemSettings({ openAtLogin: true, openAsHidden: false });
+      const preferencePath = this.startupPreferencePath();
+      if (existsSync(preferencePath)) {
+        const preference: unknown = JSON.parse(readFileSync(preferencePath, 'utf8'));
+        if (this.isStartupPreference(preference)) {
+          if (preference.enabled !== current) {
+            app.setLoginItemSettings({ openAtLogin: preference.enabled, openAsHidden: false });
+          }
+          return;
+        }
       }
+      app.setLoginItemSettings({
+        openAtLogin: this.config.auto_start_on_install,
+        openAsHidden: false,
+      });
+      writeFileSync(
+        preferencePath,
+        JSON.stringify({ enabled: this.config.auto_start_on_install }),
+        'utf8',
+      );
     }
   }
 
@@ -125,6 +143,19 @@ export class DesktopWidgetController {
     if (this.window !== null && !this.window.isDestroyed()) {
       this.window.webContents.send(channel, payload);
     }
+  }
+
+  private startupPreferencePath(): string {
+    return join(app.getPath('userData'), 'startup-preference.json');
+  }
+
+  private isStartupPreference(value: unknown): value is { enabled: boolean } {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      'enabled' in value &&
+      typeof value.enabled === 'boolean'
+    );
   }
 
   private createWindow(): void {
