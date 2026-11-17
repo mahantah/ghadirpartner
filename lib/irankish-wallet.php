@@ -5,6 +5,7 @@ require_once __DIR__.'/irankish-wallet-client.php';
 require_once __DIR__.'/order-wallet.php';
 require_once __DIR__.'/credit-checkout.php';
 require_once __DIR__.'/irankish-order-payment.php';
+require_once __DIR__.'/irankish-checkout.php';
 
 /** Coordinate the Iran Kish payment with the existing customer wallet ledger. */
 final class GpIranKishWallet
@@ -42,6 +43,66 @@ final class GpIranKishWallet
             $state['irankish_wallet_payments'][$id]['token'] = $token;
         });
         return ['url' => $this->client->paymentUrl(), 'token' => $token];
+    }
+
+    /** Create a bank attempt after the order route has validated and priced the draft. */
+    public function startCheckout(int $customerId, int $amount, string $fingerprint, string $now): array
+    {
+        $id = bin2hex(random_bytes(10));
+        $rials = $this->client->rials($amount);
+        $time = time();
+        $attempt = ($this->database)(true, function (array &$state) use ($id, $customerId, $amount, $rials, $fingerprint, $time, $now): array {
+            foreach (array_reverse($state['irankish_wallet_payments'] ?? []) as $existing) {
+                if (($existing['checkout'] ?? '') === $fingerprint && $existing['customer_id'] === $customerId
+                    && empty($existing['submitted_order_id']) && empty($existing['returned_to_wallet'])
+                    && (!empty($existing['reference']) || $existing['expires_at'] > $time)) return $existing;
+            }
+            return $state['irankish_wallet_payments'][$id] = [
+                'id' => $id, 'customer_id' => $customerId, 'amount' => $amount, 'rials' => $rials,
+                'checkout' => $fingerprint, 'token' => '', 'at' => $now,
+                'expires_at' => $time + $this->client->tokenLifetime(),
+            ];
+        });
+        if ($attempt['id'] === $id) {
+            try {
+                $token = $this->client->tokenize($id, $rials);
+                ($this->database)(true, static function (array &$state) use ($id, $token): void {
+                    $state['irankish_wallet_payments'][$id]['token'] = $token;
+                });
+            } catch (Throwable $error) {
+                ($this->database)(true, static function (array &$state) use ($id): void {
+                    unset($state['irankish_wallet_payments'][$id]);
+                });
+                throw $error;
+            }
+        } elseif ($attempt['token'] === '') {
+            throw new DomainException('درخواست درگاه در حال آماده شدن است. دوباره تلاش کنید.', 409);
+        }
+        return ['checkout_id' => $attempt['id'], 'confirmed' => !empty($attempt['reference'])];
+    }
+
+    /** Reconcile a checkout without creating an order or exposing its bank token. */
+    public function recheckCheckout(int $customerId, string $id, string $now): array
+    {
+        $checkout = new GpIranKishCheckout();
+        $payment = ($this->database)(false, static fn (array $state): array => $checkout->owned($state, $id, $customerId));
+        $returned = !empty($payment['returned_to_wallet']);
+        $confirmed = !$returned && (!empty($payment['reference']) || $this->reconcile($id, $customerId, '', $now));
+        return ['confirmed' => $confirmed, 'expired' => $returned || (!$confirmed && $payment['expires_at'] <= time())];
+    }
+
+    /** Release a confirmed draft payment back into the authenticated customer's wallet. */
+    public function returnCheckoutToWallet(int $customerId, string $id, string $now): array
+    {
+        $checkout = new GpIranKishCheckout();
+        return ($this->database)(true, static function (array &$state) use ($checkout, $id, $customerId, $now): array {
+            try {
+                $checkout->returnToWallet($state, $id, $customerId, $now);
+                return ['credited' => true];
+            } catch (DomainException $error) {
+                return ['error' => $error];
+            }
+        });
     }
 
     /** Create or resume the bank attempt for the order's exact saved online allocation. */
@@ -118,7 +179,9 @@ final class GpIranKishWallet
         $orders = new GpIranKishOrderPayment();
         return ($this->database)(false, function (array $state) use ($id, $orders): ?array {
             $attempt = $state['irankish_wallet_payments'][$id] ?? [];
-            if (empty($attempt['order_id']) || empty($attempt['token']) || $attempt['expires_at'] <= time()) return null;
+            if (empty($attempt['token']) || ($attempt['expires_at'] ?? 0) <= time() || isset($attempt['reference'])) return null;
+            if (!empty($attempt['checkout'])) return ['url' => $this->client->paymentUrl(), 'token' => $attempt['token']];
+            if (empty($attempt['order_id'])) return null;
             try {
                 $order = $state['orders'][$orders->index($state, $attempt['order_id'], $attempt['customer_id'])];
             } catch (DomainException $error) {
@@ -134,7 +197,16 @@ final class GpIranKishWallet
     public function isOrderAttempt(string $id): bool
     {
         return ($this->database)(false, static fn (array $state): bool =>
-            !empty($state['irankish_wallet_payments'][$id]['order_id']));
+            !empty($state['irankish_wallet_payments'][$id]['order_id']) || !empty($state['irankish_wallet_payments'][$id]['checkout']));
+    }
+
+    /** Reconcile the opaque merchant return using authoritative bank data. */
+    public function returnFromOrderBank(string $id, string $now): bool
+    {
+        $payment = ($this->database)(false, static fn (array $state): array =>
+            $state['irankish_wallet_payments'][$id] ?? []);
+        return (!empty($payment['checkout']) || !empty($payment['order_id']))
+            && $this->reconcile($id, (int) $payment['customer_id'], '', $now);
     }
 
     /** Show the customer's own recent payments without returning bank tokens. */
@@ -143,7 +215,7 @@ final class GpIranKishWallet
         return ($this->database)(false, static function (array $state) use ($customerId): array {
             $payments = [];
             foreach (array_reverse($state['irankish_wallet_payments'] ?? []) as $item) {
-                if ($item['customer_id'] !== $customerId || $item['token'] === '' || !empty($item['order_id'])) continue;
+                if ($item['customer_id'] !== $customerId || $item['token'] === '' || !empty($item['order_id']) || !empty($item['checkout'])) continue;
                 $payments[] = array_intersect_key($item, array_flip(['id', 'amount', 'at', 'reference']));
                 if (count($payments) === 20) break;
             }
@@ -189,7 +261,7 @@ final class GpIranKishWallet
                 if (($online['claim'] ?? '') !== $id) return false;
                 $online['receipt'] = ['amount' => $payment['amount'], 'reference' => $reference, 'at' => $now];
                 unset($online['claim']);
-            } else {
+            } elseif (empty($payment['checkout'])) {
                 $state['customer_wallet'][$payment['customer_id']]['irankish:'.$id] = [
                 'amount' => $payment['amount'], 'source' => 'irankish_credit', 'order_id' => 0,
                     'number' => '', 'reference' => $reference, 'at' => $now,
@@ -197,6 +269,7 @@ final class GpIranKishWallet
             }
             $state['irankish_wallet_references'][$reference] = $id;
             $current['reference'] = $reference;
+            $current['verified_at'] = $now;
             return true;
         });
     }

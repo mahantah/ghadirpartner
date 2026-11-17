@@ -213,6 +213,7 @@ class CustomerPurchaseReportStage:
         "lib/order-wallet.php",
         "lib/irankish-wallet.php",
         "lib/irankish-order-payment.php",
+        "lib/irankish-checkout.php",
         "lib/irankish-wallet-client.php",
         "lib/irankish-wallet-route.php",
         "config/irankish-wallet.yaml",
@@ -562,7 +563,7 @@ class CustomerPurchaseReportStage:
                 + history,
             )
         if partner:
-            router = self.stage_irankish_order_payment(router)
+            router = self.stage_irankish_checkout(self.stage_irankish_order_payment(router))
         if "->assertApproval($o," in router:
             return router
         approval = (
@@ -612,6 +613,85 @@ class CustomerPurchaseReportStage:
                     (new GpCreditCheckout())->initialize($o,$prior,$walletAmount);
                 (new GpIranKishOrderPayment())->initialize($o,$prior,$x['settlement_details']??[],$walletAmount);
 """.rstrip(),
+        )
+
+    def stage_irankish_checkout(self, router: str) -> str:
+        """Run normal pricing before bank handoff and consume the receipt on final submission."""
+        if "$onlineCheckoutMode=" in router:
+            return router
+        origin = "if($origin!==''&&strcasecmp("
+        # Bank POSTs cross origins by design. Only exempt the exact return URL.
+        router = self._insert(
+            router,
+            origin,
+            "if(parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH)!=='/partners/api/wallet/irankish/callback'"
+            "&&$origin!==''&&strcasecmp(",
+        )
+        capture = "    $result=db(true,function(&$s)use($x,$u,$isCustomer,$requestedPayment,$paymentLabels,$promoInput,$gpCustomerOrderFlow,$checkoutProofs,$paymentFiles,$revisionService,$revisionId,$revisionVersion){"
+        router = self._insert(
+            router,
+            capture,
+            """    $onlineCheckoutMode=$isCustomer?($x['online_checkout_mode']??''):'';
+    $onlineCheckoutId=$isCustomer?($x['online_checkout_id']??null):null;
+    unset($x['online_checkout_mode'],$x['online_checkout_id']);
+    $onlineCheckout=null;
+    if($isCustomer&&(($x['settlement_details']['cash_online']??false)===true||$onlineCheckoutMode!==''||$onlineCheckoutId!==null)){
+        require_once dirname(__DIR__).'/lib/irankish-wallet.php';
+        if(($x['settlement_details']['cash_online']??false)!==true
+            || !in_array($onlineCheckoutMode,['prepare','finalize'],true)
+            || ($onlineCheckoutMode==='prepare'&&$onlineCheckoutId!==null)
+            || ($onlineCheckoutMode==='finalize'&&$onlineCheckoutId!==null&&!GpIranKishCheckout::validId($onlineCheckoutId)))
+            fail('پرداخت آنلاین را پیش از ثبت نهایی از داخل نسخهٔ جدید اپ انجام دهید.',422);
+        $onlineCheckout=new GpIranKishCheckout();
+    }
+    $result=db($onlineCheckoutMode!=='prepare',function(&$persisted)use($x,$u,$isCustomer,$requestedPayment,$paymentLabels,$promoInput,$gpCustomerOrderFlow,$checkoutProofs,$paymentFiles,$revisionService,$revisionId,$revisionVersion,$onlineCheckoutMode,$onlineCheckoutId,$onlineCheckout){
+        if($onlineCheckoutMode==='prepare')$s=$persisted;
+        else $s=&$persisted;
+        if($onlineCheckoutMode==='finalize'&&$onlineCheckoutId!==null){
+            try{
+                $completed=$onlineCheckout->completed($s,$onlineCheckoutId,(int)$x['customer_id']);
+                if($completed!==null)return ['online_completed'=>$completed];
+            }catch(DomainException $error){fail($error->getMessage(),$error->getCode());}
+        }""",
+        )
+        anchor = "        $history=$isCustomer?'سفارش توسط مشتری با فاکتور "
+        # By this point all validation ran, including split, proofs and revision checks.
+        router = self._insert(
+            router,
+            anchor,
+            """        if($onlineCheckout!==null){
+            try{
+                $priorReceipt=$o['irankish_order_payment']['receipt']??null;
+                if($onlineCheckoutMode==='prepare'&&$priorReceipt!==null)return ['online_already_confirmed'=>true];
+                if($priorReceipt===null||$onlineCheckoutId!==null){
+                    $fingerprint=$onlineCheckout->fingerprint($x,$o,$revisionId,$revisionVersion);
+                    if($onlineCheckoutMode==='prepare')
+                        return ['online_prepare'=>$fingerprint,'online_amount'=>$o['irankish_order_payment']['amount']];
+                    if($onlineCheckoutId===null||$priorReceipt!==null)fail('ابتدا پرداخت آنلاین همین سفارش را بررسی کنید.',409);
+                    $onlineCheckout->apply($s,$o,$onlineCheckoutId,$fingerprint);
+                }
+            }catch(DomainException $error){fail($error->getMessage(),$error->getCode());}
+        }
+"""
+            + anchor,
+        )
+        result = "    if($checkoutProofs!==null)$checkoutProofs->commit();"
+        return self._insert(
+            router,
+            result,
+            """    if(isset($result['online_completed']))out($result['online_completed']);
+    if(isset($result['online_already_confirmed']))out(['confirmed'=>true]);
+    if(isset($result['online_prepare'])){
+        $client=GpIranKishWalletClient::configured(dirname(__DIR__).'/config/irankish-wallet.yaml');
+        if($client===null)fail('پرداخت آنلاین سفارش در دسترس نیست.',503);
+        try{
+            $gateway=new GpIranKishWallet($client,Closure::fromCallable('db'));
+            out($gateway->startCheckout((int)$x['customer_id'],$result['online_amount'],$result['online_prepare'],now()));
+        }catch(DomainException $error){fail($error->getMessage(),$error->getCode());}
+        catch(Throwable $error){fail('درگاه ایران‌کیش پاسخ نداد. دوباره تلاش کنید.',502);}
+    }
+"""
+            + result,
         )
 
     def stage_staff_wallet_cancellation(self, index: str) -> str:
