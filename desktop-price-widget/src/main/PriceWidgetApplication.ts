@@ -26,6 +26,11 @@ export class PriceWidgetApplication {
    * Starts the Electron application and live-price polling.
    */
   public async start(): Promise<void> {
+    if (!app.requestSingleInstanceLock()) {
+      app.quit();
+      return;
+    }
+    app.on('second-instance', () => this.widget?.show());
     await app.whenReady();
 
     const configPath = app.isPackaged
@@ -48,7 +53,10 @@ export class PriceWidgetApplication {
     this.beginPolling(this.config.refresh.interval_seconds);
 
     app.on('activate', () => this.widget?.show());
-    app.on('before-quit', () => this.stopPolling());
+    app.on('before-quit', () => {
+      this.widget?.allowExit();
+      this.stopPolling();
+    });
   }
 
   private registerIpc(): void {
