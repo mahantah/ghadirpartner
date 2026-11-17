@@ -614,6 +614,19 @@ class CustomerPurchaseReportStage:
 """.rstrip(),
         )
 
+    def stage_staff_wallet_cancellation(self, index: str) -> str:
+        """Post the refund inside the existing admin cancel transaction."""
+        route = "if($p==='/api/customer-order/cancel'&&$m==='POST')"
+        start = index.index(route)
+        end = index.index("\n", start)
+        status = "$o['status']='لغو شد';"
+        hook = (
+            "require_once __DIR__.'/lib/order-wallet.php';"
+            "try{(new GpOrderWallet())->creditStaffCancellation($s,$o,(int)$u['id'],now());}"
+            "catch(DomainException $error){fail($error->getMessage(),$error->getCode());}"
+        )
+        return index[:start] + self._insert(index[start:end], status, hook + status) + index[end:]
+
     def stage_settlement_progress(self, index: str, app: str) -> tuple[str, str]:
         """Use the accounting projection in the existing automation payment column and detail views."""
         decorator = "function gp_decorate_order($s,$o){\n"
@@ -997,7 +1010,7 @@ class CustomerPurchaseReportStage:
             path.parent.mkdir(parents=True, exist_ok=True)
             copyfile(self._package / name, path)
         (output / "index.php").write_text(
-            self.stage_credit_checkout(index, partner=False)
+            self.stage_staff_wallet_cancellation(self.stage_credit_checkout(index, partner=False))
         )
         (output / "app.html").write_text(app)
         if router is not None:

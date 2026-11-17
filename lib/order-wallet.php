@@ -114,15 +114,53 @@ final class GpOrderWallet
         if ($amount === 0 ? $choice !== 'none' : !in_array($choice, ['wallet', 'refund'], true)) {
             throw new DomainException('روش بازگشت وجه را انتخاب کنید.', 422);
         }
+        $cancel = $this->recordCancellation($state, $order, $choice, $amount, $actor, $now);
+        $order['customer_correction']['status'] = 'cancelled';
+        $order['status'] = 'لغو شد';
+        $order['approval_status'] = 'رد شده';
+        $order['updated_at'] = $now;
+        return $cancel;
+    }
+
+    /** Return confirmed funds while the existing admin cancellation holds the order lock. */
+    public function creditStaffCancellation(array &$state, array &$order, int $actor, string $now): void
+    {
+        if (isset($order['customer_credit_cancel'])) return;
+        $checkout = (new GpCreditCheckout())->summary($order);
+        if ($checkout === null) return;
+        if (!empty($order['irankish_order_payment']['claim'])) {
+            throw new DomainException('ابتدا نتیجه پرداخت آنلاین را بررسی کنید.', 409);
+        }
+        if (!empty($order['shipment_batches']) || !empty($order['exit_items'])) {
+            throw new DomainException('سفارش دارای خروج یا ارسال از این مسیر قابل لغو نیست.', 409);
+        }
+        $id = (int) $order['id'];
+        $customerId = (int) ($order['customer_id'] ?? 0);
+        if ($customerId < 1) return;
+        $entries = $state['customer_wallet'][$customerId] ?? [];
+        $debit = $entries['purchase:'.$id] ?? [];
+        $walletPaid = ($debit['source'] ?? '') === 'order_purchase' && ($debit['order_id'] ?? 0) === $id
+            ? max(0, -(int) $debit['amount']) : 0;
+        $creditRemaining = (int) ($order['credit_checkout']['credit_reserved'] ?? 0);
+        $repaid = 0;
+        foreach ($order['credit_repayments'] ?? [] as $payment) {
+            $paymentAmount = $payment['amount'] ?? null;
+            if (($payment['status'] ?? '') !== 'approved' || !is_int($paymentAmount) || $paymentAmount < 1) continue;
+            $confirmed = min($paymentAmount, $creditRemaining);
+            $repaid += $confirmed;
+            $creditRemaining -= $confirmed;
+        }
+        $amount = $checkout['cash_confirmed'] + $walletPaid + $repaid;
+        if ($amount > 0) $this->recordCancellation($state, $order, 'wallet', $amount, $actor, $now);
+    }
+
+    private function recordCancellation(array &$state, array &$order, string $choice, int $amount, int $actor, string $now): array
+    {
         $cancel = [
             'destination' => $choice, 'amount' => $amount, 'created_at' => $now, 'created_by' => $actor,
             'status' => $choice === 'refund' ? 'pending' : 'completed',
         ];
         $order['customer_credit_cancel'] = $cancel;
-        $order['customer_correction']['status'] = 'cancelled';
-        $order['status'] = 'لغو شد';
-        $order['approval_status'] = 'رد شده';
-        $order['updated_at'] = $now;
         if ($choice === 'wallet') {
             $state['customer_wallet'][(int) $order['customer_id']]['cancel:'.$order['id']] = [
                 'amount' => $amount, 'source' => 'order_cancellation', 'order_id' => (int) $order['id'],
