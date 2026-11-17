@@ -29,7 +29,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
-.gp-offer-editor input,
+.gp-offer-editor input:not([type="checkbox"]),
 .gp-offer-editor select,
 .grid:has(> .gp-offer-editor) > label > :is(input, select) {
   box-sizing: border-box;
@@ -38,8 +38,39 @@
   margin: 0;
   min-height: 44px;
 }
-.gp-offer-editor select[multiple] {
-  min-height: 148px;
+.gp-offer-products {
+  min-inline-size: 0;
+  border: 1px solid #dce6f0;
+  border-radius: 10px;
+  padding: 10px;
+}
+.gp-offer-products legend {
+  padding-inline: 6px;
+  font-weight: 700;
+}
+.gp-offer-product-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 4px 12px;
+  max-block-size: 16rem;
+  overflow: auto;
+}
+.gp-offer-editor .gp-offer-product > label.cl-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  min-height: 40px;
+  cursor: pointer;
+}
+.gp-offer-editor .gp-offer-product input {
+  position: absolute;
+  inline-size: 20px;
+  block-size: 20px;
+  margin: 0;
+}
+.gp-offer-product strong {
+  overflow-wrap: anywhere;
 }
 .gp-offer-editor .small {
   font-weight: 400;

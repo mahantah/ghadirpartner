@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="../assets/offer-plan-code.css">
+<link rel="stylesheet" href="../assets/automation-animated-checkbox.css">
 <style>
 body{font-family:Tahoma,Arial,sans-serif;margin:16px;background:#fff8f2;color:#102a43}.card{background:white;padding:20px;border-radius:18px;max-width:900px;margin:auto}.grid{display:grid}.grid input,.grid select{border:1px solid #ccd8e4;border-radius:8px;padding:9px;font:inherit}button{background:#102a43;color:white;border:0;padding:10px 16px;border-radius:8px}.small{font-size:12px}label{line-height:1.8}
 </style>
@@ -21,6 +22,14 @@ body{font-family:Tahoma,Arial,sans-serif;margin:16px;background:#fff8f2;color:#1
  if(columns!==(innerWidth<=700?1:2))throw Error('responsive columns');
  const payload=editor.read('layout');if(payload.products.length!==2||payload.promo_code!=='MULTI10')throw Error('scope retention');
  document.getElementById('layoutAllProducts').click();if(editor.read('layout').products.length!==0)throw Error('all-products action');
+ const checks=[...document.querySelectorAll('#layoutProducts input[type="checkbox"]')];
+ if(checks.length!==3||checks[0].nextElementSibling.getBoundingClientRect().width!==20)throw Error('checkboxes not visible');
+ checks[0].parentElement.querySelector('strong').click();
+ checks[2].parentElement.querySelector('strong').click();
+ if(editor.read('layout').products.join(',')!=='I90,V77')throw Error('independent checkbox selection');
+ checks[0].click();
+ if(editor.read('layout').products.join(',')!=='V77')throw Error('checkbox deselection');
+
  document.getElementById('result').textContent='SCOPE_LAYOUT_PASS';
 }catch(error){document.getElementById('result').textContent='SCOPE_LAYOUT_FAIL '+error.message}})();
 </script></body></html>
