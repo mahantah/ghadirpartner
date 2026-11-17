@@ -2,7 +2,6 @@ import { join } from 'node:path';
 
 import {
   app,
-  BrowserWindow,
   ipcMain,
   Notification,
   session,
@@ -13,11 +12,12 @@ import { IPC_CHANNELS, type CatalogSnapshot } from '../shared/contracts';
 import { GhadirPartnerClient } from './clients/GhadirPartnerClient';
 import { AppConfigLoader, type AppConfig } from './config/AppConfig';
 import { PriceSnapshotRepository } from './repositories/PriceSnapshotRepository';
+import { DesktopWidgetController } from './services/DesktopWidgetController';
 import { PriceMapper } from './services/PriceMapper';
 import { PriceServiceFacade } from './services/PriceServiceFacade';
 
 export class PriceWidgetApplication {
-  private window: BrowserWindow | null = null;
+  private widget: DesktopWidgetController | null = null;
   private facade: PriceServiceFacade | null = null;
   private config: AppConfig | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
@@ -41,43 +41,11 @@ export class PriceWidgetApplication {
     const mapper = new PriceMapper(this.config.price_labels, this.config.ui.hide_zero_prices);
     this.facade = new PriceServiceFacade(client, repository, mapper);
 
+    this.widget = new DesktopWidgetController(this.config.ui);
+    this.widget.initializeAutoStart();
     this.registerIpc();
-    this.window = this.createWindow(this.config);
+    this.widget.start();
     this.beginPolling(this.config.refresh.interval_seconds);
-
-    app.on('activate', () => {
-      if (this.window === null || this.window.isDestroyed()) {
-        this.window = this.createWindow(this.requireConfig());
-      }
-    });
-
-    app.on('window-all-closed', () => {
-      this.stopPolling();
-      app.quit();
-    });
-  }
-
-  private createWindow(config: AppConfig): BrowserWindow {
-    const window = new BrowserWindow({
-      title: config.ui.title,
-      width: config.ui.window_width,
-      height: config.ui.window_height,
-      minWidth: 360,
-      minHeight: 480,
-      alwaysOnTop: config.ui.always_on_top,
-      autoHideMenuBar: true,
-      backgroundColor: '#0d1b2a',
-      webPreferences: {
-        preload: join(__dirname, 'preload.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-
-    void window.loadFile(join(__dirname, 'index.html'));
-    return window;
-  }
 
   private registerIpc(): void {
     ipcMain.handle(
@@ -88,6 +56,13 @@ export class PriceWidgetApplication {
     ipcMain.handle(IPC_CHANNELS.logout, async () => this.requireFacade().logout());
     ipcMain.handle(IPC_CHANNELS.session, async () => this.requireFacade().session());
     ipcMain.handle(IPC_CHANNELS.refresh, async () => this.refreshAndBroadcast(false));
+    ipcMain.handle(IPC_CHANNELS.widgetSettings, () => this.requireWidget().settings());
+    ipcMain.handle(IPC_CHANNELS.setCompact, (_event: IpcMainInvokeEvent, compact: boolean) =>
+      this.requireWidget().setCompact(compact),
+    );
+    ipcMain.handle(IPC_CHANNELS.setAutoStart, (_event: IpcMainInvokeEvent, enabled: boolean) =>
+      this.requireWidget().setAutoStart(enabled),
+    );
   }
 
   private beginPolling(intervalSeconds: number): void {
@@ -115,9 +90,7 @@ export class PriceWidgetApplication {
 
   private async refreshAndBroadcast(notifyOnChange: boolean): Promise<CatalogSnapshot> {
     const snapshot = await this.requireFacade().refresh();
-    if (this.window !== null && !this.window.isDestroyed()) {
-      this.window.webContents.send(IPC_CHANNELS.catalogUpdated, snapshot);
-    }
+    this.widget?.send(IPC_CHANNELS.catalogUpdated, snapshot);
 
     const config = this.requireConfig();
     if (
@@ -138,6 +111,13 @@ export class PriceWidgetApplication {
   private reportBackgroundError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`Desktop price refresh failed: ${message}\n`);
+  }
+
+  private requireWidget(): DesktopWidgetController {
+    if (this.widget === null) {
+      throw new Error('Desktop widget is not initialized.');
+    }
+    return this.widget;
   }
 
   private requireFacade(): PriceServiceFacade {
