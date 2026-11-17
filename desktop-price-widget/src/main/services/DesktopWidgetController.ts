@@ -43,6 +43,13 @@ export class DesktopWidgetController {
   }
 
   /**
+   * Allows the application to close its window during a real quit.
+   */
+  public allowExit(): void {
+    this.exiting = true;
+  }
+
+  /**
    * Shows the existing widget without losing authentication state.
    */
   public show(): void {
