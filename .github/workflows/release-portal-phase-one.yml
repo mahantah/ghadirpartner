@@ -34,6 +34,7 @@ jobs:
           node --check assets/portal-phase-two-activity-client.js
           php tests/customer-purchase-report.php
           php tests/portal-wallet-report.php
+          php tests/customer-consignments.php
           php tests/irankish-wallet.php
           node --check assets/irankish-wallet.js
           php tests/portal-membership.php

@@ -70,6 +70,7 @@ class PhaseOneRelease:
             "portal-messages.js",
             "portal-phase-two-navigation.js",
             "portal-wallet-report.js",
+            "customer-consignments.js",
             "irankish-wallet.js",
             "portal-phase-two.css",
             "automation-animated-checkbox.css",
@@ -100,6 +101,7 @@ class PhaseOneRelease:
             "/api/portal-messages/templates",
             "/api/order-followup/alerts",
             "/api/reports/portal-wallet",
+            "/api/customer-consignments",
             "/partners/api/wallet/irankish",
             "/partners/api/order-followup",
             "/api/reports/customer-purchases",
@@ -168,6 +170,7 @@ class PhaseOneRelease:
                 stage.anime_asset,
                 stage.followup_asset,
                 "portal-wallet-report.js",
+                "customer-consignments.js",
                 "irankish-wallet.js",
             ):
                 if not name.endswith(".js"):

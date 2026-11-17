@@ -92,6 +92,11 @@ jobs:
           tooling/partial-delivery-web/node_modules/.bin/prettier --check scripts/offer-plan-code.ts config/offer-plan-code.tsconfig.json
           tooling/partial-delivery-web/node_modules/.bin/tsc -p config/offer-plan-code.tsconfig.json --noEmit false --outFile /tmp/offer-plan-code.js
           cmp assets/offer-plan-code.js /tmp/offer-plan-code.js
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/customer-consignments.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs scripts/customer-consignments.ts --max-warnings 0
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check scripts/customer-consignments.ts config/customer-consignments.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/customer-consignments.tsconfig.json --noEmit false --outFile /tmp/customer-consignments.js
+          cmp assets/customer-consignments.js /tmp/customer-consignments.js
           node tests/live-offer-code.cjs
           node tests/offer-product-scope.cjs
           node tests/offer-scope-layout.cjs
