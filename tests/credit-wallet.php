@@ -51,6 +51,49 @@ $state['orders'] = [$order];
 walletCheck($wallet->read($state, 3)['balance'] === 20 && $wallet->read($state, 9)['balance'] === 0, 'Cancelling was not isolated and idempotent.');
 walletCheck($credit->balance($state, 3, '1405/09', $month)['available'] === 200, 'Cancellation did not release credit.');
 
+$paid = [
+    'id' => 17, 'customer_id' => 3, 'number' => 'GHP-000017',
+    'status' => 'ثبت شده', 'approval_status' => 'تأیید شده',
+    'credit_checkout' => ['cash_required' => 70, 'credit_reserved' => 40, 'wallet_reserved' => 20],
+    'irankish_order_payment' => ['receipt' => ['amount' => 50, 'reference' => '123']],
+    'order_receipt_reviews' => [
+        ['status' => 'approved', 'amount' => 20], ['status' => 'pending', 'amount' => 100],
+    ],
+    'credit_repayments' => [
+        ['status' => 'approved', 'amount' => 10], ['status' => 'pending', 'amount' => 100],
+    ],
+];
+$staffState = ['customer_wallet' => [3 => ['purchase:17' => [
+    'source' => 'order_purchase', 'amount' => -20, 'order_id' => 17,
+]]]];
+$before = $paid;
+$wallet->creditStaffCancellation($staffState, $paid, 9, $date);
+$paid['status'] = 'لغو شد';
+$paid['approval_status'] = 'لغو شد';
+$checkout->assertTransition($before, $paid);
+$wallet->creditStaffCancellation($staffState, $paid, 9, $date);
+walletCheck($paid['customer_credit_cancel']['amount'] === 100
+    && count($staffState['customer_wallet'][3]) === 2
+    && $wallet->read($staffState, 3)['balance'] === 80
+    && $wallet->read($staffState, 9)['balance'] === 0, 'Admin cancellation did not credit confirmed funds exactly once.');
+$held = $before;
+unset($held['irankish_order_payment'], $held['order_receipt_reviews'], $held['credit_repayments']);
+$noDebitState = [];
+$wallet->creditStaffCancellation($noDebitState, $held, 9, $date);
+walletCheck(!isset($held['customer_credit_cancel']) && $noDebitState === [], 'A mere wallet hold created a refund.');
+foreach ([
+    ['irankish_order_payment' => ['claim' => 'pending']],
+    ['shipment_batches' => [['items' => [['serials' => ['test']]]]]],
+] as $blockedFields) {
+    $blocked = array_replace($before, $blockedFields);
+    try {
+        $wallet->creditStaffCancellation($noDebitState, $blocked, 9, $date);
+        throw new LogicException('An unsettled or shipped order was allowed to refund.');
+    } catch (DomainException $error) {
+        walletCheck($error->getCode() === 409 && $noDebitState === [], 'Refund rejection changed the wallet.');
+    }
+}
+
 $purchase = [
     'id' => 5, 'customer_id' => 3, 'number' => 'GHP-000005', 'requested_payment_method' => 'mixed',
     'approval_status' => 'در انتظار تأیید', 'status' => 'در انتظار تأیید سفارش', 'estimated_total' => 180,
