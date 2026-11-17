@@ -193,3 +193,30 @@ if ($service->report(1)['balance'] !== 500 || $service->recheckCheckout(1, $aban
     throw new LogicException('Abandoned checkout was not released to the wallet exactly once.');
 }
 echo "Iran Kish checkout stays private until a confirmed payment is applied exactly once.\n";
+
+$declined = $service->startCheckout(1, 250, str_repeat('e', 64), $now)['checkout_id'];
+$bank['responseCode'] = '51';
+$service->recordDecline($declined, 'wrong-token', '51');
+if ($service->recheckCheckout(1, $declined, $now)['failed']) throw new LogicException('A mismatched token released checkout.');
+$service->recordDecline($declined, 'AB123', '51');
+if (!$service->recheckCheckout(1, $declined, $now)['failed'] || $service->orderLaunch($declined) !== null
+    || $service->releaseCheckout(1, $declined)['confirmed']) {
+    throw new LogicException('A declined attempt did not unlock editing.');
+}
+$bank['responseCode'] = '00';
+$bank['retrievalReferenceNumber'] = '123456789016';
+$bank['isVerified'] = true;
+if (!$service->returnFromOrderBank($declined, $now) || !$service->returnFromOrderBank($declined, $now)
+    || $service->report(1)['balance'] !== 750 || $service->recheckCheckout(1, $declined, $now)['confirmed']) {
+    throw new LogicException('A late payment after releasing checkout must credit the wallet exactly once.');
+}
+$native = $service->start(1, 250, $now, true)['id'];
+$bank['retrievalReferenceNumber'] = '123456789017';
+$bank['isVerified'] = true;
+if (!$service->isNativeWalletAttempt($native) || $service->orderLaunch($native)['token'] !== 'AB123'
+    || $service->recheckWallet(2, $native, $now)['credited']
+    || !$service->returnFromOrderBank($native, $now) || !$service->recheckWallet(1, $native, $now)['credited']
+    || $service->report(1)['balance'] !== 1000) {
+    throw new LogicException('Native top-up must launch and reconcile exactly once for its owner.');
+}
+echo "Declined checkout, late transfer and native top-up passed.\n";

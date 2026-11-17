@@ -21,16 +21,17 @@ final class GpIranKishWallet
     }
 
     /** Reserve a merchant request and save the token before exposing it to the browser. */
-    public function start(int $customerId, int $amount, string $now): array
+    public function start(int $customerId, int $amount, string $now, bool $native = false): array
     {
         $id = bin2hex(random_bytes(10));
         $rials = $this->client->rials($amount);
-        $created = ($this->database)(true, static function (array &$state) use ($customerId, $amount, $rials, $id, $now): bool {
+        $created = ($this->database)(true, function (array &$state) use ($customerId, $amount, $rials, $id, $now, $native): bool {
             foreach ($state['customers'] ?? [] as $customer) {
                 if ((int) ($customer['id'] ?? 0) === $customerId && empty($customer['deleted'])) {
                     $state['irankish_wallet_payments'][$id] = [
                         'id' => $id, 'customer_id' => $customerId, 'amount' => $amount,
                         'rials' => $rials, 'token' => '', 'at' => $now,
+                        'native_wallet' => $native, 'expires_at' => time() + $this->client->tokenLifetime(),
                     ];
                     return true;
                 }
@@ -42,7 +43,7 @@ final class GpIranKishWallet
         ($this->database)(true, static function (array &$state) use ($id, $token): void {
             $state['irankish_wallet_payments'][$id]['token'] = $token;
         });
-        return ['url' => $this->client->paymentUrl(), 'token' => $token];
+        return $native ? ['id' => $id] : ['url' => $this->client->paymentUrl(), 'token' => $token];
     }
 
     /** Create a bank attempt after the order route has validated and priced the draft. */
@@ -55,7 +56,7 @@ final class GpIranKishWallet
             foreach (array_reverse($state['irankish_wallet_payments'] ?? []) as $existing) {
                 if (($existing['checkout'] ?? '') === $fingerprint && $existing['customer_id'] === $customerId
                     && empty($existing['submitted_order_id']) && empty($existing['returned_to_wallet'])
-                    && (!empty($existing['reference']) || $existing['expires_at'] > $time)) return $existing;
+                    && (!empty($existing['reference']) || (empty($existing['declined']) && empty($existing['released']) && $existing['expires_at'] > $time))) return $existing;
             }
             return $state['irankish_wallet_payments'][$id] = [
                 'id' => $id, 'customer_id' => $customerId, 'amount' => $amount, 'rials' => $rials,
@@ -86,9 +87,46 @@ final class GpIranKishWallet
     {
         $checkout = new GpIranKishCheckout();
         $payment = ($this->database)(false, static fn (array $state): array => $checkout->owned($state, $id, $customerId));
-        $returned = !empty($payment['returned_to_wallet']);
+        $returned = !empty($payment['returned_to_wallet']) || !empty($payment['released']);
         $confirmed = !$returned && (!empty($payment['reference']) || $this->reconcile($id, $customerId, '', $now));
-        return ['confirmed' => $confirmed, 'expired' => $returned || (!$confirmed && $payment['expires_at'] <= time())];
+        $fresh = ($this->database)(false, static fn (array $state): array => $checkout->owned($state, $id, $customerId));
+        $usable = $confirmed && empty($fresh['returned_to_wallet']) && empty($fresh['released']);
+        return [
+            'confirmed' => $usable, 'failed' => !$usable && !empty($fresh['declined']),
+            'expired' => $returned || !empty($fresh['returned_to_wallet']) || (!$usable && $payment['expires_at'] <= time()),
+        ];
+    }
+
+    /** Unlock edits while preserving a route for money that arrives after checkout was released. */
+    public function releaseCheckout(int $customerId, string $id): array
+    {
+        $checkout = new GpIranKishCheckout();
+        return ($this->database)(true, static function (array &$state) use ($checkout, $id, $customerId): array {
+            try {
+                $payment = $checkout->owned($state, $id, $customerId);
+                if (!empty($payment['reference']) && empty($payment['returned_to_wallet'])) return ['confirmed' => true];
+                $state['irankish_wallet_payments'][$id]['released'] = true;
+                return ['confirmed' => false];
+            } catch (DomainException $error) {
+                return ['error' => $error];
+            }
+        });
+    }
+
+    /** Read the customer's wallet attempt after confirming any verified bank transfer. */
+    public function recheckWallet(int $customerId, string $id, string $now): array
+    {
+        $read = static fn (array $state): array => $state['irankish_wallet_payments'][$id] ?? [];
+        $payment = ($this->database)(false, $read);
+        if (($payment['customer_id'] ?? null) !== $customerId || !empty($payment['order_id']) || !empty($payment['checkout'])) {
+            return ['credited' => false];
+        }
+        $credited = $this->reconcile($id, $customerId, '', $now);
+        $latest = ($this->database)(false, $read);
+        return [
+            'credited' => $credited, 'failed' => !$credited && !empty($latest['declined']),
+            'expired' => !$credited && ($latest['expires_at'] ?? PHP_INT_MAX) <= time(),
+        ];
     }
 
     /** Release a confirmed draft payment back into the authenticated customer's wallet. */
@@ -180,7 +218,8 @@ final class GpIranKishWallet
         return ($this->database)(false, function (array $state) use ($id, $orders): ?array {
             $attempt = $state['irankish_wallet_payments'][$id] ?? [];
             if (empty($attempt['token']) || ($attempt['expires_at'] ?? 0) <= time() || isset($attempt['reference'])) return null;
-            if (!empty($attempt['checkout'])) return ['url' => $this->client->paymentUrl(), 'token' => $attempt['token']];
+            if (!empty($attempt['declined']) || !empty($attempt['released'])) return null;
+            if (!empty($attempt['checkout']) || !empty($attempt['native_wallet'])) return ['url' => $this->client->paymentUrl(), 'token' => $attempt['token']];
             if (empty($attempt['order_id'])) return null;
             try {
                 $order = $state['orders'][$orders->index($state, $attempt['order_id'], $attempt['customer_id'])];
@@ -200,12 +239,32 @@ final class GpIranKishWallet
             !empty($state['irankish_wallet_payments'][$id]['order_id']) || !empty($state['irankish_wallet_payments'][$id]['checkout']));
     }
 
+    /** Route native wallet attempts back to the payment screen without a portal sign-in. */
+    public function isNativeWalletAttempt(string $id): bool
+    {
+        return ($this->database)(false, static fn (array $state): bool =>
+            !empty($state['irankish_wallet_payments'][$id]['native_wallet']));
+    }
+
+    /** Bind a declined return to the original token; a decline can never post money. */
+    public function recordDecline(string $id, string $token, string $code): void
+    {
+        if ($token === '' || $code === '00' || !preg_match('/^[A-Za-z0-9]{2}$/D', $code)) return;
+        ($this->database)(true, static function (array &$state) use ($id, $token): void {
+            $attempt = $state['irankish_wallet_payments'][$id] ?? [];
+            if ((!empty($attempt['checkout']) || !empty($attempt['native_wallet'])) && empty($attempt['reference'])
+                && hash_equals($attempt['token'], $token)) {
+                $state['irankish_wallet_payments'][$id]['declined'] = true;
+            }
+        });
+    }
+
     /** Reconcile the opaque merchant return using authoritative bank data. */
     public function returnFromOrderBank(string $id, string $now): bool
     {
         $payment = ($this->database)(false, static fn (array $state): array =>
             $state['irankish_wallet_payments'][$id] ?? []);
-        return (!empty($payment['checkout']) || !empty($payment['order_id']))
+        return (!empty($payment['checkout']) || !empty($payment['order_id']) || !empty($payment['native_wallet']))
             && $this->reconcile($id, (int) $payment['customer_id'], '', $now);
     }
 
@@ -236,9 +295,10 @@ final class GpIranKishWallet
         $row = $this->client->inquiry($id);
         if ($row === null) return false;
         $isOrder = !empty($payment['order_id']);
-        if ($isOrder && ($row['isReversed'] ?? null) === true
+        if (($isOrder || !empty($payment['checkout'])) && ($row['isReversed'] ?? null) === true
             && $this->client->matches(array_replace($row, ['isReversed' => false]), $payment)) {
-            $this->changeOrderClaim($payment, false);
+            if ($isOrder) $this->changeOrderClaim($payment, false);
+            else $this->recordDecline($id, $payment['token'], 'RV');
             return false;
         }
         if (!$this->client->matches($row, $payment)) return false;
@@ -261,11 +321,12 @@ final class GpIranKishWallet
                 if (($online['claim'] ?? '') !== $id) return false;
                 $online['receipt'] = ['amount' => $payment['amount'], 'reference' => $reference, 'at' => $now];
                 unset($online['claim']);
-            } elseif (empty($payment['checkout'])) {
+            } elseif (empty($payment['checkout']) || !empty($current['released']) || !empty($current['declined'])) {
                 $state['customer_wallet'][$payment['customer_id']]['irankish:'.$id] = [
                 'amount' => $payment['amount'], 'source' => 'irankish_credit', 'order_id' => 0,
                     'number' => '', 'reference' => $reference, 'at' => $now,
                 ];
+                if (!empty($payment['checkout'])) $current['returned_to_wallet'] = true;
             }
             $state['irankish_wallet_references'][$reference] = $id;
             $current['reference'] = $reference;
