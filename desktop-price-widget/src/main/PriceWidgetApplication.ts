@@ -13,7 +13,7 @@ import { GhadirPartnerClient } from './clients/GhadirPartnerClient';
 import { AppConfigLoader, type AppConfig } from './config/AppConfig';
 import { PriceSnapshotRepository } from './repositories/PriceSnapshotRepository';
 import { DesktopWidgetController } from './services/DesktopWidgetController';
-import { AppDiagnostics } from './diagnostics/AppDiagnostics';
+import type { AppDiagnostics } from './diagnostics/AppDiagnostics';
 import { PriceMapper } from './services/PriceMapper';
 import { PriceServiceFacade } from './services/PriceServiceFacade';
 
