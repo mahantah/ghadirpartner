@@ -1,0 +1,35 @@
+name: Build desktop live-price installer
+
+on:
+  pull_request:
+    paths:
+      - "desktop-price-widget/**"
+      - ".github/workflows/desktop-price-widget-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-price-widget
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install
+      - name: Validate code
+        run: npm run check
+      - name: Build Windows installer
+        run: npm run pack:win
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-LivePrices-Windows
+          path: desktop-price-widget/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
