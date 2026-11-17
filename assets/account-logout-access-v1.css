@@ -68,6 +68,19 @@
 #app > header .topnav.gp-account-nav-flex > :is(button, a[data-tab], .nav-group, .sidebar-head) {
   flex-shrink: 0 !important;
 }
+/* Expanded child menus must contribute their height to the parent menu row. */
+#app > header .topnav.gp-account-nav-flex > .nav-group:not([hidden]):not(.hidden) {
+  display: flex !important;
+  flex-direction: column !important;
+  height: auto !important;
+  max-height: none !important;
+}
+#app > header .topnav.gp-account-nav-flex > .nav-group > .nav-submenu {
+  position: static !important;
+  inset: auto !important;
+  flex: 0 0 auto !important;
+  transform: none !important;
+}
 /* Follow the last expanded menu group in the same scrollable column. */
 #app > header .topnav.gp-account-nav-flex > :is(.sidebar-footer, .userbox.gp-sidebar-userbox) {
   position: static !important;

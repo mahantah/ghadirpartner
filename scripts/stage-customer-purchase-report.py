@@ -125,6 +125,21 @@ class CustomerPurchaseReportStage:
   </table></div>
 </details>
 """
+    _consignment_search_card = (
+        _consignment_card.replace(
+            '    <label>مشتری <select name="customer_id"',
+            '    <label>جست‌وجوی مشتری <input type="search" data-consignment-customer-search placeholder="نام یا کد مشتری"></label>\n'
+            '    <label>مشتری <select name="customer_id"',
+        ).replace(
+            '    <label>کالا <select name="product"',
+            '    <label>جست‌وجوی کالا <input type="search" data-consignment-product-search placeholder="نام یا مدل کالا"></label>\n'
+            '    <label>کالا <select name="product"',
+        ).replace(
+            '  <button type="button" class="btn2" data-consignment-refresh>',
+            '  <label>جست‌وجوی سوابق امانی <input type="search" data-consignment-filter placeholder="نام مشتری یا کالا"></label>\n'
+            '  <button type="button" class="btn2" data-consignment-refresh>',
+        )
+    )
     _activity_client = (
         '<script defer src="/assets/portal-phase-two-activity-client.js?v=1"></script>'
     )
@@ -1053,7 +1068,9 @@ class CustomerPurchaseReportStage:
                 app = self._insert(app, self._wallet_card, self._wallet_credit_card)
             app = self._insert(app, self._wallet_credit_card, self._wallet_ipg_card)
         app = self._insert(app, self._wallet_ipg_card, self._wallet_search_card)
-        app = self._insert(app, self._wallet_search_card, self._wallet_search_card + self._consignment_card)
+        if self._consignment_search_card not in app:
+            app = self._insert(app, self._wallet_search_card, self._wallet_search_card + self._consignment_card)
+            app = self._insert(app, self._consignment_card, self._consignment_search_card)
         app = self._insert(
             app,
             "portalAdmin:['admin'],",
@@ -1108,7 +1125,10 @@ class CustomerPurchaseReportStage:
             """map(([category,rows],idx)=>`<details class="sms-template-group" ${idx===0?'open':''}>""",
             'map(([category,rows])=>`<details class="sms-template-group" open>',
         )
-        app = self._insert(app, closing, "\n" + self._consignment_script + closing)
+        consignment_v2 = self._consignment_script.replace("?v=1", "?v=2")
+        if consignment_v2 not in app:
+            app = self._insert(app, closing, "\n" + self._consignment_script + closing)
+            app = self._insert(app, self._consignment_script, consignment_v2)
         for name in self.offer_editor_assets:
             app = self._insert(
                 app,
@@ -1122,13 +1142,15 @@ class CustomerPurchaseReportStage:
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
-        if dock_url + '&dock=5"' not in app:
-            if dock_url + '&dock=4"' not in app:
-                if dock_url + '&dock=3"' not in app:
-                    app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
-                    app = self._insert(app, dock_url + '&dock=2"', dock_url + '&dock=3"')
-                app = self._insert(app, dock_url + '&dock=3"', dock_url + '&dock=4"')
-            app = self._insert(app, dock_url + '&dock=4"', dock_url + '&dock=5"')
+        if dock_url + '&dock=6"' not in app:
+            if dock_url + '&dock=5"' not in app:
+                if dock_url + '&dock=4"' not in app:
+                    if dock_url + '&dock=3"' not in app:
+                        app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
+                        app = self._insert(app, dock_url + '&dock=2"', dock_url + '&dock=3"')
+                    app = self._insert(app, dock_url + '&dock=3"', dock_url + '&dock=4"')
+                app = self._insert(app, dock_url + '&dock=4"', dock_url + '&dock=5"')
+            app = self._insert(app, dock_url + '&dock=5"', dock_url + '&dock=6"')
         dock_script_url = f'/assets/{self.dock_script}?v=2&whfix=20261028a'
         app = self._insert(app, dock_script_url + '"', dock_script_url + '&dock=5"')
         router = None
