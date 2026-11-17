@@ -29,6 +29,20 @@ jobs:
         run: npm run check
       - name: Build Windows installer
         run: npm run pack:win
+      - name: Smoke test packaged application launch
+        shell: pwsh
+        run: |
+          $exe = Join-Path (Get-Location) 'release\\win-unpacked\\Ghadir Partner Live Prices.exe'
+          if (-not (Test-Path $exe)) {
+            throw "Packaged application executable was not found: $exe"
+          }
+          $appProcess = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+          $appProcess.Refresh()
+          if ($appProcess.HasExited) {
+            throw "Packaged app exited during launch: $($appProcess.ExitCode)"
+          }
+          Stop-Process -Id $appProcess.Id -Force
       - name: Upload Windows installer and portable packages
         uses: actions/upload-artifact@v4
         with:
