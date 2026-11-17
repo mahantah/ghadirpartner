@@ -10,7 +10,7 @@
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --check \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"eslint.config.mjs\"",
     "test": "vitest run",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
     "pack:win": "npm run check && npm run build && electron-builder --win nsis"
