@@ -1,5 +1,5 @@
-import { rm } from "node:fs/promises";
-import { resolve } from "node:path";
+import { rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 class CleanScript {
   /**
@@ -8,7 +8,7 @@ class CleanScript {
    * @returns {Promise<void>} Resolves after the output directory is removed.
    */
   async run() {
-    await rm(resolve("dist"), { recursive: true, force: true });
+    await rm(resolve('dist'), { recursive: true, force: true });
   }
 }
 
