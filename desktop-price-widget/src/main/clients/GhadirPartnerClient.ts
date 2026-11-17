@@ -1,5 +1,4 @@
 import type { Session } from 'electron';
-import type { ZodType } from 'zod';
 
 import type { AppConfig } from '../config/AppConfig';
 import {
@@ -75,7 +74,7 @@ export class GhadirPartnerClient {
   private async requestJson<T>(
     endpoint: string,
     init: RequestInit,
-    schema: ZodType<T>,
+    schema: { parse(value: unknown): T },
   ): Promise<T> {
     const response = await this.fetchResponse(endpoint, init);
     const payload: unknown = await response.json();
