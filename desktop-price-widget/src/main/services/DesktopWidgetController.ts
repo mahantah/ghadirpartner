@@ -68,7 +68,7 @@ export class DesktopWidgetController {
   public settings(): WidgetSettings {
     return {
       compact: this.compact,
-      autoStart: process.platform === 'win32' && app.isPackaged
+      autoStart: process.platform === 'win32' && app.isPackaged && !this.isPortable()
         ? app.getLoginItemSettings().openAtLogin
         : false,
     };
@@ -104,7 +104,7 @@ export class DesktopWidgetController {
    * @returns Updated widget settings.
    */
   public setAutoStart(enabled: boolean): WidgetSettings {
-    if (process.platform !== 'win32' || !app.isPackaged) {
+    if (process.platform !== 'win32' || !app.isPackaged || this.isPortable()) {
       throw new Error('اجرای خودکار فقط در نسخه نصب‌شده ویندوز قابل تنظیم است.');
     }
     app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false });
@@ -116,7 +116,7 @@ export class DesktopWidgetController {
    * Applies the default Windows login behavior on first installation only.
    */
   public initializeAutoStart(): void {
-    if (process.platform === 'win32' && app.isPackaged) {
+    if (process.platform === 'win32' && app.isPackaged && !this.isPortable()) {
       const current = app.getLoginItemSettings().openAtLogin;
       const preferencePath = this.startupPreferencePath();
       if (existsSync(preferencePath)) {
@@ -154,6 +154,10 @@ export class DesktopWidgetController {
     if (this.window !== null && !this.window.isDestroyed()) {
       this.window.webContents.send(channel, payload);
     }
+  }
+
+  private isPortable(): boolean {
+    return Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
   }
 
   private startupPreferencePath(): string {
