@@ -1,0 +1,29 @@
+api:
+  base_url: "https://ghadirpartner.ir/partners/"
+  request_timeout_ms: 10000
+  endpoints:
+    login: "api/login"
+    logout: "api/logout"
+    me: "api/me"
+    catalog: "api/catalog"
+
+refresh:
+  interval_seconds: 30
+
+ui:
+  title: "قیمت زنده قدیر پارتنر"
+  window_width: 460
+  window_height: 680
+  always_on_top: true
+  hide_zero_prices: true
+
+notifications:
+  price_changes: true
+
+price_labels:
+  panel_cash: "نقد پنل"
+  panel_7d: "هفت‌روزه"
+  panel_1m: "یک‌ماهه"
+  serial_1_50: "سریال ۱ تا ۵۰"
+  serial_51_200: "سریال ۵۱ تا ۲۰۰"
+  sales_agent: "عامل فروش"
