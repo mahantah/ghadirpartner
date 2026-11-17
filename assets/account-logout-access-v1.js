@@ -33,7 +33,9 @@
     var password = document.getElementById('changePasswordBtn');
     if (!nav || !userbox || !logout || !password) return;
 
-    nav.classList.add('gp-account-nav-flex');
+    if (!nav.classList.contains('gp-account-nav-flex')) {
+      nav.classList.add('gp-account-nav-flex');
+    }
     userbox.classList.add('gp-sidebar-userbox');
     logout.hidden = false;
     password.hidden = false;
