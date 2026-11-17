@@ -1,0 +1,14 @@
+{
+  "max_receipts_per_order": 30,
+  "max_carrier_chars": 100,
+  "max_tracking_chars": 150,
+  "max_note_chars": 500,
+  "staff_roles": [
+    "admin",
+    "sales",
+    "prep",
+    "finance"
+  ],
+  "image_dimension": 1600,
+  "jpeg_quality": 80
+}

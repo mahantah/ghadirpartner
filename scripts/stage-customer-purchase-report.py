@@ -296,6 +296,11 @@ class CustomerPurchaseReportStage:
         "lib/order-followup-route.php",
         "config/order-followup.yaml",
         "assets/order-followup.js",
+        "assets/order-shipping-receipts.js",
+        "assets/order-shipping-receipts.css",
+        "config/order-shipping-receipts.yaml",
+        "lib/order-shipping-receipts.php",
+        "lib/order-shipping-receipts-route.php",
         "assets/order-followup.css",
         "lib/order-proof-upload-route.php",
         "config/order-proof-upload.yaml",
@@ -830,8 +835,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=6"></script>'
-        for previous_version in (1, 2, 3, 4, 5):
+        script = '<script defer src="/assets/order-followup.js?v=7"></script>'
+        for previous_version in (1, 2, 3, 4, 5, 6):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)
@@ -839,6 +844,10 @@ class CustomerPurchaseReportStage:
             app = self._insert(
                 app, self._messages_v3, self._messages_v3 + "\n" + script
             )
+        shipping_script = '<script defer src="/assets/order-shipping-receipts.js?v=1"></script>'
+        if shipping_script not in app:
+            app = self._insert(app, script, shipping_script + "\n" + script)
+        shipping_style = '<link rel="stylesheet" href="/assets/order-shipping-receipts.css?v=1">'
         alerts = """<button class="gp-order-alerts" type="button" id="gpOrderAlerts" aria-haspopup="dialog" aria-label="اعلان‌های سفارش" title="اعلان‌های سفارش" hidden>
   <span aria-hidden="true">🔔</span><span class="gp-order-alert-badge" id="gpOrderAlertsCount" hidden></span>
 </button>
@@ -864,6 +873,8 @@ class CustomerPurchaseReportStage:
 
         dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css'
         app = self._insert(app, dock, stylesheet + "\n" + dock)
+        if shipping_style not in app:
+            app = self._insert(app, stylesheet, stylesheet + "\n" + shipping_style)
         legacy = "$('orderDetailOverlay').classList.remove('hidden')}\nfunction closeOrderDetails()"
         app = self._insert(
             app,

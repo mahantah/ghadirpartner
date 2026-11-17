@@ -1,0 +1,42 @@
+.gp-shipping-receipts {
+  direction: rtl;
+}
+.gp-shipping-receipts form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+}
+.gp-shipping-receipts label {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.gp-shipping-receipts input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+.gp-shipping-receipts button {
+  justify-self: start;
+  align-self: end;
+  width: auto;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 10px 16px;
+  margin: 4px;
+}
+.gp-shipping-receipts article {
+  padding-block: 12px;
+  border-bottom: 1px solid #dce5ef;
+}
+.gp-shipping-receipts img {
+  display: block;
+  max-width: 100%;
+  max-height: 560px;
+  object-fit: contain;
+  margin-block: 12px;
+}
+.gp-shipping-receipts p {
+  overflow-wrap: anywhere;
+}

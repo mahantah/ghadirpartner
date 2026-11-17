@@ -126,6 +126,14 @@ jobs:
           php tests/customer-credit.php
           php tests/credit-wallet.php
           php tests/order-followup.php
+          php -l lib/order-shipping-receipts-route.php
+          php tests/order-shipping-receipts.php
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/order-shipping-receipts.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/eslint --config tooling/partial-delivery-web/eslint.config.mjs scripts/order-shipping-receipts.ts --max-warnings 0
+          tooling/partial-delivery-web/node_modules/.bin/prettier --check scripts/order-shipping-receipts.ts assets/order-shipping-receipts.css config/order-shipping-receipts.tsconfig.json
+          tooling/partial-delivery-web/node_modules/.bin/tsc -p config/order-shipping-receipts.tsconfig.json --noEmit false --outFile /tmp/order-shipping-receipts.js
+          cmp assets/order-shipping-receipts.js /tmp/order-shipping-receipts.js
+          node --check assets/order-shipping-receipts.js
           php tests/customer-credit-release.php
           php -l scripts/release-credit-menu.php
           php tests/credit-menu-release.php
