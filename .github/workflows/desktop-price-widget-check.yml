@@ -1,6 +1,9 @@
 name: Desktop price widget checks
 
 on:
+  push:
+    branches:
+      - feature/desktop-live-prices
   pull_request:
     paths:
       - "desktop-price-widget/**"
