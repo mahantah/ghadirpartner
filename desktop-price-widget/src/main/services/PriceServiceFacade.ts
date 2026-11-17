@@ -1,7 +1,7 @@
 import type { CatalogSnapshot, SessionState } from '../../shared/contracts';
-import { GhadirApiError, GhadirPartnerClient } from '../clients/GhadirPartnerClient';
-import { PriceSnapshotRepository } from '../repositories/PriceSnapshotRepository';
-import { PriceMapper } from './PriceMapper';
+import { GhadirApiError, type GhadirPartnerClient } from '../clients/GhadirPartnerClient';
+import type { PriceSnapshotRepository } from '../repositories/PriceSnapshotRepository';
+import type { PriceMapper } from './PriceMapper';
 
 export class PriceServiceFacade {
   public constructor(
