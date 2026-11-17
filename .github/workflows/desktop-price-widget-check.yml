@@ -1,0 +1,30 @@
+name: Desktop price widget checks
+
+on:
+  pull_request:
+    paths:
+      - "desktop-price-widget/**"
+      - ".github/workflows/desktop-price-widget-check.yml"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop-price-widget
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: desktop-price-widget/package.json
+      - name: Install
+        run: npm install
+      - name: Check
+        run: npm run check
+      - name: Build
+        run: npm run build
