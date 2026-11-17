@@ -194,6 +194,7 @@ class CustomerPurchaseReportStage:
 </details>
 """
     _files = (
+        "assets/automation-animated-checkbox.css",
         "lib/portal-panel-switches.php",
         "lib/portal-panel-switches-route.php",
         "lib/customer-purchase-report.php",
@@ -810,6 +811,11 @@ class CustomerPurchaseReportStage:
         )
         app = self._insert(
             app, self._customer_section, self._customer_section + self._membership_card
+        )
+        checkbox_anchor = "<!-- GP_TOGGLE_SWITCH_CL_V2_20261026 -->"
+        checkbox_stylesheet = '<link rel="stylesheet" href="/assets/automation-animated-checkbox.css?v=1">'
+        app = self._insert(
+            app, checkbox_anchor, f"{checkbox_stylesheet}\n{checkbox_anchor}"
         )
         app = self._insert(
             app,
