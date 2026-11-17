@@ -23,12 +23,12 @@ export interface CatalogSnapshot {
   readonly hasPriceChanges: boolean;
 }
 
-export interface GhadirPriceBridge {
+export interface WidgetSettings {\n  readonly compact: boolean;\n  readonly autoStart: boolean;\n}\n\nexport interface GhadirPriceBridge {
   login(identity: string, password: string): Promise<SessionState>;
   logout(): Promise<void>;
   session(): Promise<SessionState>;
   refresh(): Promise<CatalogSnapshot>;
-  onCatalog(listener: (snapshot: CatalogSnapshot) => void): () => void;
+  widgetSettings(): Promise<WidgetSettings>;\n  setCompact(compact: boolean): Promise<WidgetSettings>;\n  setAutoStart(enabled: boolean): Promise<WidgetSettings>;\n  onLayout(listener: (settings: WidgetSettings) => void): () => void;\n  onCatalog(listener: (snapshot: CatalogSnapshot) => void): () => void;
 }
 
 export const IPC_CHANNELS = {
@@ -36,7 +36,7 @@ export const IPC_CHANNELS = {
   logout: 'ghadir-prices:logout',
   session: 'ghadir-prices:session',
   refresh: 'ghadir-prices:refresh',
-  catalogUpdated: 'ghadir-prices:catalog-updated',
+  catalogUpdated: 'ghadir-prices:catalog-updated',\n  widgetSettings: 'ghadir-prices:widget-settings',\n  setCompact: 'ghadir-prices:set-compact',\n  setAutoStart: 'ghadir-prices:set-auto-start',\n  layout: 'ghadir-prices:layout',
 } as const;
 
 declare global {
