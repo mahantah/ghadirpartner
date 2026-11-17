@@ -46,7 +46,9 @@
       userbox.classList.add('gp-account-docked');
     } else {
       userbox.classList.remove('gp-account-docked');
-      if (userbox.parentElement !== nav) nav.appendChild(userbox);
+      // Menu ordering keeps the footer in place even when groups or permissions change.
+      var footer = nav.querySelector('.sidebar-footer') || nav;
+      if (userbox.parentElement !== footer) footer.appendChild(userbox);
     }
   }
 

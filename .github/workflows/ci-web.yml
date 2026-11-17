@@ -731,6 +731,13 @@ jobs:
               exit 1
             fi
             echo "Actual panel collapse/expand and animated icon passed at $size"
+            "$browser" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run \
+              --allow-file-access-from-files --window-size="$size" --virtual-time-budget=6500 \
+              --dump-dom "file://$GITHUB_WORKSPACE/tests/sidebar-account-overlap.html" > /tmp/sidebar-account-result.html 2>/tmp/sidebar-account-chrome.log
+            if ! grep -Fq '>SIDEBAR_ACCOUNT_PASS</output>' /tmp/sidebar-account-result.html; then
+              grep -o '>SIDEBAR_ACCOUNT_FAIL[^<]*' /tmp/sidebar-account-result.html || true
+              exit 1
+            fi
           done
   # Previously: .github/workflows/test-sidebar-edge-profile-v2.yml
   sidebar-edge-profile-v2:

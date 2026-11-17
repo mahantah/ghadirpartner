@@ -136,6 +136,7 @@ class CustomerPurchaseReportStage:
         "session-keep-v1.js",
     )
     dock_asset = "account-logout-access-v1.css"
+    dock_script = "account-logout-access-v1.js"
     proof_asset = "order-details-v2-approved-20261024.js"
     _credit_base_hashes = {
         "d1a5e6706afca7d98619dc7ce9c6dee7fb4417da5d8be6c58b8621fe7afa8d8b",
@@ -216,6 +217,7 @@ class CustomerPurchaseReportStage:
         "assets/anime-waapi-4.5.0.min.js",
         "assets/anime-4.5.0.LICENSE.txt",
         "assets/automation-animated-checkbox.css",
+        "assets/account-logout-access-v1.js",
         "assets/offer-plan-code.css",
         "assets/offer-plan-code.js",
         "lib/portal-panel-switches.php",
@@ -1071,11 +1073,15 @@ class CustomerPurchaseReportStage:
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
-        if dock_url + '&dock=4"' not in app:
-            if dock_url + '&dock=3"' not in app:
-                app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
-                app = self._insert(app, dock_url + '&dock=2"', dock_url + '&dock=3"')
-            app = self._insert(app, dock_url + '&dock=3"', dock_url + '&dock=4"')
+        if dock_url + '&dock=5"' not in app:
+            if dock_url + '&dock=4"' not in app:
+                if dock_url + '&dock=3"' not in app:
+                    app = self._insert(app, dock_url + '"', dock_url + '&dock=2"')
+                    app = self._insert(app, dock_url + '&dock=2"', dock_url + '&dock=3"')
+                app = self._insert(app, dock_url + '&dock=3"', dock_url + '&dock=4"')
+            app = self._insert(app, dock_url + '&dock=4"', dock_url + '&dock=5"')
+        dock_script_url = f'/assets/{self.dock_script}?v=2&whfix=20261028a'
+        app = self._insert(app, dock_script_url + '"', dock_script_url + '&dock=5"')
         router = None
         if partner_router is not None:
             anchor = "if($p==='/api/register'&&$m==='POST')"

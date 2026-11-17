@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { margin: 0; }
+#app > header .topnav {
+  position: fixed; inset: 0 0 0 auto; height: 100vh; width: min(300px, 86vw);
+  box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;
+}
+#app > header .topnav .sidebar-footer { position: sticky !important; bottom: 0; }
+#app > header .topnav .userbox { position: absolute !important; bottom: 0; min-height: 75px; }
+.topnav button { display: block; width: 100%; min-height: 48px; }
+.nav-submenu { display: none; }
+.nav-group.open .nav-submenu { display: grid; }
+</style>
+<link rel="stylesheet" href="../assets/account-logout-access-v1.css">
+</head>
+<body>
+<div id="app">
+  <header><nav class="topnav">
+    <div class="sidebar-head">قدیر پارتنر</div>
+    <div id="groups"></div>
+    <div class="sidebar-footer">
+      <div class="userbox"><span id="who">کاربر</span><button id="changePasswordBtn">تغییر رمز</button><button id="logoutbtn">خروج</button></div>
+    </div>
+  </nav></header>
+</div>
+<output id="result">PENDING</output>
+<script>
+const app = document.getElementById("app");
+const groups = document.getElementById("groups");
+for (const title of ["مشتریان", "تنظیمات سامانه"]) {
+  const group = document.createElement("div");
+  group.className = "nav-group open";
+  group.innerHTML = '<button type="button">' + title + '</button><div class="nav-submenu">' +
+    '<button type="button">گزینهٔ منو</button>'.repeat(12) + '</div>';
+  groups.before(group);
+}
+groups.remove();
+</script>
+<script src="../assets/account-logout-access-v1.js"></script>
+<script>
+const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+(async () => {
+  const nav = app.querySelector(".topnav");
+  const footer = nav.querySelector(".sidebar-footer");
+  const logout = document.getElementById("logoutbtn");
+  const account = logout.closest(".userbox");
+  const buttons = nav.querySelectorAll(".nav-submenu > button");
+  const last = buttons[buttons.length - 1];
+  await frame();
+  if (account.parentElement !== footer || nav.scrollHeight <= nav.clientHeight) throw Error("sidebar scroll unavailable");
+  last.scrollIntoView({block: "end"});
+  const rect = last.getBoundingClientRect();
+  if (document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) !== last) throw Error("profile covers the last option");
+  if (footer.getBoundingClientRect().top < rect.bottom) throw Error("profile overlaps an expanded group");
+  logout.scrollIntoView({block: "end"});
+  if (logout.getBoundingClientRect().bottom > innerHeight) throw Error("logout remains off screen");
+  if (matchMedia("(min-width: 821px)").matches) {
+    app.classList.add("sidebar-collapsed");
+    await frame();
+    if (account.parentElement !== app || !account.classList.contains("gp-account-docked")) throw Error("collapsed profile is not docked");
+    app.classList.remove("sidebar-collapsed");
+    await frame();
+    if (account.parentElement !== footer) throw Error("profile did not return to the footer");
+  }
+  document.getElementById("result").textContent = "SIDEBAR_ACCOUNT_PASS";
+})().catch(error => {
+  document.getElementById("result").textContent = "SIDEBAR_ACCOUNT_FAIL " + error.message;
+});
+</script>
+</body>
+</html>
