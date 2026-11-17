@@ -20,7 +20,7 @@ const AppConfigSchema = z.object({
   ui: z.object({
     title: z.string().min(1),
     window_width: z.number().int().min(320).max(1200),
-    window_height: z.number().int().min(420).max(1400),
+    window_height: z.number().int().min(420).max(1400),\n    compact_width: z.number().int().min(320).max(700),\n    compact_height: z.number().int().min(420).max(900),\n    start_compact: z.boolean(),\n    auto_start_on_install: z.boolean(),\n    edge_margin: z.number().int().min(0).max(100),
     always_on_top: z.boolean(),
     hide_zero_prices: z.boolean(),
   }),
