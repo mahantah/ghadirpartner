@@ -4,7 +4,8 @@ import {
   IPC_CHANNELS,
   type CatalogSnapshot,
   type GhadirPriceBridge,
-  type SessionState,\n  type WidgetSettings,
+  type SessionState,
+  type WidgetSettings,
 } from '../shared/contracts';
 
 class PreloadBridge {
