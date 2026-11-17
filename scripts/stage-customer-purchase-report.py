@@ -848,8 +848,6 @@ class CustomerPurchaseReportStage:
         if shipping_script not in app:
             app = self._insert(app, script, shipping_script + "\n" + script)
         shipping_style = '<link rel="stylesheet" href="/assets/order-shipping-receipts.css?v=1">'
-        if shipping_style not in app:
-            app = self._insert(app, "</head>", shipping_style + "\n</head>")
         alerts = """<button class="gp-order-alerts" type="button" id="gpOrderAlerts" aria-haspopup="dialog" aria-label="اعلان‌های سفارش" title="اعلان‌های سفارش" hidden>
   <span aria-hidden="true">🔔</span><span class="gp-order-alert-badge" id="gpOrderAlertsCount" hidden></span>
 </button>
@@ -875,6 +873,8 @@ class CustomerPurchaseReportStage:
 
         dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css'
         app = self._insert(app, dock, stylesheet + "\n" + dock)
+        if shipping_style not in app:
+            app = self._insert(app, stylesheet, stylesheet + "\n" + shipping_style)
         legacy = "$('orderDetailOverlay').classList.remove('hidden')}\nfunction closeOrderDetails()"
         app = self._insert(
             app,
