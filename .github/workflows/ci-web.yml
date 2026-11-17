@@ -735,7 +735,7 @@ jobs:
               --allow-file-access-from-files --window-size="$size" --virtual-time-budget=6500 \
               --dump-dom "file://$GITHUB_WORKSPACE/tests/sidebar-account-overlap.html" > /tmp/sidebar-account-result.html 2>/tmp/sidebar-account-chrome.log
             if ! grep -Fq '>SIDEBAR_ACCOUNT_PASS</output>' /tmp/sidebar-account-result.html; then
-              grep -o '>SIDEBAR_ACCOUNT_FAIL[^<]*' /tmp/sidebar-account-result.html || true
+              grep -o '<output id="result">[^<]*</output>' /tmp/sidebar-account-result.html || true
               exit 1
             fi
           done

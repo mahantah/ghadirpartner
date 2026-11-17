@@ -29,6 +29,8 @@ body { margin: 0; }
 </div>
 <output id="result">PENDING</output>
 <script>
+// Headless virtual time can elapse without delivering a visual frame.
+window.requestAnimationFrame = callback => setTimeout(callback, 0);
 const app = document.getElementById("app");
 const groups = document.getElementById("groups");
 for (const title of ["مشتریان", "تنظیمات سامانه"]) {
@@ -42,7 +44,7 @@ groups.remove();
 </script>
 <script src="../assets/account-logout-access-v1.js"></script>
 <script>
-const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+const frame = () => new Promise(resolve => setTimeout(resolve, 30));
 (async () => {
   const nav = app.querySelector(".topnav");
   const footer = nav.querySelector(".sidebar-footer");
