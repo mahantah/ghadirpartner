@@ -71,6 +71,7 @@ class PhaseOneRelease:
             "portal-wallet-report.js",
             "irankish-wallet.js",
             "portal-phase-two.css",
+            "automation-animated-checkbox.css",
             "portal-phase-two-activity.js",
             "portal-phase-two-activity-client.js",
             "order-followup.js",
