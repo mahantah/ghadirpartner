@@ -13,7 +13,7 @@ refresh:
 ui:
   title: "قیمت زنده قدیر پارتنر"
   window_width: 460
-  window_height: 680
+  window_height: 680\n  compact_width: 380\n  compact_height: 530\n  start_compact: true\n  auto_start_on_install: true\n  edge_margin: 12
   always_on_top: true
   hide_zero_prices: true
 
