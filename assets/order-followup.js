@@ -12,6 +12,10 @@
   function settlementHtml(order, fallback = "") {
     const progress = order.settlement_progress;
     const selector = `data-settlement-order="${Number(order.id) || 0}"`;
+    const pendingCredit = ["اعتباری · در انتظار تأیید", "ترکیبی با اعتبار · در انتظار تأیید"];
+    if (progress?.awaiting_approval === true && pendingCredit.includes(progress.label)) {
+      return `<span class="gp-settlement-display" ${selector}><span class="badge pay-check">${progress.label}</span></span>`;
+    }
     const labels = ["پرداخت بخشی", "تسویه کامل", "بخش اعتباری تسویه شد"];
     if (!progress || !labels.includes(progress.label)) return `<span ${selector}>${fallback}</span>`;
     const status = progress.settled ? "pay-paid" : "pay-deposit";

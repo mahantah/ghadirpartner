@@ -14,11 +14,23 @@ final class GpOrderSettlementProgress
         $this->credit = $credit;
     }
 
-    /** Show only confirmed repayments and distinguish a fully credit-funded invoice. */
+    /** Distinguish awaiting credit requests from reviewed repayments and settled invoices. */
     public function read(array $order): ?array
     {
         $paid = $this->credit->repaid($order);
-        if ($paid === 0) return null;
+        if ($paid === 0) {
+            $method = $order['requested_payment_method'] ?? '';
+            if (($order['approval_status'] ?? '') !== 'در انتظار تأیید'
+                || ($order['payment_status'] ?? '') !== 'پرداخت نشده'
+                || !in_array($method, ['credit', 'mixed'], true)
+                || $this->credit->amount($order) <= 0) {
+                return null;
+            }
+            return [
+                'awaiting_approval' => true,
+                'label' => $method === 'credit' ? 'اعتباری · در انتظار تأیید' : 'ترکیبی با اعتبار · در انتظار تأیید',
+            ];
+        }
         $outstanding = $this->credit->debt($order);
         $invoice = max(0, (int) ($order['approved_total'] ?? 0))
             ?: max(0, (int) ($order['estimated_total'] ?? 0));
