@@ -12,8 +12,9 @@
     "lint": "eslint src --max-warnings 0",
     "format:check": "prettier --check \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"eslint.config.mjs\"",
     "test": "vitest run",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
-    "pack:win": "npm run check && npm run build && electron-builder --win nsis"
+    "check": "npm run format && npm run format:check && npm run lint && npm run typecheck && npm test",
+    "pack:win": "npm run check && npm run build && electron-builder --win nsis",
+    "format": "prettier --write \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"eslint.config.mjs\""
   },
   "dependencies": {
     "yaml": "^2.6.1",
@@ -34,7 +35,9 @@
   "build": {
     "appId": "ir.ghadirpartner.liveprices",
     "productName": "Ghadir Partner Live Prices",
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "dist/**/*",
       "package.json"
