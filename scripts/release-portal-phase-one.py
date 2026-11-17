@@ -79,6 +79,7 @@ class PhaseOneRelease:
             "order-followup.css",
             *stage.automation_form_assets,
             *stage.offer_editor_assets,
+            stage.dock_script,
             *shell_assets,
         ):
             match = re.search(
@@ -163,6 +164,7 @@ class PhaseOneRelease:
                 *shell_assets,
                 *stage.automation_form_assets,
                 *stage.offer_editor_assets,
+                stage.dock_script,
                 stage.anime_asset,
                 stage.followup_asset,
                 "portal-wallet-report.js",

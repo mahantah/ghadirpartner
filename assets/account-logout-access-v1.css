@@ -56,16 +56,32 @@
   color: #ffc79a !important;
   border-color: rgba(255, 170, 117, 0.48) !important;
 }
-#app > header .topnav.gp-account-nav-flex {
+#app > header .topnav.topnav.gp-account-nav-flex {
   display: flex !important;
   flex-direction: column !important;
-  min-height: 100vh !important;
-  min-height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain;
 }
-#app > header .topnav.gp-account-nav-flex > .gp-sidebar-userbox,
-#app > header .topnav.gp-account-nav-flex > .userbox.gp-sidebar-userbox {
+#app > header .topnav.gp-account-nav-flex > :is(button, a[data-tab], .nav-group, .sidebar-head) {
+  flex-shrink: 0 !important;
+}
+/* Follow the last expanded menu group in the same scrollable column. */
+#app > header .topnav.gp-account-nav-flex > :is(.sidebar-footer, .userbox.gp-sidebar-userbox) {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
   margin-top: auto !important;
   flex: 0 0 auto !important;
+}
+#app > header .topnav.gp-account-nav-flex > .sidebar-footer > .userbox.gp-sidebar-userbox {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  margin-top: 0 !important;
 }
 
 @media (min-width: 821px) {
