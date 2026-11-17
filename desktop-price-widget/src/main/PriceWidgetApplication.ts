@@ -10,8 +10,8 @@ import {
 } from 'electron';
 
 import { IPC_CHANNELS, type CatalogSnapshot } from '../shared/contracts';
-import { AppConfigLoader, type AppConfig } from './config/AppConfig';
 import { GhadirPartnerClient } from './clients/GhadirPartnerClient';
+import { AppConfigLoader, type AppConfig } from './config/AppConfig';
 import { PriceSnapshotRepository } from './repositories/PriceSnapshotRepository';
 import { PriceMapper } from './services/PriceMapper';
 import { PriceServiceFacade } from './services/PriceServiceFacade';
@@ -93,7 +93,9 @@ export class PriceWidgetApplication {
   private beginPolling(intervalSeconds: number): void {
     this.stopPolling();
     this.pollTimer = setInterval(() => {
-      void this.refreshIfAuthenticated();
+      void this.refreshIfAuthenticated().catch((error: unknown) => {
+        this.reportBackgroundError(error);
+      });
     }, intervalSeconds * 1000);
   }
 
@@ -131,6 +133,11 @@ export class PriceWidgetApplication {
     }
 
     return snapshot;
+  }
+
+  private reportBackgroundError(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`Desktop price refresh failed: ${message}\n`);
   }
 
   private requireFacade(): PriceServiceFacade {
