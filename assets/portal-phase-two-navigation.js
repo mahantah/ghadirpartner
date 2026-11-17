@@ -15,11 +15,6 @@
         gpPortalActivityPage: "M2 12h4l3-7 4 14 3-7h6",
         gpMembershipPage: "M12 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M11 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zm4 7 2 2 5-5",
         gpPortalMessagesPage: "M21 4H3v13h5l4 4v-4h9zM7 8h10M7 12h7",
-        accounts: "M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m10-14a4 4 0 1 1-8 0 4 4 0 0 1 8 0m5 2v6m-3-3h6",
-        catalog: "M3 5h18v14H3zM3 10h18m-12 0v9",
-        offers: "M3 4h8l10 10-7 7L3 10zM7 8h.01",
-        resets: "M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3",
-        sms: "M3 5h18v13H8l-5 3zM7 9h10M7 13h7",
         salesPlans: "M3 4h8l10 10-7 7L3 10zM7 8h.01",
         changePasswordBtn: "M14 10a5 5 0 1 1 2 4l-6 6H6v-4l6-6zm4-3h.01",
         logoutbtn: "M11 4H4v16h7m3-12 4 4-4 4m-5-4h9",
@@ -93,9 +88,6 @@
         const openPage = () => {
             if (!canViewTab(pageId)) return;
             show(pageId);
-            for (const sibling of settingsMenu.querySelectorAll("[data-portal-admin-view]")) {
-                sibling.classList.remove("active");
-            }
             if (!panel.open) panel.querySelector("summary").click();
             if (typeof setSidebar === "function") setSidebar(false);
         };
@@ -105,39 +97,10 @@
         menu.append(link);
         pageLinks.push(link);
     }
-    for (const [view, title] of [
-        ["accounts", "حساب‌های پرتال"],
-        ["catalog", "قیمت و موجودی پرتال"],
-        ["offers", "طرح‌ها و آفرهای پرتال"],
-        ["resets", "بازیابی رمز پرتال"],
-        ["sms", "پیامک هما"],
-    ]) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.dataset.portalAdminView = view;
-        const label = document.createElement("span");
-        label.className = "gp-menu-text";
-        label.textContent = title;
-        button.append(label);
-        addIcon(button, view);
-        button.addEventListener("click", () => {
-            if (!canViewTab("portalAdmin")) return;
-            show("portalAdmin");
-            portalAdminView(view);
-            for (const sibling of settingsMenu.querySelectorAll("[data-portal-admin-view]")) {
-                sibling.classList.toggle("active", sibling === button);
-            }
-            if (typeof setSidebar === "function") setSidebar(false);
-        });
-        settingsMenu.append(button);
-    }
     const update = () => {
         reports.hidden = !canViewTab("salesReports");
         for (const link of pageLinks) {
             link.classList.toggle("hidden", !canViewTab(link.dataset.tab));
-        }
-        for (const link of settingsMenu.querySelectorAll("[data-portal-admin-view]")) {
-            link.classList.toggle("hidden", !canViewTab("portalAdmin"));
         }
     };
     new MutationObserver(update).observe(app, { attributeFilter: ["class"] });

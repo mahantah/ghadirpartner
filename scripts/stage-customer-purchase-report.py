@@ -53,6 +53,9 @@ class CustomerPurchaseReportStage:
     _irankish_assets = _wallet_credit_assets.replace(
         "portal-wallet-report.js?v=2", "portal-wallet-report.js?v=3"
     )
+    _settings_menu_assets = _irankish_assets.replace(
+        "navigation.js?v=9", "navigation.js?v=10"
+    )
     _wallet_card = """
 <details id="gpPortalWallet" class="card" hidden>
   <summary>کیف پول مشتریان</summary>
@@ -937,6 +940,7 @@ class CustomerPurchaseReportStage:
             and self._customer_menu_assets not in app
             and self._wallet_credit_assets not in app
             and self._irankish_assets not in app
+            and self._settings_menu_assets not in app
             and self._sidebar_rail_assets not in app
             and self._report_icon_assets not in app
             and self._report_submenu_assets not in app
@@ -956,20 +960,26 @@ class CustomerPurchaseReportStage:
                 self._customer_menu_assets,
                 self._wallet_credit_assets,
                 self._irankish_assets,
+                self._settings_menu_assets,
             )
         ):
             app = self._insert(
                 app, self._report_submenu_assets, self._report_icon_assets
             )
             app = self._insert(app, self._report_icon_assets, self._sidebar_rail_assets)
-        if self._wallet_credit_assets not in app and self._irankish_assets not in app:
+        if all(
+            marker not in app
+            for marker in (self._wallet_credit_assets, self._irankish_assets, self._settings_menu_assets)
+        ):
             if self._customer_menu_assets not in app:
                 if self._workspace_assets not in app:
                     app = self._insert(app, self._sidebar_rail_assets, self._recipient_assets)
                 app = self._insert(app, self._recipient_assets, self._workspace_assets)
                 app = self._insert(app, self._workspace_assets, self._customer_menu_assets)
             app = self._insert(app, self._customer_menu_assets, self._wallet_credit_assets)
-        app = self._insert(app, self._wallet_credit_assets, self._irankish_assets)
+        if self._settings_menu_assets not in app:
+            app = self._insert(app, self._wallet_credit_assets, self._irankish_assets)
+            app = self._insert(app, self._irankish_assets, self._settings_menu_assets)
         if self._wallet_ipg_card not in app:
             if self._wallet_credit_card not in app:
                 app = self._insert(

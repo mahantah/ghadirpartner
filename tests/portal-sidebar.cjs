@@ -54,7 +54,9 @@ const sidebar = readAsset("portal-phase-two-navigation.js");
 assert.match(sidebar, /reportMenu\.append\(sales\)/);
 assert.doesNotMatch(sidebar, /gpCustomerPortalMenu/);
 assert.match(sidebar, /panelId === "gpPortalMessages" \? settingsMenu : customerMenu/);
-assert.match(sidebar, /settingsMenu\.append\(button\)/);
+assert.doesNotMatch(sidebar, /portalAdminView|data-portal-admin-view/);
+assert.doesNotMatch(sidebar, /حساب‌های پرتال|قیمت و موجودی پرتال|طرح‌ها و آفرهای پرتال|بازیابی رمز پرتال|پیامک هما/);
+assert.match(readAsset("ui-v53435-menu2.js"), /label\(b, 'مرکز پیامک', 'sms'\)/);
 for (const page of ["gpPortalActivityPage", "gpPortalWalletPage", "gpCustomerReportPage", "gpPortalMessagesPage", "gpMembershipPage"]) {
   assert.ok(sidebar.includes(page), page);
 }
