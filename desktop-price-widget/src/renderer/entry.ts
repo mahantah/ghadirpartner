@@ -1,4 +1,4 @@
-import type { CatalogSnapshot, ProductPrice, SessionState } from '../shared/contracts';
+import type { CatalogSnapshot, ProductPrice, SessionState, WidgetSettings } from '../shared/contracts';
 
 class PriceWidgetController {
   private snapshot: CatalogSnapshot | null = null;
@@ -11,6 +11,8 @@ class PriceWidgetController {
   private readonly loginError = this.element<HTMLElement>('loginError');
   private readonly identityLabel = this.element<HTMLElement>('identityLabel');
   private readonly refreshButton = this.element<HTMLButtonElement>('refreshButton');
+  private readonly compactButton = this.element<HTMLButtonElement>('compactButton');
+  private readonly autoStartInput = this.element<HTMLInputElement>('autoStartInput');
   private readonly logoutButton = this.element<HTMLButtonElement>('logoutButton');
   private readonly searchInput = this.element<HTMLInputElement>('searchInput');
   private readonly statusText = this.element<HTMLElement>('statusText');
@@ -35,6 +37,18 @@ class PriceWidgetController {
       void this.logout();
     });
     this.searchInput.addEventListener('input', () => this.render());
+    this.compactButton.addEventListener('click', () => {
+      void this.toggleCompact();
+    });
+    this.autoStartInput.addEventListener('change', () => {
+      void this.changeStartup();
+    });
+    window.ghadirPrices.onLayout((settings) => this.applyWidgetSettings(settings));
+    try {
+      this.applyWidgetSettings(await window.ghadirPrices.widgetSettings());
+    } catch (error: unknown) {
+      this.loginError.textContent = this.errorMessage(error);
+    }
 
     window.ghadirPrices.onCatalog((snapshot) => {
       this.snapshot = snapshot;
@@ -45,6 +59,37 @@ class PriceWidgetController {
     this.applySession(session);
     if (session.authenticated) {
       await this.refresh();
+    }
+  }
+
+  private applyWidgetSettings(settings: WidgetSettings): void {
+    this.compactButton.textContent = settings.compact ? '⤢' : '⤡';
+    this.compactButton.title = settings.compact ? 'نمایش کامل' : 'حالت کوچک';
+    this.autoStartInput.checked = settings.autoStart;
+    document.body.classList.toggle('compact', settings.compact);
+  }
+
+  private async toggleCompact(): Promise<void> {
+    this.compactButton.disabled = true;
+    try {
+      const current = await window.ghadirPrices.widgetSettings();
+      this.applyWidgetSettings(await window.ghadirPrices.setCompact(!current.compact));
+    } catch (error: unknown) {
+      this.statusText.textContent = this.errorMessage(error);
+    } finally {
+      this.compactButton.disabled = false;
+    }
+  }
+
+  private async changeStartup(): Promise<void> {
+    this.autoStartInput.disabled = true;
+    try {
+      this.applyWidgetSettings(await window.ghadirPrices.setAutoStart(this.autoStartInput.checked));
+    } catch (error: unknown) {
+      this.statusText.textContent = this.errorMessage(error);
+      this.applyWidgetSettings(await window.ghadirPrices.widgetSettings());
+    } finally {
+      this.autoStartInput.disabled = false;
     }
   }
 
