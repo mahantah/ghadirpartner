@@ -36,6 +36,12 @@ class PhaseOneRelease:
 
     def publish(self, path: str, data: bytes) -> None:
         """Verify staging bytes before replacing a file by rename."""
+        try:
+            if self.read(path) == data:
+                return
+        except error_perm as error:
+            if not str(error).startswith("550"):
+                raise
         directory, _, _ = path.rpartition("/")
         staging = (
             (directory + "/" if directory else "") + ".phase-" + uuid4().hex + ".php"
