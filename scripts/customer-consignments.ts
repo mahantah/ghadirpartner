@@ -32,6 +32,8 @@ declare function jalaliDateTime(value: string): string;
     private readonly formatter = new Intl.NumberFormat("fa-IR");
     private readonly attempts = new Map<string, string>();
     private records: Consignment[] = [];
+    private customers: Report["customers"] = [];
+    private products: string[] = [];
     private selected: Consignment | null = null;
     private generation = 0;
     private pending = false;
@@ -68,6 +70,18 @@ declare function jalaliDateTime(value: string): string;
         event.preventDefault();
         void this.save(this.returned);
       });
+      for (const input of this.send.querySelectorAll<HTMLInputElement>(
+        "input[type=search]",
+      )) {
+        input.addEventListener("input", () => this.filterOptions());
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && !event.isComposing)
+            event.preventDefault();
+        });
+      }
+      this.require("[data-consignment-filter]").addEventListener("input", () =>
+        this.render(),
+      );
       new MutationObserver(() => this.visibility()).observe(this.app, {
         attributeFilter: ["class"],
       });
@@ -90,6 +104,9 @@ declare function jalaliDateTime(value: string): string;
       this.generation++;
       this.panel.open = false;
       this.records = [];
+      this.customers = [];
+      this.products = [];
+      this.require<HTMLInputElement>("[data-consignment-filter]").value = "";
       this.attempts.clear();
       this.send.reset();
       this.fill("customer_id", [], "انتخاب مشتری");
@@ -106,19 +123,9 @@ declare function jalaliDateTime(value: string): string;
       try {
         const report = (await req(this.path)) as Report;
         if (generation !== this.generation) return;
-        this.fill(
-          "customer_id",
-          report.customers.map(({ id, name, code }) => [
-            String(id),
-            code ? name + " · " + code : name,
-          ]),
-          "انتخاب مشتری",
-        );
-        this.fill(
-          "product",
-          report.products.map((name) => [name, name]),
-          "انتخاب کالا",
-        );
+        this.customers = report.customers;
+        this.products = report.products;
+        this.filterOptions();
         this.records = report.records;
         this.render();
         this.status.textContent = this.records.length
@@ -128,6 +135,51 @@ declare function jalaliDateTime(value: string): string;
         if (generation === this.generation)
           this.status.textContent = "دریافت کالاهای امانی ناموفق بود.";
       }
+    }
+
+    /** Normalize Persian and Arabic spellings and digits before matching a visible label. */
+    private searchKey(value: string): string {
+      return value
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/[يك]/g, (letter) => (letter === "ي" ? "ی" : "ک"))
+        .replace(/[۰-۹٠-٩]/g, (digit) =>
+          String("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩".indexOf(digit) % 10),
+        )
+        .replace(/[\s\u200c]+/g, " ")
+        .trim();
+    }
+
+    private filterOptions(): void {
+      const customer = this.searchKey(
+        this.require<HTMLInputElement>("[data-consignment-customer-search]")
+          .value,
+      );
+      const product = this.searchKey(
+        this.require<HTMLInputElement>("[data-consignment-product-search]")
+          .value,
+      );
+      const people: [string, string][] = this.customers
+        .filter(({ name, code }) =>
+          this.searchKey(name + " " + code).includes(customer),
+        )
+        .map(({ id, name, code }) => [
+          String(id),
+          code ? name + " · " + code : name,
+        ]);
+      const goods: [string, string][] = this.products
+        .filter((name) => this.searchKey(name).includes(product))
+        .map((name) => [name, name]);
+      this.fill(
+        "customer_id",
+        people,
+        customer && !people.length ? "مشتری پیدا نشد" : "انتخاب مشتری",
+      );
+      this.fill(
+        "product",
+        goods,
+        product && !goods.length ? "کالا پیدا نشد" : "انتخاب کالا",
+      );
     }
 
     private fill(
@@ -146,7 +198,22 @@ declare function jalaliDateTime(value: string): string;
 
     private render(): void {
       this.rows.replaceChildren();
-      for (const record of this.records) {
+      const query = this.searchKey(
+        this.require<HTMLInputElement>("[data-consignment-filter]").value,
+      );
+      const matches = this.records.filter((record) =>
+        this.searchKey(record.customer_name + " " + record.product).includes(
+          query,
+        ),
+      );
+      if (query && !matches.length) {
+        const row = document.createElement("tr");
+        const cell = row.insertCell();
+        cell.colSpan = 8;
+        cell.textContent = "ثبت امانی مطابق جست‌وجو پیدا نشد.";
+        this.rows.append(row);
+      }
+      for (const record of matches) {
         const row = document.createElement("tr");
         for (const value of [
           record.customer_name,
@@ -275,6 +342,7 @@ declare function jalaliDateTime(value: string): string;
         if (index < 0) this.records.unshift(record);
         else this.records.splice(index, 1, record);
         form.reset();
+        if (form === this.send) this.filterOptions();
         this.closeReturn();
         this.render();
         this.status.textContent = selected

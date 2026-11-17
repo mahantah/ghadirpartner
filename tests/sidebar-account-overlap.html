@@ -12,7 +12,8 @@ body { margin: 0; }
 #app > header .topnav .sidebar-footer { position: sticky !important; bottom: 0; }
 #app > header .topnav .userbox { position: absolute !important; bottom: 0; min-height: 75px; }
 .topnav button { display: block; width: 100%; min-height: 48px; }
-.nav-submenu { display: none; }
+.nav-group { position: relative; height: 48px; }
+.nav-submenu { display: none; position: absolute; top: 100%; right: 0; }
 .nav-group.open .nav-submenu { display: grid; }
 </style>
 <link rel="stylesheet" href="../assets/account-logout-access-v1.css">
@@ -54,6 +55,9 @@ const frame = () => new Promise(resolve => setTimeout(resolve, 30));
   const last = buttons[buttons.length - 1];
   await frame();
   if (account.parentElement !== footer || nav.scrollHeight <= nav.clientHeight) throw Error("sidebar scroll unavailable");
+  const expanded = nav.querySelectorAll(".nav-group.open");
+  const firstSubmenu = expanded[0].querySelector(".nav-submenu");
+  if (firstSubmenu.getBoundingClientRect().bottom > expanded[1].getBoundingClientRect().top) throw Error("expanded submenu overlaps the next group");
   last.scrollIntoView({block: "end"});
   const rect = last.getBoundingClientRect();
   if (document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) !== last) throw Error("profile covers the last option");
