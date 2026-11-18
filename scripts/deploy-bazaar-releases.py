@@ -66,6 +66,17 @@ class BazaarWebRelease:
             library.removeprefix("<?php\n"),
             1,
         )
+        snapshot = (ROOT / "scripts/bazaar-preflight-state.php").read_text()
+        if (
+            not snapshot.startswith("<?php\ndeclare(strict_types=1);\n")
+            or "?>" in snapshot
+        ):
+            raise ValueError("Invalid read-only snapshot helper")
+        template = template.replace(
+            "// GP_BAZAAR_PREFLIGHT_STATE_INLINE",
+            snapshot.removeprefix("<?php\ndeclare(strict_types=1);\n"),
+            1,
+        )
         template = template.replace("__PROBE_TOKEN__", token).replace(
             "__PROTECTED_CARTONS__", json.dumps(self.cartons)
         )

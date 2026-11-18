@@ -28,9 +28,10 @@ jobs:
           coverage: none
       - name: Verify real signatures, upload state and authorization fixtures
         run: |
-          for path in lib/bazaar*.php scripts/bazaar-release-preflight.php tests/bazaar*.php tests/fixtures/bazaar-apk.php; do php -l "$path"; done
+          for path in lib/bazaar*.php scripts/bazaar-release-preflight.php scripts/bazaar-preflight-state.php tests/bazaar*.php tests/fixtures/bazaar-apk.php; do php -l "$path"; done
           php tests/bazaar-releases.php
           php tests/bazaar-routes.php
+          php tests/bazaar-preflight-state.php
   typed:
     runs-on: ubuntu-24.04
     steps:

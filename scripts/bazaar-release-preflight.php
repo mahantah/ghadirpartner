@@ -2,6 +2,7 @@
 declare(strict_types=1);
 /** Check shared-host capabilities and protected cartons without exporting application state. */
 // GP_PRESWITCH_INTEGRITY_INLINE_20261021
+// GP_BAZAAR_PREFLIGHT_STATE_INLINE
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 ini_set('display_errors', '0');
@@ -31,6 +32,16 @@ try {
         $schema[$table[0]] = array_map(static fn(array $column): array => ['field'=>$column['Field'],'type'=>$column['Type']], $columns);
     }
     $stateSummary['inventory_schema'] = $schema;
+    // Inventory/cartons moved out of state_json; run the unchanged validator on the full canonical snapshot.
+    $snapshot = new GpBazaarPreflightState(static function (string $table) use ($pdo): Generator {
+        if (!in_array($table, ['ghadir_inventory_cartons','ghadir_inventory_serials'], true)) throw new RuntimeException('invalid_normalized_inventory_contract');
+        $statement = $pdo->query('SELECT record_json FROM `'.$table.'` ORDER BY row_position,record_id');
+        while (($record = $statement->fetch(PDO::FETCH_COLUMN)) !== false) yield $record;
+        $statement->closeCursor();
+    });
+    $state = $snapshot->hydrate($state);
+    $stateSummary['canonical_cartons'] = count($state['cartons']);
+    $stateSummary['canonical_inventory'] = count($state['inventory']);
     $cartons = json_decode('__PROTECTED_CARTONS__', true, 512, JSON_THROW_ON_ERROR);
     foreach ($cartons as $code) {
         $report = gp_preswitch_allocated_carton_integrity($state, $code);
@@ -41,7 +52,7 @@ try {
     echo json_encode(['ok'=>true,'read_only'=>true,'protected_cartons'=>count($cartons),'capabilities'=>true], JSON_THROW_ON_ERROR);
 } catch (Throwable $error) {
     if ($pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();
-    $allowed = ['protected_carton_state_mismatch','missing_server_capability','unsupported_server_integer_size'];
+    $allowed = ['protected_carton_state_mismatch','missing_server_capability','unsupported_server_integer_size','invalid_normalized_inventory_contract'];
     http_response_code(500);
     echo json_encode(['ok'=>false,'error'=>in_array($error->getMessage(), $allowed, true) ? $error->getMessage() : 'preflight_failed','diagnostics'=>$diagnostics,'state_summary'=>$stateSummary], JSON_THROW_ON_ERROR);
 }
