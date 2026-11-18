@@ -13,12 +13,13 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
   window.setSidebar = () => {};
   window.fetch = async (path, options) => {
     calls.push({ path, options });
-    if (!options.method) return { ok: true, json: async () => ({ csrf: 'fixture-csrf', releases: [{id:'a'.repeat(32),state:'ready',version_name:'1.0',version_code:1,bytes:100,created_at:'2026-11-18T00:00:00Z',file_removed:false,sha256:'f'.repeat(64)}], token_configured:false,environment_token:false,ready:true,network_ready:true,policy:{maximum_apk_bytes:16777216,chunk_bytes:524288,maximum_changelog_chars:4000,package_name:'ir.ghadirpartner.portalapp'} }) };
-    return { ok: true, json: async () => ({ configured: true }) };
+    if (!options.method) return { ok: true, text: async () => JSON.stringify({ csrf: 'fixture-csrf', releases: [{id:'a'.repeat(32),state:'ready',version_name:'1.0',version_code:1,bytes:100,created_at:'2026-11-18T00:00:00Z',file_removed:false,sha256:'f'.repeat(64)}], token_configured:false,environment_token:false,ready:true,network_ready:true,policy:{maximum_apk_bytes:16777216,chunk_bytes:524288,maximum_changelog_chars:4000,package_name:'ir.ghadirpartner.portalapp'} }) };
+    return { ok: true, text: async () => JSON.stringify({ configured: true }) };
   };
   window.eval(source);
-  const link = window.document.querySelector('[data-tab="gpAppReleasesPage"]');
+  const link = window.document.querySelector('[data-gp-app-releases]');
   assert(link.classList.contains('hidden'));
+  assert(!link.hasAttribute('data-tab'), 'Do not register an unknown tab in legacy navigation permissions');
   assert.equal(calls.length, 0, 'No request before an admin opens the page');
   admin = true; window.document.getElementById('app').setAttribute('data-test-session', 'admin'); await tick();
   assert(!link.classList.contains('hidden'));

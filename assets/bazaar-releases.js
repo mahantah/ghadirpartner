@@ -40,16 +40,30 @@
                 }
             }
             const response = await fetch(path, options);
-            const value = await response.json();
+            const raw = await response.text();
+            let value = null;
+            try {
+                value = JSON.parse(raw);
+            }
+            catch {
+                /* The existing automation returns text for rejected requests. */
+            }
             if (!response.ok) {
-                const message = typeof value === "object" &&
+                const candidate = typeof value === "object" &&
                     value !== null &&
                     "error" in value &&
                     typeof value.error === "string"
                     ? value.error
+                    : raw;
+                const message = candidate.length > 0 &&
+                    candidate.length <= 500 &&
+                    !/[<>]/.test(candidate)
+                    ? candidate
                     : "عملیات انجام نشد؛ دوباره وضعیت را بررسی کنید.";
                 throw new Error(message);
             }
+            if (value === null)
+                throw new Error("پاسخ سرور قابل پردازش نیست؛ وضعیت را دوباره بررسی کنید.");
             return value;
         }
     }
@@ -76,7 +90,7 @@
             this.page.dir = "rtl";
             this.link.type = "button";
             this.link.className = "adminOnly hidden";
-            this.link.dataset.tab = this.page.id;
+            this.link.dataset.gpAppReleases = "";
             this.link.setAttribute("aria-controls", this.page.id);
             const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             icon.setAttribute("viewBox", "0 0 24 24");
@@ -152,7 +166,8 @@
             historyCard.append(refresh, this.remote, this.history);
             this.controls.append(tokenCard, uploadCard, historyCard);
             this.page.append(heading, this.status, this.controls);
-            this.link.addEventListener("click", () => {
+            this.link.addEventListener("click", (event) => {
+                event.stopPropagation();
                 if (!this.admin())
                     return;
                 document
@@ -161,7 +176,8 @@
                 this.page.classList.remove("hidden");
                 document
                     .querySelectorAll(".topnav [data-tab]")
-                    .forEach((button) => button.classList.toggle("active", button === this.link));
+                    .forEach((button) => button.classList.remove("active"));
+                this.link.classList.add("active");
                 if (typeof setSidebar === "function")
                     setSidebar(false);
                 void this.run(() => this.load());

@@ -8,6 +8,7 @@ ini_set('display_errors', '0');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !hash_equals('__PROBE_TOKEN__', (string) ($_SERVER['HTTP_X_GP_PROBE_TOKEN'] ?? ''))) { http_response_code(403); exit('{"ok":false}'); }
 $pdo = null;
 $diagnostics = [];
+$stateSummary = [];
 try {
     foreach (['curl_init','openssl_verify','openssl_x509_fingerprint','iconv','gzinflate'] as $capability) if (!function_exists($capability)) throw new RuntimeException('missing_server_capability');
     if (PHP_INT_SIZE < 8) throw new RuntimeException('unsupported_server_integer_size');
@@ -16,6 +17,8 @@ try {
     $pdo->exec('SET TRANSACTION READ ONLY'); $pdo->beginTransaction();
     $record = $pdo->query('SELECT state_json FROM ghadir_state WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     $state = json_decode((string) $record['state_json'], true, 512, JSON_THROW_ON_ERROR);
+    foreach (['cartons','inventory','orders','state','data','payload'] as $key) $stateSummary[$key] = is_array($state[$key] ?? null) ? count($state[$key]) : null;
+    $stateSummary['storage_adapter_sha256'] = is_file(__DIR__.'/lib/storage.php') ? hash_file('sha256', __DIR__.'/lib/storage.php') : null;
     $cartons = json_decode('__PROTECTED_CARTONS__', true, 512, JSON_THROW_ON_ERROR);
     foreach ($cartons as $code) {
         $report = gp_preswitch_allocated_carton_integrity($state, $code);
@@ -28,5 +31,5 @@ try {
     if ($pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();
     $allowed = ['protected_carton_state_mismatch','missing_server_capability','unsupported_server_integer_size'];
     http_response_code(500);
-    echo json_encode(['ok'=>false,'error'=>in_array($error->getMessage(), $allowed, true) ? $error->getMessage() : 'preflight_failed','diagnostics'=>$diagnostics], JSON_THROW_ON_ERROR);
+    echo json_encode(['ok'=>false,'error'=>in_array($error->getMessage(), $allowed, true) ? $error->getMessage() : 'preflight_failed','diagnostics'=>$diagnostics,'state_summary'=>$stateSummary], JSON_THROW_ON_ERROR);
 }
