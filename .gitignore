@@ -28,3 +28,7 @@ Thumbs.db
 .idea/
 
 tooling/partial-delivery-web/node_modules/
+
+# Generated Python bytecode
+__pycache__/
+*.pyc
