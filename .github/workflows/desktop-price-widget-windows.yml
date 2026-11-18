@@ -1,0 +1,61 @@
+name: Build desktop live-price installer
+
+on:
+  push:
+    branches:
+      - feature/desktop-live-prices
+  pull_request:
+    paths:
+      - "desktop-price-widget/**"
+      - ".github/workflows/desktop-price-widget-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-price-widget
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install
+      - name: Validate code
+        run: npm run check
+      - name: Build Windows installer
+        run: npm run pack:win
+      - name: Smoke test packaged application launch
+        shell: pwsh
+        run: |
+          $exe = Join-Path (Get-Location) 'release\\win-unpacked\\Ghadir Partner Live Prices.exe'
+          if (-not (Test-Path $exe)) {
+            throw "Packaged application executable was not found: $exe"
+          }
+          $appProcess = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+          $appProcess.Refresh()
+          if ($appProcess.HasExited) {
+            throw "Packaged app exited during launch: $($appProcess.ExitCode)"
+          }
+          if ($appProcess.MainWindowHandle -eq 0) {
+            throw "Packaged app has no visible window after startup; check config and renderer."
+          }
+          $errorLog = Join-Path $env:APPDATA '@ghadir\\desktop-price-widget\\desktop-errors.log'
+          if (Test-Path $errorLog) {
+            throw "Application startup errors detected: $(Get-Content $errorLog -Raw)"
+          }
+          Stop-Process -Id $appProcess.Id -Force
+      - name: Upload Windows installer and portable packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-LivePrices-Windows
+          path: |
+            desktop-price-widget/release/*.exe
+            desktop-price-widget/release/*.zip
+          if-no-files-found: error
+          retention-days: 14

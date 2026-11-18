@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>قیمت زنده قدیر پارتنر</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section id="loginView" class="panel login-panel">
+        <div class="brand-mark">ق</div>
+        <h1>قیمت زنده قدیر پارتنر</h1>
+        <p class="muted">با حساب قدیرپارتنر وارد شوید.</p>
+        <label>
+          شماره موبایل / نام کاربری
+          <input id="identityInput" type="text" autocomplete="username" />
+        </label>
+        <label>
+          رمز عبور
+          <input id="passwordInput" type="password" autocomplete="current-password" />
+        </label>
+        <button id="loginButton" class="primary">ورود</button>
+        <p id="loginError" class="error" aria-live="polite"></p>
+      </section>
+
+      <section id="catalogView" class="panel hidden">
+        <header class="toolbar">
+          <div>
+            <div class="live-row">
+              <span class="live-dot" aria-hidden="true"></span>
+              <strong>قیمت زنده</strong>
+            </div>
+            <div id="identityLabel" class="muted small"></div>
+          </div>
+          <div class="actions">
+            <button id="compactButton" class="icon-button" title="تغییر اندازه ویجت" aria-label="تغییر اندازه ویجت">⤢</button>\n            <button id="refreshButton" class="icon-button" title="به‌روزرسانی">↻</button>
+            <button id="logoutButton" class="icon-button" title="خروج">⎋</button>
+          </div>
+        </header>
+
+        <div class="search-wrap">
+          <input id="searchInput" type="search" placeholder="جست‌وجوی دستگاه..." />
+        </div>
+
+        <label class="startup-row"><input id="autoStartInput" type="checkbox" /> اجرا همراه با ویندوز</label>\n        <div id="statusText" class="status-line"></div>
+        <div id="productList" class="product-list"></div>
+      </section>
+    </main>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

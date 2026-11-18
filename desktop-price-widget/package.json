@@ -1,0 +1,85 @@
+{
+  "name": "@ghadir/desktop-price-widget",
+  "version": "1.0.2",
+  "private": true,
+  "description": "Windows desktop live-price widget for Ghadir Partner.",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "npm run clean && node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "format:check": "prettier --check \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"eslint.config.mjs\"",
+    "test": "vitest run",
+    "check": "npm run format && npm run format:check && npm run lint && npm run typecheck && npm test",
+    "pack:win": "npm run check && npm run build && electron-builder --win",
+    "format": "prettier --write \"src/**/*.{ts,html,css}\" \"scripts/*.mjs\" \"eslint.config.mjs\""
+  },
+  "dependencies": {
+    "yaml": "^2.6.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/node": "^22.10.1",
+    "electron": "33.2.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.15.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.16.0",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "ir.ghadirpartner.liveprices",
+    "productName": "Ghadir Partner Live Prices",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "config/app.yaml",
+        "to": "config/app.yaml"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "GhadirPartner-LivePrices-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "GhadirPartner-LivePrices-${version}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "GhadirPartner-LivePrices-${version}-Portable.${ext}"
+    }
+  }
+}
