@@ -87,6 +87,14 @@ class BazaarWebRelease:
                     if isinstance(body, dict)
                     else "preflight_failed"
                 )
+                diagnostics = (
+                    body.get("diagnostics", []) if isinstance(body, dict) else []
+                )
+                if isinstance(diagnostics, list):
+                    print(
+                        "Sanitized protected-carton diagnostics:",
+                        json.dumps(diagnostics),
+                    )
                 raise RuntimeError(
                     f"STOP: production preflight HTTP {error.code}: {reason}"
                 ) from None
