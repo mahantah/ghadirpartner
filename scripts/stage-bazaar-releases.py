@@ -1,6 +1,20 @@
 """Add the Bazaar manager to exact live entry points without publishing private source."""
 
+from html.parser import HTMLParser
 from pathlib import Path
+
+
+class BodyLocator(HTMLParser):
+    """Locate real body tags while ignoring print-template strings inside scripts."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.positions: list[tuple[int, int]] = []
+
+    def handle_endtag(self, tag: str) -> None:
+        """Record only structural body end tags reported by the HTML tokenizer."""
+        if tag == "body":
+            self.positions.append(self.getpos())
 
 
 class BazaarReleaseStage:
@@ -44,13 +58,19 @@ class BazaarReleaseStage:
         """Link only the new feature assets, preserving all private application markup."""
         if source.count(self.loader) == 1:
             return source
-        if (
-            self.marker in source
-            or b"bazaar-releases.js" in source
-            or source.count(b"</body>") != 1
-        ):
+        if self.marker in source or b"bazaar-releases.js" in source:
+            raise ValueError("STOP: production HTML feature marker mismatch")
+        text = source.decode("utf-8")
+        locator = BodyLocator()
+        locator.feed(text)
+        if len(locator.positions) != 1:
             raise ValueError("STOP: production HTML anchor mismatch")
-        return source.replace(b"</body>", self.loader + b"</body>", 1)
+        line, column = locator.positions[0]
+        lines = text.splitlines(keepends=True)
+        offset = len(
+            ("".join(lines[: line - 1]) + lines[line - 1][:column]).encode("utf-8")
+        )
+        return source[:offset] + self.loader + source[offset:]
 
     def candidate(self, index: bytes, app: bytes) -> dict[str, bytes]:
         """Return exact entry-point candidates and public feature dependencies only."""

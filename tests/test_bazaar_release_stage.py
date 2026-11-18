@@ -64,6 +64,15 @@ class BazaarStageTest(unittest.TestCase):
         self.assertEqual(patched.count(b"GP_BAZAAR_RELEASES_V1"), 1)
         self.assertEqual(stage.patch_app(patched), patched)
 
+    def test_print_template_body_strings_are_not_structural_anchors(self) -> None:
+        """Preserve JavaScript print templates containing their own closing HTML tags."""
+        original = b'<html><body><script>const printTemplate="<body>Printable</body></html>";</script></body></html>'
+        stage = factory(ROOT)
+        patched = stage.patch_app(original)
+        self.assertIn(b'Printable</body></html>";</script>', patched)
+        self.assertTrue(patched.endswith(b"</script>\n</body></html>"))
+        self.assertEqual(stage.patch_app(patched), patched)
+
     def test_unknown_or_duplicate_anchors_stop(self) -> None:
         """Do not guess at production source when a live anchor differs."""
         stage = factory(ROOT)
