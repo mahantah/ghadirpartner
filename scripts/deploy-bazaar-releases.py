@@ -95,6 +95,10 @@ class BazaarWebRelease:
                         "Sanitized protected-carton diagnostics:",
                         json.dumps(diagnostics),
                     )
+                if isinstance(body, dict) and isinstance(
+                    body.get("state_summary"), dict
+                ):
+                    print("Sanitized state shape:", json.dumps(body["state_summary"]))
                 raise RuntimeError(
                     f"STOP: production preflight HTTP {error.code}: {reason}"
                 ) from None
