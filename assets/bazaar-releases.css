@@ -1,0 +1,97 @@
+.gp-app-releases {
+  color: var(--ink, #102a43);
+}
+.gp-app-releases .gp-release-controls {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.gp-app-releases .gp-release-card {
+  display: block;
+  padding: 18px;
+  margin: 0;
+  border: 1px solid #cadceb;
+  border-radius: 16px;
+}
+.gp-app-releases h3,
+.gp-app-releases h4 {
+  margin: 0 0 12px;
+}
+.gp-app-releases form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+.gp-app-releases label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.gp-app-releases input,
+.gp-app-releases textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #cadceb;
+  border-radius: 10px;
+  padding: 10px;
+  font: inherit;
+}
+.gp-app-releases input[type="file"] {
+  white-space: normal;
+}
+.gp-app-releases .btn2 {
+  width: auto;
+  min-height: 44px;
+  justify-self: start;
+  padding: 10px 16px;
+  border-radius: 10px;
+  white-space: normal;
+}
+.gp-app-releases .gp-release-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.gp-app-releases .gp-release-item {
+  border: 1px solid #cadceb;
+  border-radius: 12px;
+  padding: 14px;
+  margin-block: 14px;
+  overflow-wrap: anywhere;
+}
+.gp-app-releases .gp-release-error {
+  color: #a32525;
+}
+.gp-app-releases progress {
+  width: 100%;
+  grid-column: 1/-1;
+}
+.gp-app-releases [role="status"] {
+  min-height: 24px;
+}
+.gp-app-releases [aria-busy="true"],
+.gp-app-releases button:disabled {
+  opacity: 0.65;
+}
+#gpSystem button[data-gp-app-releases] svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+@media (max-width: 640px) {
+  .gp-app-releases form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gp-app-releases .gp-release-card {
+    padding: 12px;
+  }
+}
