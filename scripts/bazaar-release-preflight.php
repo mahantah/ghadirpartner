@@ -19,6 +19,18 @@ try {
     $state = json_decode((string) $record['state_json'], true, 512, JSON_THROW_ON_ERROR);
     foreach (['cartons','inventory','orders','state','data','payload'] as $key) $stateSummary[$key] = is_array($state[$key] ?? null) ? count($state[$key]) : null;
     $stateSummary['storage_adapter_sha256'] = is_file(__DIR__.'/lib/storage.php') ? hash_file('sha256', __DIR__.'/lib/storage.php') : null;
+    $adapter = is_file(__DIR__.'/lib/storage.php') ? (string) file_get_contents(__DIR__.'/lib/storage.php') : '';
+    preg_match_all('/\bfunction\s+(ghadir_[A-Za-z0-9_]+)\s*\(/', $adapter, $functionNames);
+    $stateSummary['adapter_functions'] = array_values(array_unique($functionNames[1]));
+    preg_match_all('/\b(?:FROM|JOIN|INTO|UPDATE|TABLE(?:\s+IF\s+NOT\s+EXISTS)?)\s+`?([A-Za-z_][A-Za-z0-9_]*)/i', $adapter, $tableNames);
+    $stateSummary['adapter_tables'] = array_values(array_unique($tableNames[1]));
+    $schema = [];
+    foreach ($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_NUM) as $table) {
+        if (!preg_match('/^[A-Za-z0-9_]*(?:inventory|carton)[A-Za-z0-9_]*$/iD', (string) $table[0])) continue;
+        $columns = $pdo->query('SHOW COLUMNS FROM `'.$table[0].'`')->fetchAll(PDO::FETCH_ASSOC);
+        $schema[$table[0]] = array_map(static fn(array $column): array => ['field'=>$column['Field'],'type'=>$column['Type']], $columns);
+    }
+    $stateSummary['inventory_schema'] = $schema;
     $cartons = json_decode('__PROTECTED_CARTONS__', true, 512, JSON_THROW_ON_ERROR);
     foreach ($cartons as $code) {
         $report = gp_preswitch_allocated_carton_integrity($state, $code);
