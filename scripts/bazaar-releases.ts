@@ -160,9 +160,14 @@ interface BazaarUpload {
         "M8 3h8v18H8zM10 18h4M3 10l3-3 3 3M6 7v9m9-2 3 3 3-3m-3 3V8",
       );
       icon.append(path);
-      this.link.append(icon, this.text("span", "مدیریت نسخه‌های اپ"));
+      icon.classList.add("gp-menu-icon");
+      const label = this.text("span", "مدیریت نسخه‌های اپ");
+      label.className = "gp-menu-text";
+      this.link.append(icon, label);
       menu.append(this.link);
-      this.app.append(this.page);
+      const workspace =
+        this.app.querySelector(".tab")?.parentElement ?? this.app;
+      workspace.append(this.page);
     }
 
     /** Mount the forms once and forget all loaded state when the admin session ends. */
