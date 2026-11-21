@@ -77,6 +77,9 @@ final class GpOrderFollowup
                 return $payment;
             }, $order['credit_repayments'] ?? [])),
             'correction' => $order['customer_correction'] ?? null,
+            'agent_settlement_review' => $order['agent_settlement_review'] ?? null,
+            'agent_settlement_amounts' => isset($order['agent_settlement_review']) ? $this->settlementAmounts($order) : null,
+            'agent_final_review' => $this->isAgentFinalReview($order),
         ];
     }
 
@@ -283,10 +286,18 @@ final class GpOrderFollowup
         }
         $reason = $this->note($request, true);
         $version = (int) ($order['customer_correction']['version'] ?? 0) + 1;
+        $terms = null;
+        if (isset($order['agent_settlement_review'])) {
+            $amounts = $request['settlement_amounts'] ?? null;
+            if (!is_array($amounts)) throw new DomainException('مبالغ پیشنهادی تسویه را وارد کنید.', 422);
+            $terms = $this->agentTerms($order, $amounts);
+            $order['agent_settlement_review']['status'] = 'awaiting_customer';
+        }
         $order['customer_correction'] = [
             'version' => $version, 'request_id' => $key, 'status' => 'requested',
             'reason' => $reason, 'requested_at' => $now, 'requested_by' => $actor,
         ];
+        if ($terms !== null) $order['customer_correction']['settlement_amounts'] = $terms;
         $order['approval_status'] = 'نیازمند اصلاح';
         $order['status'] = 'نیازمند اصلاح سفارش';
         foreach (array_keys($order['followup_events'] ?? []) as $event) {
@@ -312,6 +323,10 @@ final class GpOrderFollowup
     /** Reuse the original order identity, confirmation context and payment documents on resubmission. */
     public function preserveRevision(array $previous, array &$order, array $newFiles, string $now): void
     {
+        if (isset($previous['agent_settlement_review'])) {
+            $order['agent_settlement_review'] = $previous['agent_settlement_review'];
+            $order['agent_settlement_review']['status'] = 'customer_resubmitted';
+        }
         foreach (['number', 'created_at', 'created_by', 'history', 'credit_repayments', 'followup_events', 'customer_correction', 'correction_history', 'order_receipt_reviews'] as $key) {
             if (array_key_exists($key, $previous)) $order[$key] = $previous[$key];
         }
@@ -348,13 +363,85 @@ final class GpOrderFollowup
         $this->event($order, 'revision', (string) $order['customer_correction']['version'], $now);
     }
 
+    /** Reject a changed quote before attaching proof, reserving wallet or opening the bank gateway. */
+    public function assertAgentRevision(array $prior, array $order, array $settlement): void
+    {
+        $terms = $prior['customer_correction']['settlement_amounts'] ?? null;
+        if ($terms === null) return;
+        $this->agentTerms($prior, $settlement);
+        foreach ($terms as $field => $amount) {
+            $enabled = substr($field, 0, -strlen('_amount')).'_enabled';
+            if ($amount !== ($settlement[$field] ?? 0) || ($amount > 0 && ($settlement[$enabled] ?? false) !== true)) {
+                throw new DomainException('مبالغ تسویه باید مطابق شرایط اعلام‌شده توسط شرکت باشد.', 409);
+            }
+        }
+        if ($prior['estimated_total'] !== $order['estimated_total']) {
+            throw new DomainException('مبلغ فاکتور تغییر کرده است. برای دریافت شرایط جدید با شرکت تماس بگیرید.', 409);
+        }
+        if ($this->settlementItems($prior) !== $this->settlementItems($order)) {
+            throw new DomainException('اقلام فاکتور باید مطابق سفارش بررسی‌شده باشند.', 409);
+        }
+    }
+
+    private function settlementItems(array $order): array
+    {
+        $lines = [];
+        foreach ($order['purchase_items'] ?? [] as $item) {
+            $lines[] = [(string) ($item['product'] ?? $item['name'] ?? ''), (int) ($item['qty'] ?? 0),
+                (string) ($item['price_key'] ?? ''), (int) ($item['line_total'] ?? 0), (string) ($item['panel_switch'] ?? '')];
+        }
+        sort($lines);
+        return $lines;
+    }
+
+    private function settlementAmounts(array $order): array
+    {
+        $details = $order['native_settlement'] ?? [];
+        $total = (int) ($order['estimated_total'] ?? 0);
+        $method = $order['requested_payment_method'] ?? '';
+        return [
+            'cash_amount' => (int) ($details['cash_amount'] ?? ($method === 'cash' ? $total : 0)),
+            'check_amount' => (int) ($details['check_amount'] ?? ($method === 'check' ? $total : 0)),
+            'credit_amount' => (int) ($details['credit_amount'] ?? ($method === 'credit' ? $total : 0)),
+            'wallet_amount' => (int) ($order['credit_checkout']['wallet_reserved'] ?? 0),
+        ];
+    }
+
+    private function agentTerms(array $order, array $input): array
+    {
+        $amounts = [];
+        $remaining = (int) $order['estimated_total'];
+        foreach (array_keys($this->settlementAmounts($order)) as $field) {
+            $amount = $input[$field] ?? 0;
+            if (!is_int($amount) || $amount < 0 || $amount > min($remaining, $this->policy['max_amount'])) {
+                throw new DomainException('مبالغ تسویه باید معتبر و برابر مبلغ فاکتور باشند.', 422);
+            }
+            $amounts[$field] = $amount;
+            $remaining -= $amount;
+        }
+        if ($remaining !== 0 || ($amounts['check_amount'] > 0 && ($amounts['credit_amount'] > 0 || $amounts['wallet_amount'] > 0))) {
+            throw new DomainException('جمع تسویه باید برابر فاکتور باشد و چک با اعتبار یا کیف پول ترکیب نمی‌شود.', 422);
+        }
+        if ($amounts['cash_amount'] < ($this->checkout->summary($order)['cash_confirmed'] ?? 0)) {
+            throw new DomainException('سهم نقدی نمی‌تواند کمتر از مبلغ تأییدشده باشد.', 409);
+        }
+        return $amounts;
+    }
+
     /** Build staff alerts from active reviews instead of copying customer data into a second queue. */
     public function alerts(array $state, bool $showCredit, bool $showCorrections): array
     {
         $items = [];
         foreach ($state['orders'] ?? [] as $order) {
             if (!empty($order['deleted'])) continue;
+            $agentStatus = $order['agent_settlement_review']['status'] ?? '';
+            if ($showCorrections && (($agentStatus === 'staff_review' && $this->canReturn($order)) || $this->isAgentFinalReview($order))) {
+                $kind = $agentStatus === 'staff_review' ? 'agent_settlement' : 'agent_final_review';
+                $items[] = ['kind' => $kind, 'created_at' => (string) ($order['updated_at'] ?? $order['created_at']),
+                    'order_id' => (int) $order['id'], 'number' => (string) $order['number']];
+            }
             foreach ($order['followup_events'] ?? [] as $event) {
+                if ($agentStatus !== '' && $event['kind'] === 'revision') continue;
                 if (in_array($event['kind'], ['credit_proof', 'refund'], true) ? !$showCredit : !$showCorrections) continue;
                 $items[] = $event + ['order_id' => (int) $order['id'], 'number' => (string) $order['number']];
             }
@@ -405,6 +492,13 @@ final class GpOrderFollowup
             && !empty($order['purchase_items']) && empty($order['approved_at'])
             && empty($order['exit_items']) && ($order['payment_status'] ?? '') !== 'تسویه کامل' && $this->credit->repaid($order) === 0
             && !$this->hasAllocatedStock($order);
+    }
+
+    private function isAgentFinalReview(array $order): bool
+    {
+        return ($order['agent_settlement_review']['status'] ?? '') === 'customer_resubmitted'
+            && ($order['approval_status'] ?? '') === 'در انتظار تأیید'
+            && ($order['status'] ?? '') === 'در انتظار تأیید سفارش';
     }
 
     private function hasAllocatedStock(array $order): bool

@@ -4,6 +4,22 @@ declare(strict_types=1);
 /** Track the server-priced credit checkout and cash reviewed during its initial approval. */
 final class GpCreditCheckout
 {
+    /** Flag new agent orders before any checkout can reserve or collect money. */
+    public function startAgentReview(array &$order, array $settlement): void
+    {
+        foreach ($order['purchase_items'] ?? [] as $item) {
+            if (($item['price_key'] ?? '') !== 'sales_agent') continue;
+            if (($settlement['cash_online'] ?? false) === true || ($settlement['wallet_amount'] ?? 0) > 0) {
+                throw new DomainException('پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است.', 409);
+            }
+            $order['agent_settlement_review'] = [
+                'status' => 'staff_review',
+                'reason' => is_string($settlement['agent_change_reason'] ?? null) ? trim($settlement['agent_change_reason']) : '',
+            ];
+            return;
+        }
+    }
+
     /** Set the cash requirement for new cash-plus-credit orders after authoritative pricing. */
     public function initialize(array &$order, ?array $previous, int $walletAmount): void
     {
@@ -49,6 +65,14 @@ final class GpCreditCheckout
     /** Reject progression and price edits until the original server-priced split is covered. */
     public function assertApproval(array $order, int $total): void
     {
+        if (isset($order['agent_settlement_review'])) {
+            if (($order['agent_settlement_review']['status'] ?? '') !== 'customer_resubmitted') {
+                throw new DomainException('ابتدا شرایط تسویه را برای مشتری ارسال کنید و منتظر ارسال دوباره بمانید.', 409);
+            }
+            if ($total !== (int) $order['estimated_total']) {
+                throw new DomainException('مبلغ تأیید نهایی باید با فاکتور ارسال‌شده به مشتری برابر باشد.', 409);
+            }
+        }
         $cash = $this->summary($order);
         if ($cash === null) return;
         if ($total !== $order['estimated_total']) {
@@ -75,6 +99,11 @@ final class GpCreditCheckout
     /** Reject bypasses through status, archive and legacy order mutation routes. */
     public function assertTransition(array $prior, array $order): void
     {
+        if (isset($prior['agent_settlement_review']) && empty($order['deleted'])
+            && (($order['approval_status'] ?? '') === 'تأیید شده'
+                || in_array($order['status'] ?? '', ['در حال آماده سازی', 'آماده ارسال', 'ارسال شد', 'تحویل شد'], true))) {
+            $this->assertApproval($prior, (int) ($order['approved_total'] ?? 0));
+        }
         if (!isset($prior['credit_checkout'])) return;
         if ($prior['customer_id'] !== $order['customer_id'] || !isset($order['credit_checkout'])) {
             throw new DomainException('انتقال یا حذف حساب مالی سفارش مجاز نیست.', 409);

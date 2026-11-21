@@ -101,10 +101,10 @@
     parent.append(node);
     return node;
   }
-  function enteredAmount(input) {
+  function enteredAmount(input, minimum = 1) {
     const value = ascii(input.value).replace(/[٬,\s]/g, "");
     const amount = Number(value);
-    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(amount) || amount < 1) {
+    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(amount) || amount < minimum) {
       throw new Error("مبلغ معتبر به تومان وارد کنید.");
     }
     return amount;
@@ -208,10 +208,21 @@
       if (paymentStatus) paymentStatus.textContent = "";
       const send = (action, fields) => request(endpoint, {order_id: id, action, ...fields});
       const review = data.correction;
+      const agentReview = data.agent_settlement_review;
       if (review?.reason) correction.append(element("p", review.reason));
+      if (agentReview?.reason) correction.append(element("p", "درخواست تغییر شرایط عامل فروش: " + agentReview.reason));
       if (review?.status === "resubmitted") {
         correction.append(element("p", "مشتری سفارش را دوباره ارسال کرده است."));
-        if (has("sales")) correction.append(button("اعلان بررسی شد", safe(status, async () => {
+        if (has("sales") && data.agent_final_review) {
+          correction.append(button("تأیید نهایی سفارش عامل فروش", safe(status, async () => {
+            const total = Object.values(review.settlement_amounts).reduce((sum, amount) => sum + amount, 0);
+            await request("/api/customer-order/approve", {id: Number(id), total});
+            status.textContent = "سفارش تأیید شد و در سفارشات کلی نمایش داده می‌شود.";
+            if (typeof refresh === "function") await refresh();
+            await updateAlerts();
+          })));
+        }
+        if (has("sales") && !agentReview) correction.append(button("اعلان بررسی شد", safe(status, async () => {
           await send("ack_revision", {version: review.version});
           status.textContent = "اعلان بررسی شد.";
           await updateAlerts();
@@ -219,13 +230,19 @@
       }
       if (has("sales") && data.can_return && review?.status !== "requested") {
         const fields = group(correction, "gp-followup-fields");
-        const reason = field(fields, "علت بازگشت سفارش");
+        const reason = field(fields, agentReview ? "توضیح شرایط برای مشتری" : "علت بازگشت سفارش");
+        const amounts = agentReview ? Object.entries({cash_amount: "نقد", check_amount: "چک", credit_amount: "اعتبار", wallet_amount: "کیف پول"})
+          .map(([key, label]) => [key, field(fields, label + " (تومان)", data.agent_settlement_amounts?.[key] ?? 0, true)]) : [];
         const key = requestId();
         const actions = group(correction, "gp-followup-actions");
-        actions.append(button("بازگشت به مشتری", safe(status, async () => {
-          const result = await send("return", {request_id: key, note: reason.value});
+        actions.append(button(agentReview ? "ارسال شرایط تسویه به مشتری" : "بازگشت به مشتری", safe(status, async () => {
+          const payload = {request_id: key, note: reason.value};
+          if (agentReview) payload.settlement_amounts = Object.fromEntries(amounts.map(([key, input]) => [key, enteredAmount(input, 0)]));
+          const result = await send("return", payload);
           reason.disabled = true;
+          amounts.forEach(([, input]) => { input.disabled = true; });
           status.textContent = result.correction.reason + " · درخواست اصلاح برای مشتری ارسال شد.";
+          await updateAlerts();
         })));
       } else if (!review) {
         status.textContent = "امکان بازگشت این سفارش در وضعیت فعلی وجود ندارد.";
@@ -354,7 +371,8 @@
         trigger.setAttribute("aria-label", count ? `اعلان‌های سفارش، ${badge.textContent} مورد` : "اعلان‌های سفارش");
         message.textContent = entries.length ? "" : "اعلان تازه‌ای برای بررسی وجود ندارد.";
         list.replaceChildren(...entries.map(entry => {
-          const label = {credit_proof: "فیش واریز اعتباری", refund: "بازگشت وجه", revision: "سفارش اصلاح‌شده"}[entry.kind] ?? "اعلان سفارش";
+          const label = {credit_proof: "فیش واریز اعتباری", refund: "بازگشت وجه", revision: "سفارش اصلاح‌شده",
+            agent_settlement: "بررسی تسویه عامل فروش", agent_final_review: "تأیید نهایی سفارش عامل فروش"}[entry.kind] ?? "اعلان سفارش";
           const row = element("li");
           row.append(button(label + " · " + entry.number, async () => {
             try { await openAlert(entry); } catch (error) { message.textContent = error.message; }
@@ -377,5 +395,8 @@
     new MutationObserver(() => updateAlerts()).observe(shell, {attributes: true, attributeFilter: ["class"]});
     updateAlerts();
   }
-  window.gpOrderFollowup = {mount, updateAlerts, settlementHtml};
+  function showInOrderList(order) {
+    return !order.agent_settlement_review || order.approval_status === "تأیید شده" || order.status === "لغو شد";
+  }
+  window.gpOrderFollowup = {mount, updateAlerts, settlementHtml, showInOrderList};
 })();
