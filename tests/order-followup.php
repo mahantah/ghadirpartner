@@ -148,6 +148,33 @@ try {
     $workflow->preserveRevision($returned, $revised, [], $now);
     $assert($revised['number'] === $base['number'] && $revised['customer_correction']['status'] === 'resubmitted'
         && $workflow->alerts(['orders' => [$revised]], false, true)['count'] === 1, 'Resubmission changed identity or missed the staff alert.');
+
+    $agent = $base;
+    $agent['requested_payment_method'] = 'mixed';
+    $agent['purchase_items'] = [['product' => 'Agent POS', 'price_key' => 'sales_agent', 'qty' => 1, 'line_total' => 800]];
+    $agent['status'] = 'در انتظار تأیید سفارش';
+    $agent['approval_status'] = 'در انتظار تأیید';
+    $agent['native_settlement'] = ['cash_amount' => 320, 'check_amount' => 480];
+    $checkout = new GpCreditCheckout();
+    $checkout->startAgentReview($agent, ['agent_change_reason' => 'درخواست سهم نقد بیشتر']);
+    $assert($workflow->alerts(['orders' => [$agent]], false, true)['items'][0]['kind'] === 'agent_settlement', 'Agent order did not generate a staff alert.');
+    $denied(static fn () => $checkout->assertApproval($agent, 800), 409);
+    $terms = ['cash_amount' => 400, 'check_amount' => 400, 'credit_amount' => 0, 'wallet_amount' => 0];
+    $agentReviewRequest = ['request_id' => $correction, 'note' => 'شرایط جدید', 'settlement_amounts' => $terms];
+    $workflow->returnOrder($agent, $agentReviewRequest, 2, $now);
+    $assert($agent['customer_correction']['settlement_amounts'] === $terms
+        && $workflow->alerts(['orders' => [$agent]], false, true)['count'] === 0, 'Approved terms did not go back to the customer.');
+    $agentRevised = $agent;
+    $agentRevised['status'] = 'در انتظار تأیید سفارش';
+    $agentRevised['approval_status'] = 'در انتظار تأیید';
+    $agentRevised['native_settlement'] = $terms;
+    $resubmittedTerms = $terms + ['cash_enabled' => true, 'check_enabled' => true];
+    $denied(static fn () => $workflow->assertAgentRevision($agent, $agentRevised, array_replace($resubmittedTerms, ['cash_amount' => 410, 'check_amount' => 390])), 409);
+    $workflow->assertAgentRevision($agent, $agentRevised, $resubmittedTerms);
+    $workflow->preserveRevision($agent, $agentRevised, [], $now);
+    $assert($workflow->alerts(['orders' => [$agentRevised]], false, true)['items'][0]['kind'] === 'agent_final_review', 'Resubmitted agent order did not send the final staff alert.');
+    $denied(static fn () => $checkout->assertApproval($agentRevised, 810), 409);
+    $checkout->assertApproval($agentRevised, 800);
 } finally {
     $upload->cleanup();
     if (is_dir($directory)) rmdir($directory);

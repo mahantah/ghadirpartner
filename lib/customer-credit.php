@@ -21,6 +21,7 @@ final class GpCreditModel {
     /** Identify a still-valid credit purchase, including requests awaiting company approval. */
     public function amount(array $o): int {
         if(!empty($o['deleted'])||($o['status']??'')==='لغو شد'||in_array($o['approval_status']??'',['تأیید نشد','رد شده'],true))return 0;
+        if (in_array($o['agent_settlement_review']['status'] ?? '', ['staff_review', 'awaiting_customer'], true)) return 0;
         if (isset($o['credit_checkout'])) return $o['credit_checkout']['credit_reserved'];
         $method=(string)($o['payment_method']??'');
         if (($o['requested_payment_method']??'')==='mixed') {
@@ -95,7 +96,7 @@ final class GpCreditModel {
     /** Copy only scalar credit inputs so PHP references cannot mutate the before snapshot. */
     public function snapshot(array $orders): array {
         $result=[];
-        foreach($orders as $o){$copy=[];foreach(['id','customer_id','deleted','status','approval_status','payment_method','requested_payment_method','payment_status','approved_total','estimated_total','created_at','native_settlement','credit_repayments','credit_checkout','order_receipt_reviews','customer_credit_cancel','irankish_order_payment'] as $key)if(array_key_exists($key,$o))$copy[$key]=$o[$key];$result[]=$copy;}
+        foreach($orders as $o){$copy=[];foreach(['id','customer_id','deleted','status','approval_status','payment_method','requested_payment_method','payment_status','approved_total','estimated_total','created_at','native_settlement','credit_repayments','credit_checkout','order_receipt_reviews','customer_credit_cancel','irankish_order_payment','agent_settlement_review'] as $key)if(array_key_exists($key,$o))$copy[$key]=$o[$key];$result[]=$copy;}
         return $result;
     }
     /** Validate only increasing credit exposure, preserving unrelated existing order operations. */

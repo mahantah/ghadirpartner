@@ -187,6 +187,7 @@ class CustomerPurchaseReportStage:
         "d1a5e6706afca7d98619dc7ce9c6dee7fb4417da5d8be6c58b8621fe7afa8d8b",
         "9342209c672e847095bceaca176cd3b72ffdba8fcd3247aec6ed0283073ad55f",
         "ccd1e9706b31c9e37ce9b8529a27e886e8b820094f6caf7b0b8878688d6c33ab",
+        "f1e81a2c0e1935ad120fa68ad327aa9d741692bac968173714e4242e71eeb10e",
     }
     credit_library = "lib/customer-credit.php"
     followup_bridge = "production-order-details-bridge-v1.js"
@@ -642,7 +643,10 @@ class CustomerPurchaseReportStage:
                 + history,
             )
         if partner:
-            router = self.stage_irankish_checkout(self.stage_irankish_order_payment(router))
+            router = self.stage_irankish_checkout(
+                self.stage_irankish_order_payment(router)
+            )
+            router = self.stage_agent_settlement_review(router)
         if "->assertApproval($o," in router:
             return router
         approval = (
@@ -668,6 +672,29 @@ class CustomerPurchaseReportStage:
                 + approval,
             )
             + router[end:]
+        )
+
+    def stage_agent_settlement_review(self, router: str) -> str:
+        """Review an agent order before wallet reservation or an online payment handoff."""
+        if "->startAgentReview($o," in router:
+            return router
+        validation = "            if(!is_int($walletAmount)||$walletAmount<0)fail('مبلغ کیف پول معتبر نیست.',422);"
+        router = self._insert(
+            router,
+            validation,
+            validation
+            + """
+            try {
+                if($prior===null)(new GpCreditCheckout())->startAgentReview($o,$x['settlement_details']??[]);
+                else $revisionService->assertAgentRevision($prior,$o,$x['settlement_details']??[]);
+            } catch(DomainException $error){fail($error->getMessage(),$error->getCode());}""",
+        )
+        return self._insert(
+            router,
+            "(new GpCreditCheckout())->initialize($o,$prior,$walletAmount);\n                (new GpIranKishOrderPayment())",
+            "if(($o['agent_settlement_review']['status']??'')!=='staff_review')"
+            "(new GpCreditCheckout())->initialize($o,$prior,$walletAmount);\n"
+            "                (new GpIranKishOrderPayment())",
         )
 
     def stage_irankish_order_payment(self, router: str) -> str:
@@ -804,6 +831,13 @@ class CustomerPurchaseReportStage:
         orders, end, suffix = rest.partition("function goOrderPage(")
         if not marker or not end:
             raise ValueError("Orders list renderer not found.")
+        listing = "let all=orderFiltered(),"
+        if "gpOrderFollowup?.showInOrderList" not in orders:
+            orders = self._insert(
+                orders,
+                listing,
+                "let all=orderFiltered().filter(o=>window.gpOrderFollowup?.showInOrderList(o)??true),",
+            )
         app = prefix + marker + self._insert(orders, row, new_row) + end + suffix
         old_badge = "${detailPayBadge(o.payment_status)}${o.payment_method_label?"
         new_badge = "${window.gpOrderFollowup?.settlementHtml(o,detailPayBadge(o.payment_status))??detailPayBadge(o.payment_status)}${o.payment_method_label?"
@@ -835,8 +869,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=7"></script>'
-        for previous_version in (1, 2, 3, 4, 5, 6):
+        script = '<script defer src="/assets/order-followup.js?v=8"></script>'
+        for previous_version in (1, 2, 3, 4, 5, 6, 7):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)
