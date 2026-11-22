@@ -4,7 +4,7 @@ import json
 import re
 from argparse import ArgumentParser
 from hashlib import sha256
-from html import unescape
+from html import escape, unescape
 from pathlib import Path
 from shutil import copyfile
 
@@ -95,6 +95,16 @@ class CustomerPurchaseReportStage:
     _wallet_search_assets = _settings_menu_assets.replace(
         "portal-wallet-report.js?v=3", "portal-wallet-report.js?v=4"
     )
+    _wallet_refund_section = """
+  <section data-wallet-refunds>
+    <h3>درخواست‌های عودت وجه</h3>
+    <button type="button" class="btn2" data-refund-refresh>به‌روزرسانی درخواست‌ها</button>
+    <p role="status"></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>مشتری</th><th>نوع درخواست</th><th>مبلغ</th><th>شبا</th><th>وضعیت و اقدام</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>"""
     _consignment_assets = _wallet_search_assets.replace(
         "navigation.js?v=10", "navigation.js?v=11"
     ).replace("portal-phase-two.css?v=6", "portal-phase-two.css?v=7")
@@ -279,6 +289,7 @@ class CustomerPurchaseReportStage:
         "assets/portal-phase-two-navigation.js",
         "assets/portal-wallet-report.js",
         "lib/portal-wallet-report-route.php",
+        "lib/wallet-refund-route.php",
         "assets/portal-phase-two.css",
         "lib/portal-messages.php",
         "lib/portal-messages-routes.php",
@@ -958,6 +969,11 @@ class CustomerPurchaseReportStage:
             "require dirname(__DIR__).'/lib/portal-panel-switches-route.php';\n"
             + loader,
         )
+        switch_loader = "require dirname(__DIR__).'/lib/portal-panel-switches-route.php';"
+        router = self._insert(
+            router, switch_loader,
+            "require dirname(__DIR__).'/lib/wallet-refund-route.php';\n" + switch_loader,
+        )
         prepare = "        $subtotal=0;$items=[];$requested=[];$seenItems=[];"
         legacy_prepare = "        $panelSwitches=null;$selectedPanels=[];\n" + prepare
         router = self._insert(
@@ -995,17 +1011,27 @@ class CustomerPurchaseReportStage:
 
     def stage_product_panel_switch(self, index: str, app: str) -> tuple[str, str]:
         """Keep product switch settings in the existing product forms and write transactions."""
+        form_options = re.search(r'<div id="pspSelect"[^>]*>(.*?)</div>', app, re.DOTALL)
+        if form_options is None:
+            raise ValueError("Automation switch list is missing.")
+        labels = [unescape(label) for label in re.findall(r'<input\b[^>]*\bvalue="([^"]+)"', form_options[1])]
+        if not labels:
+            raise ValueError("Automation switch list is empty.")
         for action in ("add", "edit"):
             route = f"if($p==='/api/products/{action}'&&$m==='POST')"
             start = index.index(route)
             end = index.index("\n", start)
             current = index[start:end]
             hook = "$serial=!empty($x['serial_required']);"
+            current = current.replace(
+                "GpPortalPanelSwitches::productSetting($x)",
+                "GpPortalPanelSwitches::published()->productSetting($x)",
+            )
             current = self._insert(
                 current,
                 hook,
                 "require_once __DIR__.'/lib/portal-panel-switches.php';"
-                "try{$switchSetting=GpPortalPanelSwitches::productSetting($x);}"
+                "try{$switchSetting=GpPortalPanelSwitches::published()->productSetting($x);}"
                 "catch(InvalidArgumentException $error){fail($error->getMessage(),422);}"
                 + hook,
             )
@@ -1015,21 +1041,33 @@ class CustomerPurchaseReportStage:
                 "'serial_required'=>$serial]+$switchSetting",
             )
             index = index[:start] + current + index[end:]
+        helpers = (
+            "function productSwitchModels(id){return Array.from(document.querySelectorAll('#'+id+' input:checked'),input=>input.value)}\n"
+            "function setProductSwitchModels(id,product){const models=product.panel_switch_models;"
+            "document.querySelectorAll('#'+id+' input').forEach(input=>{input.checked=Array.isArray(models)?models.includes(input.value):product.panel_switch_enabled===true})}\n"
+        )
+        app = self._insert(app, "function toggleProductSerialFields()", helpers + "function toggleProductSerialFields()")
         for prefix, check in (("product", ""), ("editProduct", "${p.panel_switch_enabled===true?'checked':''}")):
             pattern = prefix + "Pattern"
             control = prefix + "PanelSwitch"
             anchor = f'<input id="{pattern}"'
-            app = self._insert(
-                app,
-                anchor,
-                '<label><input type="checkbox" style="width:auto" '
-                f'id="{control}" {check}> انتخاب سوئیچ در اپ</label>' + anchor,
+            legacy = (f'<label><input type="checkbox" style="width:auto" id="{control}" {check}> انتخاب سوئیچ در اپ</label>')
+            app = app.replace(legacy, "")
+            labels_html = "".join(
+                f'<label><input type="checkbox" style="width:auto" value="{escape(label, quote=True)}"> {escape(label)}</label>'
+                for label in labels
             )
+            app = self._insert(app, anchor, f'<fieldset id="{control}"><legend>مدل‌های سوئیچ در اپ</legend>{labels_html}</fieldset>' + anchor)
             form = f"pattern:$('{pattern}').value.trim()"
-            app = self._insert(app, form, f"panel_switch_enabled:$('{control}').checked," + form)
+            app = app.replace(f"panel_switch_enabled:$('{control}').checked,", "")
+            app = self._insert(app, form, f"panel_switch_models:productSwitchModels('{control}')," + form)
             if prefix == "product":
                 reset = "$('productSerialRequired').checked=false;"
-                app = self._insert(app, reset, reset + f"$('{control}').checked=false;")
+                app = app.replace(reset + f"$('{control}').checked=false;", reset)
+                app = self._insert(app, reset, reset + f"setProductSwitchModels('{control}',{{}});")
+            else:
+                anchor_edit = "onclick=\"closeModal()\">بستن</button></div>`)}\nfunction toggleEditProductSerial"
+                app = self._insert(app, anchor_edit, anchor_edit.replace("`)}", f"`);setProductSwitchModels('{control}',p)}}"))
         return index, app
 
     def stage(
@@ -1060,7 +1098,9 @@ class CustomerPurchaseReportStage:
             "$mobile=",
         )
         app = self._insert(
-            (source / "app.html").read_text(),
+            (source / "app.html").read_text().replace(self._wallet_refund_section, "").replace(
+                'src="/assets/portal-wallet-report.js?v=5"', 'src="/assets/portal-wallet-report.js?v=4"'
+            ),
             self._section,
             self._section + self._card,
         )
@@ -1159,6 +1199,13 @@ class CustomerPurchaseReportStage:
         if self._consignment_search_card not in app:
             app = self._insert(app, self._wallet_search_card, self._wallet_search_card + self._consignment_card)
             app = self._insert(app, self._consignment_card, self._consignment_search_card)
+        script_v4 = 'src="/assets/portal-wallet-report.js?v=4"'
+        if 'src="/assets/portal-wallet-report.js?v=5"' not in app:
+            app = self._insert(app, script_v4, 'src="/assets/portal-wallet-report.js?v=5"')
+        app = self._insert(
+            app, self._wallet_search_card,
+            self._wallet_search_card.replace("</details>", self._wallet_refund_section + "\n</details>"),
+        )
         app = self._insert(
             app,
             "portalAdmin:['admin'],",

@@ -108,4 +108,25 @@ if ($customerWallet['balance'] !== 1050
     || array_key_exists('note', $customerWallet['transactions'][0]) || array_key_exists('actor_id', $customerWallet['transactions'][0])) {
     throw new LogicException('Customer wallet omitted the credit or disclosed staff audit fields.');
 }
-echo "Portal wallet roles, customer isolation, manual credit and safe retries verified.\n";
+$withdrawal = ['request_id' => str_repeat('b', 32), 'amount' => 100, 'destination' => 'IR'.str_repeat('1', 24)];
+$service = new GpOrderWallet();
+$service->requestRefund($state, 1, $withdrawal, now(), ['max_amount' => 1000]);
+$service->requestRefund($state, 1, $withdrawal, now(), ['max_amount' => 1000]);
+$scope = ['refunds' => '1'];
+walletReportRequest('sales', $scope, 403);
+walletReportRequest('customer', $scope, 403);
+$queue = walletReportRequest('finance', $scope, 200);
+if (count($queue) !== 1 || $queue[0]['status'] !== 'pending'
+    || isset($service->refundRequests($state, 1)[0]['destination'])
+    || $service->refundRequests($state, 2) !== [] || $service->read($state, 1)['balance'] !== 1050) {
+    throw new LogicException('Refund queue, isolation or pending balance is incorrect.');
+}
+$review = ['customer_id' => 1, 'request_id' => $withdrawal['request_id'], 'kind' => 'wallet', 'action' => 'approve'];
+walletReportRequest('finance', $scope, 200, $review);
+walletReportRequest('finance', $scope, 200, $review);
+$paid = array_replace($review, ['action' => 'paid', 'reference' => 'TEST-REF']);
+$final = walletReportRequest('finance', $scope, 200, $paid);
+if ($final[0]['status'] !== 'paid' || $final[0]['reference'] !== 'TEST-REF' || $service->read($state, 1)['balance'] !== 950) {
+    throw new LogicException('Refund was not debited once or payment reference was lost.');
+}
+echo "Portal wallet roles, refunds, customer isolation, manual credit and safe retries verified.\n";

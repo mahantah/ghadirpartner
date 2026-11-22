@@ -26,12 +26,88 @@
         credit_repayment: "تسویهٔ اعتبار",
         manual_credit: "افزایش دستی موجودی",
         irankish_credit: "شارژ آنلاین ایران‌کیش",
+        wallet_refund: "عودت وجه به حساب",
     };
     let generation = 0;
     let listGeneration = 0;
     let searchTimer = 0;
     let savingCredit = false;
     const pendingCredits = new Map();
+    const refundSection = panel.querySelector("[data-wallet-refunds]");
+    const refundStatus = refundSection?.querySelector("[role=status]");
+    const refundRows = refundSection?.querySelector("tbody");
+    let refundGeneration = 0;
+    let writingRefund = false;
+
+    /** Render the finance queue without interpreting customer or bank data as markup. */
+    function renderRefunds(refunds) {
+        refundRows.replaceChildren();
+        const names = {pending: "در انتظار بررسی", approved: "تأیید شده، در انتظار واریز",
+            paid: "واریز شده", completed: "واریز شده", rejected: "رد شده"};
+        for (const refund of refunds) {
+            const row = refundRows.insertRow();
+            const type = refund.kind === "order" ? "لغو سفارش " + refund.number : "عودت از کیف پول";
+            for (const value of [refund.customer || String(refund.customer_id), type, money(refund.amount), refund.destination || "—"]) {
+                row.insertCell().textContent = value;
+            }
+            const actions = row.insertCell();
+            actions.append(names[refund.status] || "—");
+            if (refund.reference) actions.append(" · " + refund.reference);
+            const addAction = (label, action, reference) => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "btn2";
+                button.textContent = label;
+                button.addEventListener("click", () => {
+                    const value = reference?.value.trim();
+                    if (reference && !value) {
+                        refundStatus.textContent = "شماره پیگیری واریز را وارد کنید.";
+                        reference.focus();
+                        return;
+                    }
+                    void loadRefunds({action, kind: refund.kind, customer_id: refund.customer_id,
+                        request_id: refund.request_id, order_id: refund.order_id, reference: value});
+                });
+                actions.append(button);
+            };
+            if (refund.status === "pending" && refund.kind === "wallet") {
+                addAction("تأیید و کسر از کیف پول", "approve");
+                addAction("رد درخواست", "reject");
+            } else if (refund.status === "approved" || (refund.kind === "order" && refund.status === "pending")) {
+                const reference = document.createElement("input");
+                reference.type = "text";
+                reference.maxLength = 200;
+                reference.placeholder = "شماره پیگیری واریز";
+                reference.setAttribute("aria-label", reference.placeholder);
+                actions.append(reference);
+                addAction("ثبت واریز انجام‌شده", "paid", reference);
+            }
+        }
+    }
+
+    /** Keep responses scoped to the current finance session and serialize staff actions. */
+    async function loadRefunds(payload) {
+        if (!refundSection || !has("finance") || panel.hidden || writingRefund) return;
+        const token = ++refundGeneration;
+        writingRefund = Boolean(payload);
+        refundStatus.textContent = "در حال دریافت درخواست‌های عودت…";
+        try {
+            const options = payload ? {method: "POST", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(payload)} : undefined;
+            const refunds = await req(endpoint + "?refunds=1", options);
+            if (token !== refundGeneration) return;
+            renderRefunds(refunds);
+            refundStatus.textContent = refunds.length ? "" : "درخواستی برای عودت وجه ثبت نشده است.";
+            if (payload?.action === "approve" && Number(customer.value) === payload.customer_id) {
+                form.dispatchEvent(new Event("submit", {cancelable: true}));
+            }
+        } catch (error) {
+            if (token === refundGeneration) refundStatus.textContent = error.message || "دریافت درخواست‌ها ناموفق بود.";
+        } finally {
+            writingRefund = false;
+        }
+    }
+    refundSection?.querySelector("[data-refund-refresh]").addEventListener("click", () => void loadRefunds());
 
     /** Clear the previous customer's balances and movements. */
     function clear() {
@@ -117,6 +193,7 @@
     });
     panel.addEventListener("toggle", () => {
         if (panel.open && customer.options.length <= 1) void loadCustomers();
+        if (panel.open) void loadRefunds();
     });
 
     form.addEventListener("submit", async event => {
@@ -190,6 +267,9 @@
         if (!hidden) return;
         generation++;
         listGeneration++;
+        refundGeneration++;
+        refundRows?.replaceChildren();
+        if (refundStatus) refundStatus.textContent = "";
         window.clearTimeout(searchTimer);
         search.value = "";
         panel.open = false;

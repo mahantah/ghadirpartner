@@ -104,6 +104,7 @@ class PhaseOneRelease:
                 raise RuntimeError("public Anime.js module mismatch")
         for route in (
             "/partners/api/native/panel-switches",
+            "/partners/api/wallet/refunds",
             "/partners/api/native/order-proof",
             "/api/reports/portal-activity",
             "/api/portal-messages/templates",
