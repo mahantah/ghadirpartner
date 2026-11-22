@@ -14,6 +14,21 @@ $second = array_replace($first, ['panel_switch'=>$options[1]]);
 if ($policy->choice($first) !== $options[0] || $policy->choice(['price_key'=>'panel_cash']) !== '') {
     throw new RuntimeException('Valid or legacy choice rejected.');
 }
+$enabled = ['name' => 'Sample', 'panel_switch_enabled' => true];
+$disabled = ['name' => 'Other', 'panel_switch_enabled' => false];
+if ($policy->productOptions([$enabled, $disabled, ['name' => 'Legacy']]) !== ['Sample' => $options]
+    || $policy->choice($first, $enabled) !== $options[0]
+    || $policy->choice(['price_key'=>'panel_cash'], $enabled) !== ''
+    || $policy->choice(['price_key'=>'panel_cash'], $disabled) !== ''
+    || GpPortalPanelSwitches::productSetting([]) !== []
+    || GpPortalPanelSwitches::productSetting(['panel_switch_enabled'=>false]) !== ['panel_switch_enabled'=>false]) {
+    throw new RuntimeException('Product switch settings were not preserved.');
+}
+try {
+    $policy->choice($first, $disabled);
+    throw new RuntimeException('Disabled product accepted a switch.');
+} catch (InvalidArgumentException $expected) {
+}
 try {
     $policy->choice(array_replace($first, ['price_key'=>'serial_1_50']));
     throw new RuntimeException('Non-panel item accepted a switch.');
