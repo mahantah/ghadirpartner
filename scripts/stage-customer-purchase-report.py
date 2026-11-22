@@ -959,22 +959,26 @@ class CustomerPurchaseReportStage:
             + loader,
         )
         prepare = "        $subtotal=0;$items=[];$requested=[];$seenItems=[];"
+        legacy_prepare = "        $panelSwitches=null;$selectedPanels=[];\n" + prepare
         router = self._insert(
             router,
-            prepare,
-            "        $panelSwitches=null;$selectedPanels=[];\n" + prepare,
+            legacy_prepare if legacy_prepare in router else prepare,
+            "        $panelSwitches=null;$selectedPanels=[];"
+            "$switchProducts=array_column($s['products'],null,'name');\n" + prepare,
         )
         key = "$purchaseIdentity=$isCustomer?$name.\"\\0\".trim((string)($it['price_key']??'')):$name;"
-        router = self._insert(
-            router,
-            key,
+        old_switches = (
             "$switch='';if($isCustomer&&array_key_exists('panel_switch',$it)){"
             "require_once dirname(__DIR__).'/lib/portal-panel-switches.php';"
             "$panelSwitches=$panelSwitches??GpPortalPanelSwitches::published();"
             "try{$switch=$panelSwitches->choice($it);}catch(InvalidArgumentException $e){fail($e->getMessage(),422);}"
             "if($switch!=='')$selectedPanels[$switch]=true;}\n            "
-            "$purchaseIdentity=$isCustomer?$name.\"\\0\".trim((string)($it['price_key']??'')).\"\\0\".$switch:$name;",
+            "$purchaseIdentity=$isCustomer?$name.\"\\0\".trim((string)($it['price_key']??'')).\"\\0\".$switch:$name;"
         )
+        new_switches = old_switches.replace(
+            "if($isCustomer&&array_key_exists('panel_switch',$it)){", "if($isCustomer){"
+        ).replace("$panelSwitches->choice($it)", "$panelSwitches->choice($it,$switchProducts[$name]??null)")
+        router = self._insert(router, old_switches if old_switches in router else key, new_switches)
         amount = "$subtotal+=$line;"
         router = self._insert(
             router,
@@ -988,6 +992,45 @@ class CustomerPurchaseReportStage:
             store
             + "if($selectedPanels){$o['panels']=array_keys($selectedPanels);$o['psp']=$o['panels'][0];}",
         )
+
+    def stage_product_panel_switch(self, index: str, app: str) -> tuple[str, str]:
+        """Keep product switch settings in the existing product forms and write transactions."""
+        for action in ("add", "edit"):
+            route = f"if($p==='/api/products/{action}'&&$m==='POST')"
+            start = index.index(route)
+            end = index.index("\n", start)
+            current = index[start:end]
+            hook = "$serial=!empty($x['serial_required']);"
+            current = self._insert(
+                current,
+                hook,
+                "require_once __DIR__.'/lib/portal-panel-switches.php';"
+                "try{$switchSetting=GpPortalPanelSwitches::productSetting($x);}"
+                "catch(InvalidArgumentException $error){fail($error->getMessage(),422);}"
+                + hook,
+            )
+            current = self._insert(
+                current,
+                "'serial_required'=>$serial]",
+                "'serial_required'=>$serial]+$switchSetting",
+            )
+            index = index[:start] + current + index[end:]
+        for prefix, check in (("product", ""), ("editProduct", "${p.panel_switch_enabled===true?'checked':''}")):
+            pattern = prefix + "Pattern"
+            control = prefix + "PanelSwitch"
+            anchor = f'<input id="{pattern}"'
+            app = self._insert(
+                app,
+                anchor,
+                '<label><input type="checkbox" style="width:auto" '
+                f'id="{control}" {check}> انتخاب سوئیچ در اپ</label>' + anchor,
+            )
+            form = f"pattern:$('{pattern}').value.trim()"
+            app = self._insert(app, form, f"panel_switch_enabled:$('{control}').checked," + form)
+            if prefix == "product":
+                reset = "$('productSerialRequired').checked=false;"
+                app = self._insert(app, reset, reset + f"$('{control}').checked=false;")
+        return index, app
 
     def stage(
         self, source: Path, output: Path, partner_router: Path | None = None
@@ -1184,6 +1227,7 @@ class CustomerPurchaseReportStage:
         app = self.stage_proof_documents(app, source, output)
         index, app = self.stage_followup(index, app, source, output)
         index, app = self.stage_settlement_progress(index, app)
+        index, app = self.stage_product_panel_switch(index, app)
         dock_path = Path("assets", self.dock_asset)
         copyfile(self._package / dock_path, output / dock_path)
         dock_url = f'href="/{dock_path.as_posix()}?v=1&whfix=20261028a'
