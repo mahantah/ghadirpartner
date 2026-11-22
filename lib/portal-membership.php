@@ -26,7 +26,7 @@ final class GpPortalMembership
     }
 
     /** Reserve a challenge before contacting the SMS provider. */
-    public function issue(array &$state, string $mobile, string $client, string $code, int $now): bool
+    public function issue(array &$state, string $mobile, string $client, string $code, int $now, string $scope = ""): bool
     {
         $rows = array_filter($state['portal_membership_codes'] ?? [], static fn (array $row): bool => $row['expires'] > $now);
         $recent = 0;
@@ -42,7 +42,7 @@ final class GpPortalMembership
             return false;
         }
         $rows[] = [
-            'mobile' => $mobile, 'client' => $client, 'hash' => password_hash($code, PASSWORD_DEFAULT),
+            'mobile' => $mobile, 'client' => $client, 'scope' => $scope, 'hash' => password_hash($code, PASSWORD_DEFAULT),
             'issued' => $now, 'expires' => $now + $this->policy['valid_seconds'], 'attempts' => 0, 'used' => false,
         ];
         $state['portal_membership_codes'] = array_values($rows);
@@ -50,7 +50,7 @@ final class GpPortalMembership
     }
 
     /** Consume the newest code once and commit failed attempts with the surrounding write. */
-    public function verify(array &$state, string $mobile, string $code, int $now): bool
+    public function verify(array &$state, string $mobile, string $code, int $now, string $scope = ""): bool
     {
         $rows = &$state['portal_membership_codes'];
         if (!is_array($rows)) {
@@ -58,7 +58,7 @@ final class GpPortalMembership
         }
         for ($index = count($rows) - 1; $index >= 0; $index--) {
             $row = &$rows[$index];
-            if ($row['mobile'] !== $mobile) {
+            if ($row['mobile'] !== $mobile || ($row['scope'] ?? '') !== $scope) {
                 continue;
             }
             if ($row['used'] || $row['expires'] <= $now || $row['attempts'] >= $this->policy['max_attempts']) {

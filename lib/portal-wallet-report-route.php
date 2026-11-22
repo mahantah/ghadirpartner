@@ -19,6 +19,40 @@ if ($writeWallet) {
     $walletPolicy = json_decode((string) file_get_contents(dirname(__DIR__).'/config/order-followup.yaml'), true, 512, JSON_THROW_ON_ERROR);
 }
 
+if (($_GET['refunds'] ?? '') === '1') {
+    out(db($writeWallet, static function (array &$state) use ($writeWallet, $walletRequest, $walletActor): array {
+        $wallet = new GpOrderWallet();
+        if (!$writeWallet) return $wallet->refundQueue($state);
+        $action = $walletRequest['action'] ?? '';
+        $actorId = (int) $walletActor['id'];
+        try {
+            if (($walletRequest['kind'] ?? '') === 'order' && $action === 'paid') {
+                $id = $walletRequest['order_id'] ?? null;
+                if (!is_int($id) || $id < 1) fail('شناسه سفارش معتبر نیست.', 422);
+                foreach ($state['orders'] ?? [] as $index => $order) {
+                    if ((int) $order['id'] === $id) {
+                        $wallet->completeRefund($state['orders'][$index], $walletRequest, $actorId, now());
+                        return $wallet->refundQueue($state);
+                    }
+                }
+                fail('سفارش پیدا نشد.', 404);
+            }
+            $id = $walletRequest['customer_id'] ?? null;
+            $key = $walletRequest['request_id'] ?? null;
+            if (($walletRequest['kind'] ?? '') !== 'wallet' || !is_int($id) || $id < 1
+                || !is_string($key) || !preg_match('/^[a-f0-9]{32}$/D', $key)
+                || !in_array($action, ['approve', 'reject', 'paid'], true)) {
+                fail('درخواست عودت معتبر نیست.', 422);
+            }
+            $wallet->reviewWalletRefund($state, $id, $key, $action, $walletRequest, $actorId, now());
+            return $wallet->refundQueue($state);
+        } catch (DomainException $error) {
+            fail($error->getMessage(), $error->getCode());
+        }
+    }));
+    return;
+}
+
 $rawCustomer = $_GET['customer_id'] ?? null;
 if (!$writeWallet && $rawCustomer === null) {
     $query = $_GET['q'] ?? '';

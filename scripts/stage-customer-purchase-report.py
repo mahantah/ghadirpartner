@@ -95,6 +95,16 @@ class CustomerPurchaseReportStage:
     _wallet_search_assets = _settings_menu_assets.replace(
         "portal-wallet-report.js?v=3", "portal-wallet-report.js?v=4"
     )
+    _wallet_refund_section = """
+  <section data-wallet-refunds>
+    <h3>درخواست‌های عودت وجه</h3>
+    <button type="button" class="btn2" data-refund-refresh>به‌روزرسانی درخواست‌ها</button>
+    <p role="status"></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>مشتری</th><th>نوع درخواست</th><th>مبلغ</th><th>شبا</th><th>بانک</th><th>وضعیت و اقدام</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>"""
     _consignment_assets = _wallet_search_assets.replace(
         "navigation.js?v=10", "navigation.js?v=11"
     ).replace("portal-phase-two.css?v=6", "portal-phase-two.css?v=7")
@@ -279,6 +289,9 @@ class CustomerPurchaseReportStage:
         "assets/portal-phase-two-navigation.js",
         "assets/portal-wallet-report.js",
         "lib/portal-wallet-report-route.php",
+        "lib/wallet-refund-route.php",
+        "lib/portal-account.php",
+        "lib/portal-account-route.php",
         "assets/portal-phase-two.css",
         "lib/portal-messages.php",
         "lib/portal-messages-routes.php",
@@ -1071,6 +1084,27 @@ class CustomerPurchaseReportStage:
                 app = self._insert(app, anchor_edit, anchor_edit.replace("`)}", f"`);setProductSwitchModels('{control}',p)}}"))
         return index, app
 
+    def stage_account_refunds(self, app: str, partner: str | None) -> tuple[str, str | None]:
+        """Expose the finance queue and install the authenticated customer account routes."""
+        if self._wallet_refund_section not in app:
+            app = self._insert(
+                app, self._wallet_search_card,
+                self._wallet_search_card.replace("</details>", self._wallet_refund_section + "\n</details>"),
+            )
+        current = 'src="/assets/portal-wallet-report.js?v=6"'
+        if current not in app:
+            old = 'src="/assets/portal-wallet-report.js?v=5"'
+            if old not in app:
+                old = 'src="/assets/portal-wallet-report.js?v=4"'
+            app = self._insert(app, old, current)
+        if partner is not None:
+            anchor = "require dirname(__DIR__).'/lib/order-followup-route.php';"
+            for filename in ("portal-account-route.php", "wallet-refund-route.php"):
+                loader = f"require dirname(__DIR__).'/lib/{filename}';"
+                if loader not in partner:
+                    partner = self._insert(partner, anchor, loader + "\n" + anchor)
+        return app, partner
+
     def stage(
         self, source: Path, output: Path, partner_router: Path | None = None
     ) -> None:
@@ -1099,7 +1133,9 @@ class CustomerPurchaseReportStage:
             "$mobile=",
         )
         app = self._insert(
-            (source / "app.html").read_text(),
+            re.sub(r'\n  <section data-wallet-refunds>.*?</section>', "", (source / "app.html").read_text(), flags=re.DOTALL)
+            .replace('src="/assets/portal-wallet-report.js?v=5"', 'src="/assets/portal-wallet-report.js?v=4"')
+            .replace('src="/assets/portal-wallet-report.js?v=6"', 'src="/assets/portal-wallet-report.js?v=4"'),
             self._section,
             self._section + self._card,
         )
@@ -1343,6 +1379,7 @@ class CustomerPurchaseReportStage:
                 "&&empty($iv['order_id']))$n++;return $n;}",
                 "&&empty($iv['order_id'])&&(int)($iv['warehouse_id']??$wholesale)===$wholesale)$n++;return $n;}",
             )
+        app, router = self.stage_account_refunds(app, router)
         output.mkdir(parents=True, exist_ok=True)
         for name in self._files:
             path = output / name

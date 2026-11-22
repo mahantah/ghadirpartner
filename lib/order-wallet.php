@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/credit-checkout.php';
+require_once __DIR__.'/portal-account.php';
 
 /** Record confirmed customer funds in the wallet ledger. */
 final class GpOrderWallet
@@ -30,6 +31,116 @@ final class GpOrderWallet
             'balance' => $balance, 'reserved' => $reserved, 'available' => max(0, $balance - $reserved),
             'transactions' => array_reverse($entries),
         ];
+    }
+
+    /** Return the customer's own requests without the bank account or staff audit fields. */
+    public function refundRequests(array $state, int $customerId): array
+    {
+        return array_values(array_map(static fn (array $row): array => array_intersect_key(
+            $row, array_flip(['request_id', 'amount', 'status', 'reference', 'at'])
+        ), $state['wallet_refund_requests'][$customerId] ?? []));
+    }
+
+    /** Register a request exactly once without debiting the wallet. */
+    public function requestRefund(array &$state, int $customerId, array $request, string $now, array $policy): array
+    {
+        $key = $request['request_id'] ?? null;
+        $amount = $request['amount'] ?? null;
+        $limit = $policy['max_amount'] ?? null;
+        if (!is_int($limit) || $limit < 1) throw new RuntimeException('Invalid wallet refund policy.');
+        if (!is_string($key) || !preg_match('/^[a-f0-9]{32}$/D', $key)
+            || !is_int($amount) || $amount < 1 || $amount > $limit) {
+            throw new DomainException('مبلغ یا شماره شبای درخواست معتبر نیست.', 422);
+        }
+        $saved = $state['wallet_refund_requests'][$customerId][$key] ?? null;
+        if ($saved !== null) {
+            if ($saved['amount'] !== $amount) {
+                throw new DomainException('درخواست عودت با مشخصات دیگری ثبت شده است.', 409);
+            }
+            return ['request_id' => $key, 'status' => $saved['status']];
+        }
+        $bank = (new GpPortalAccount())->bank($state, $customerId);
+        $destination = $bank['iban'];
+        if ($destination === '' || $bank['bank_name'] === '') {
+            throw new DomainException('ابتدا شماره شبا و نام بانک را در ویرایش اطلاعات ثبت کنید.', 422);
+        }
+        foreach ($state['wallet_refund_requests'][$customerId] ?? [] as $row) {
+            if (in_array($row['status'], ['pending', 'approved'], true)) {
+                throw new DomainException('درخواست عودت قبلی هنوز باز است.', 409);
+            }
+        }
+        if ($amount > $this->read($state, $customerId)['available']) {
+            throw new DomainException('موجودی قابل استفاده کیف پول کافی نیست.', 409);
+        }
+        $state['wallet_refund_requests'][$customerId][$key] = [
+            'request_id' => $key, 'amount' => $amount, 'destination' => $destination, 'bank_name' => $bank['bank_name'],
+            'status' => 'pending', 'at' => $now,
+        ];
+        return ['request_id' => $key, 'status' => 'pending'];
+    }
+
+    /** List wallet requests and bank refunds from cancelled orders in the finance queue. */
+    public function refundQueue(array $state): array
+    {
+        $rows = [];
+        $customers = array_column($state['customers'] ?? [], 'name', 'id');
+        foreach ($state['wallet_refund_requests'] ?? [] as $id => $refunds) {
+            foreach ($refunds as $row) {
+                $rows[] = $row + ['kind' => 'wallet', 'customer_id' => (int) $id, 'customer' => $customers[$id] ?? ''];
+            }
+        }
+        foreach ($state['orders'] ?? [] as $order) {
+            $row = $order['customer_credit_cancel'] ?? [];
+            if (($row['destination'] ?? '') !== 'refund') continue;
+            $id = (int) ($order['customer_id'] ?? 0);
+            $rows[] = array_replace($row, ['kind' => 'order', 'order_id' => (int) $order['id'],
+                'number' => $order['number'] ?? '', 'customer_id' => $id, 'customer' => $customers[$id] ?? '',
+                'destination' => '', 'at' => $row['at'] ?? $order['updated_at'] ?? '']);
+        }
+        usort($rows, static function (array $left, array $right): int {
+            $priority = static fn (array $row): int => in_array($row['status'], ['pending', 'approved'], true) ? 0 : 1;
+            return ($priority($left) <=> $priority($right)) ?: strcmp($right['at'], $left['at']);
+        });
+        return $rows;
+    }
+
+    /** Apply staff review under the wallet write lock and debit only on approval. */
+    public function reviewWalletRefund(array &$state, int $customerId, string $key, string $action, array $request, int $actor, string $now): void
+    {
+        if (!isset($state['wallet_refund_requests'][$customerId][$key])) {
+            throw new DomainException('درخواست عودت پیدا نشد.', 404);
+        }
+        $row = &$state['wallet_refund_requests'][$customerId][$key];
+        if ($action === 'approve' && $row['status'] === 'approved') return;
+        if ($action === 'reject' && $row['status'] === 'rejected') return;
+        if ($action === 'paid' && $row['status'] === 'paid') return;
+        if (in_array($action, ['approve', 'reject'], true) && $row['status'] === 'pending') {
+            if ($action === 'approve') {
+                if ($row['amount'] > $this->read($state, $customerId)['available']) {
+                    throw new DomainException('موجودی قابل استفاده کیف پول کافی نیست.', 409);
+                }
+                $state['customer_wallet'][$customerId]['refund:'.$key] = [
+                    'amount' => -$row['amount'], 'source' => 'wallet_refund', 'order_id' => 0,
+                    'number' => '', 'at' => $now,
+                ];
+            }
+            $row['status'] = $action === 'approve' ? 'approved' : 'rejected';
+            $row['reviewed_at'] = $now;
+            $row['reviewed_by'] = $actor;
+            return;
+        }
+        if ($action === 'paid' && $row['status'] === 'approved') {
+            $reference = $request['reference'] ?? null;
+            if (!is_string($reference) || trim($reference) === '' || strlen($reference) > 200) {
+                throw new DomainException('مرجع واریز وجه را وارد کنید.', 422);
+            }
+            $row['status'] = 'paid';
+            $row['reference'] = trim($reference);
+            $row['paid_at'] = $now;
+            $row['paid_by'] = $actor;
+            return;
+        }
+        throw new DomainException('این اقدام برای وضعیت فعلی درخواست مجاز نیست.', 409);
     }
 
     /** Record a positive staff credit once under the wallet ledger's write lock. */
