@@ -79,7 +79,7 @@ try {
         exit;
     }
     if ($m === 'GET') {
-        if ($orderPayment) out(['enabled' => true]);
+        if ($orderPayment) out(['enabled' => true, 'mixed_cash' => true]);
         out(['enabled' => true] + $walletGateway->report($walletCustomerId));
     }
     if (strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '', 2)[0])) !== 'application/json') {

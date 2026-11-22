@@ -87,6 +87,22 @@ $order = [
     'requested_payment_method' => 'mixed', 'native_settlement' => ['check_amount' => 100, 'credit_amount' => 50],
 ];
 (new GpIranKishOrderPayment())->initialize($order, null, ['cash_online' => true, 'cash_amount' => 250], 0);
+$splitCash = $order;
+(new GpIranKishOrderPayment())->initialize($splitCash, null, [
+    'cash_online' => true, 'cash_amount' => 350, 'cash_online_amount' => 150,
+], 0);
+if ($splitCash['irankish_order_payment']['amount'] !== 150 || $splitCash['credit_checkout']['cash_required'] !== 350) {
+    throw new LogicException('The gateway received the full cash share instead of only the online portion.');
+}
+$invalidMixedCashRejected = false;
+try {
+    (new GpIranKishOrderPayment())->initialize($splitCash, null, [
+        'cash_online' => true, 'cash_amount' => 100, 'cash_online_amount' => 150,
+    ], 0);
+} catch (DomainException $expected) {
+    $invalidMixedCashRejected = true;
+}
+if (!$invalidMixedCashRejected) throw new LogicException('The online share exceeded the submitted cash total.');
 $state['orders'][] = $order;
 $orderAttempt = $service->startOrder(1, 7, $now)['id'];
 if ($service->orderLaunch($orderAttempt)['token'] !== 'AB123' || $service->report(1)['balance'] !== 250
