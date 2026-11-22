@@ -20,9 +20,18 @@ if ($policy->productOptions([$enabled, $disabled, ['name' => 'Legacy']]) !== ['S
     || $policy->choice($first, $enabled) !== $options[0]
     || $policy->choice(['price_key'=>'panel_cash'], $enabled) !== ''
     || $policy->choice(['price_key'=>'panel_cash'], $disabled) !== ''
-    || GpPortalPanelSwitches::productSetting([]) !== []
-    || GpPortalPanelSwitches::productSetting(['panel_switch_enabled'=>false]) !== ['panel_switch_enabled'=>false]) {
+    || $policy->productSetting([]) !== []
+    || $policy->productSetting(['panel_switch_enabled'=>false]) !== ['panel_switch_enabled'=>false, 'panel_switch_models'=>[]]) {
     throw new RuntimeException('Product switch settings were not preserved.');
+}
+$oneModel = $enabled + $policy->productSetting(['panel_switch_models' => [$options[0]]]);
+if ($policy->productOptions([$oneModel]) !== ['Sample' => [$options[0]]]) {
+    throw new RuntimeException('Product exposed a model that was not selected.');
+}
+try {
+    $policy->choice($second, $oneModel);
+    throw new RuntimeException('Checkout accepted an unselected model.');
+} catch (InvalidArgumentException $expected) {
 }
 try {
     $policy->choice($first, $disabled);
