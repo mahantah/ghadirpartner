@@ -646,6 +646,11 @@ class CustomerPurchaseReportStage:
             router = self.stage_irankish_checkout(
                 self.stage_irankish_order_payment(router)
             )
+            router = self._insert(
+                router,
+                "$amount=$x['settlement_details']['cash_amount']??null;",
+                "$amount=$x['settlement_details']['cash_online_amount']??$x['settlement_details']['cash_amount']??null;",
+            )
             router = self.stage_agent_settlement_review(router)
         if "->assertApproval($o," in router:
             return router
@@ -995,6 +1000,18 @@ class CustomerPurchaseReportStage:
 
     def stage_product_panel_switch(self, index: str, app: str) -> tuple[str, str]:
         """Keep product switch settings in the existing product forms and write transactions."""
+        product_section = '<section id="products" class="tab hidden">'
+        app = self._insert(
+            app, product_section,
+            '<style>#products .gp-product-add{grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));'
+            'align-items:center;gap:7px;max-width:760px}#products .gp-product-add>input{min-height:34px;padding:5px 8px}'
+            '#products .gp-product-add fieldset{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 12px;'
+            'padding:4px 8px;margin:0;min-width:0}#products .gp-product-add fieldset label{display:inline-flex;'
+            'align-items:center;gap:4px;font-size:12px;white-space:nowrap}#products .gp-product-add fieldset input{'
+            'min-height:0;margin:0}</style>' + product_section,
+        )
+        add_grid = '<div class="grid"><input id="productName"'
+        app = self._insert(app, add_grid, '<div class="grid gp-product-add"><input id="productName"')
         form_options = re.search(r'<div id="pspSelect"[^>]*>(.*?)</div>', app, re.DOTALL)
         if form_options is None:
             raise ValueError("Automation switch list is missing.")

@@ -23,7 +23,12 @@ final class GpIranKishOrderPayment
             throw new DomainException('ترکیب مبالغ تسویه سفارش معتبر نیست.', 422);
         }
         $required = $total - $check - $credit - $wallet;
-        $amount = $online ? ($details['cash_amount'] ?? null) : 0;
+        $cash = $details['cash_amount'] ?? null;
+        $explicitOnline = array_key_exists('cash_online_amount', $details);
+        $amount = $online ? ($explicitOnline ? $details['cash_online_amount'] : $cash) : 0;
+        if ($online && $explicitOnline && (!is_int($cash) || !is_int($amount) || $cash < $amount || $cash > $required)) {
+            throw new DomainException('جمع پرداخت آنلاین و واریز به حساب معتبر نیست.', 422);
+        }
         if ($online && (!in_array($order['requested_payment_method'], ['cash', 'mixed'], true)
             || !is_int($amount) || $amount < 1 || $amount > $required)) {
             throw new DomainException('مبلغ پرداخت آنلاین باید در محدوده سهم نقدی سفارش باشد.', 422);
