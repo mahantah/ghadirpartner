@@ -43,20 +43,37 @@ final class GpPortalPanelSwitches
         $choices = [];
         foreach ($products as $product) {
             if (($product['panel_switch_enabled'] ?? false) === true && is_string($product['name'] ?? null)) {
-                $choices[$product['name']] = $this->options;
+                $models = $this->models($product);
+                if ($models) $choices[$product['name']] = $models;
             }
         }
         return $choices;
     }
 
     /** Keep an existing product setting when an older staff client omits it. */
-    public static function productSetting(array $request): array
+    public function productSetting(array $request): array
     {
+        if (array_key_exists('panel_switch_models', $request)) {
+            $models = $request['panel_switch_models'];
+            if (!is_array($models) || array_values($models) !== $models
+                || array_filter($models, fn ($model): bool => !is_string($model) || !in_array($model, $this->options, true))) {
+                throw new InvalidArgumentException('مدل سوئیچ معتبر نیست.');
+            }
+            $selected = array_values(array_intersect($this->options, $models));
+            return ['panel_switch_enabled' => (bool) $selected, 'panel_switch_models' => $selected];
+        }
         if (!array_key_exists('panel_switch_enabled', $request)) return [];
         if (!is_bool($request['panel_switch_enabled'])) {
             throw new InvalidArgumentException('وضعیت انتخاب سوئیچ باید معتبر باشد.');
         }
-        return ['panel_switch_enabled' => $request['panel_switch_enabled']];
+        return ['panel_switch_enabled' => $request['panel_switch_enabled'], 'panel_switch_models' => $request['panel_switch_enabled'] ? $this->options : []];
+    }
+
+    /** Preserve enabled products configured before individual model selection. */
+    private function models(array $product): array
+    {
+        $models = $product['panel_switch_models'] ?? $this->options;
+        return is_array($models) ? array_values(array_filter($this->options, static fn (string $option): bool => in_array($option, $models, true))) : [];
     }
 
     /** Validate the selected switch while accepting orders from older clients. */
@@ -68,7 +85,7 @@ final class GpPortalPanelSwitches
         $enabled = $product['panel_switch_enabled'] ?? null;
         $panel = strpos((string) ($item['price_key'] ?? ''), 'panel_') === 0;
         $value = $item['panel_switch'];
-        if (!$panel || $enabled === false || !is_string($value) || !in_array($value, $this->options, true)) {
+        if (!$panel || $enabled === false || !is_string($value) || !in_array($value, $this->models($product ?? []), true)) {
             throw new InvalidArgumentException('سوئیچ ثبت در پنل معتبر نیست.');
         }
         return $value;
