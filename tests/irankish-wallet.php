@@ -83,10 +83,28 @@ if (!$service->reconcile($id, 1, '', $now) || !$service->reconcile($id, 0, 'AB12
 echo "Iran Kish envelope, amount checks, ownership and wallet posting passed.\n";
 
 $order = [
-    'id' => 7, 'customer_id' => 1, 'estimated_total' => 500, 'status' => 'در انتظار تأیید سفارش',
+    'id' => 7, 'customer_id' => 1, 'items' => [], 'estimated_total' => 500, 'status' => 'در انتظار تأیید سفارش',
     'requested_payment_method' => 'mixed', 'native_settlement' => ['check_amount' => 100, 'credit_amount' => 50],
 ];
 (new GpIranKishOrderPayment())->initialize($order, null, ['cash_online' => true, 'cash_amount' => 250], 0);
+$combinedOrder = $order;
+$splitDetails = ['cash_online' => true, 'cash_amount' => 350, 'cash_online_amount' => 250];
+$orderPayment = new GpIranKishOrderPayment();
+$orderPayment->initialize($combinedOrder, null, $splitDetails, 0);
+if ($combinedOrder['irankish_order_payment']['amount'] !== 250
+    || $combinedOrder['credit_checkout']['cash_required'] !== 350) {
+    throw new LogicException('Combined cash must send only the online share to Iran Kish.');
+}
+$prepared = $service->startCheckout(1, $combinedOrder['irankish_order_payment']['amount'], 'combined-fixture', $now);
+if ($prepared['amount'] !== 250) throw new LogicException('Checkout must return the gateway amount to the app.');
+foreach ([['cash_online_amount' => 350], ['cash_amount' => 351], ['cash_online_amount' => '250']] as $invalid) {
+    try {
+        $orderPayment->initialize($combinedOrder, null, $invalid + $splitDetails, 0);
+        throw new LogicException('Invalid combined cash allocation was accepted.');
+    } catch (DomainException $error) {
+        if ($error->getCode() !== 422) throw $error;
+    }
+}
 $state['orders'][] = $order;
 $orderAttempt = $service->startOrder(1, 7, $now)['id'];
 if ($service->orderLaunch($orderAttempt)['token'] !== 'AB123' || $service->report(1)['balance'] !== 250

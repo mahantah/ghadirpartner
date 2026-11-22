@@ -4,6 +4,18 @@ declare(strict_types=1);
 /** Keep the server-priced cash requirement and bank receipt on the order. */
 final class GpIranKishOrderPayment
 {
+    /** Resolve the gateway amount and preserve requests from older versions of the app. */
+    public function requestedAmount(array $details): int
+    {
+        $cash = $details['cash_amount'] ?? null;
+        $combined = array_key_exists('cash_online_amount', $details);
+        $amount = $combined ? $details['cash_online_amount'] : $cash;
+        if (!is_int($amount) || $amount < 1 || ($combined && (!is_int($cash) || $amount >= $cash))) {
+            throw new DomainException('مبلغ پرداخت آنلاین و سهم واریز به حساب معتبر نیست.', 422);
+        }
+        return $amount;
+    }
+
     /** Validate the requested online portion against the customer order's priced split. */
     public function initialize(array &$order, ?array $prior, array $details, int $wallet): void
     {
@@ -23,9 +35,12 @@ final class GpIranKishOrderPayment
             throw new DomainException('ترکیب مبالغ تسویه سفارش معتبر نیست.', 422);
         }
         $required = $total - $check - $credit - $wallet;
-        $amount = $online ? ($details['cash_amount'] ?? null) : 0;
+        $amount = $online ? $this->requestedAmount($details) : 0;
+        if ($online && array_key_exists('cash_online_amount', $details) && $details['cash_amount'] > $required) {
+            throw new DomainException('جمع پرداخت آنلاین و واریز به حساب از سهم نقدی سفارش بیشتر است.', 422);
+        }
         if ($online && (!in_array($order['requested_payment_method'], ['cash', 'mixed'], true)
-            || !is_int($amount) || $amount < 1 || $amount > $required)) {
+            || $amount > $required)) {
             throw new DomainException('مبلغ پرداخت آنلاین باید در محدوده سهم نقدی سفارش باشد.', 422);
         }
         if ($previous !== null && !empty($previous['claim'])) {

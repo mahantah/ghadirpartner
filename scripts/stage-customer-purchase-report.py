@@ -647,6 +647,26 @@ class CustomerPurchaseReportStage:
                 self.stage_irankish_order_payment(router)
             )
             router = self.stage_agent_settlement_review(router)
+            already_confirmed = "return ['online_already_confirmed'=>true];"
+            if already_confirmed in router:
+                router = self._insert(
+                    router, already_confirmed,
+                    "return ['online_already_confirmed'=>true,'online_amount'=>$priorReceipt['amount']];",
+                )
+            legacy_confirmation = "out(['confirmed'=>true]);"
+            confirmation_anchor = "if(isset($result['online_already_confirmed']))" + legacy_confirmation
+            if confirmation_anchor in router:
+                router = self._insert(
+                    router, confirmation_anchor,
+                    "if(isset($result['online_already_confirmed']))out(['confirmed'=>true,'amount'=>$result['online_amount']]);",
+                )
+            legacy_amount = "$amount=$x['settlement_details']['cash_amount']??null;"
+            if legacy_amount in router:
+                router = self._insert(
+                    router,
+                    legacy_amount,
+                    "$amount=(new GpIranKishOrderPayment())->requestedAmount($x['settlement_details']);",
+                )
         if "->assertApproval($o," in router:
             return router
         approval = (
@@ -712,7 +732,6 @@ class CustomerPurchaseReportStage:
                     $client=GpIranKishWalletClient::configured(dirname(__DIR__).'/config/irankish-wallet.yaml');
                     if($client===null)fail('پرداخت آنلاین سفارش در دسترس نیست.',503);
                     $amount=$x['settlement_details']['cash_amount']??null;
-                    if(!is_int($amount))fail('مبلغ پرداخت آنلاین معتبر نیست.',422);
                     $client->rials($amount);
                 }
                 if(!isset($prior['irankish_order_payment'])&&($x['settlement_details']['cash_online']??false)!==true)

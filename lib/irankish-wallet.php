@@ -79,7 +79,7 @@ final class GpIranKishWallet
         } elseif ($attempt['token'] === '') {
             throw new DomainException('درخواست درگاه در حال آماده شدن است. دوباره تلاش کنید.', 409);
         }
-        return ['checkout_id' => $attempt['id'], 'confirmed' => !empty($attempt['reference'])];
+        return ['checkout_id' => $attempt['id'], 'confirmed' => !empty($attempt['reference']), 'amount' => $attempt['amount']];
     }
 
     /** Reconcile a checkout without creating an order or exposing its bank token. */
