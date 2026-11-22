@@ -76,6 +76,7 @@ class PhaseOneRelease:
             "portal-messages.js",
             "portal-phase-two-navigation.js",
             "portal-wallet-report.js",
+            "portal-customer-access.js",
             "customer-consignments.js",
             "irankish-wallet.js",
             "portal-phase-two.css",
@@ -104,6 +105,10 @@ class PhaseOneRelease:
                 raise RuntimeError("public Anime.js module mismatch")
         for route in (
             "/partners/api/native/panel-switches",
+            "/partners/api/wallet/refunds",
+            "/partners/api/native/account-bank",
+            "/partners/api/native/account-users",
+            "/api/customer-accounts/access?customer_id=1",
             "/partners/api/native/order-proof",
             "/api/reports/portal-activity",
             "/api/portal-messages/templates",
@@ -180,6 +185,7 @@ class PhaseOneRelease:
                 stage.anime_asset,
                 stage.followup_asset,
                 "portal-wallet-report.js",
+                "portal-customer-access.js",
                 "customer-consignments.js",
                 "irankish-wallet.js",
                 "order-shipping-receipts.js",

@@ -29,4 +29,12 @@ for ($attempt = 0; $attempt < 5; $attempt++) {
 if ($service->verify($state, $mobile, '333333', $time + 363)) {
     throw new RuntimeException('Enrollment OTP ignored the attempt limit.');
 }
+$scoped = [];
+if (!$service->issue($scoped, '09121111111', 'owner-fixture', '123456', 1000, 'delegate:8')
+    || $service->verify($scoped, '09121111111', '123456', 1001)
+    || $service->verify($scoped, '09121111111', '123456', 1001, 'delegate:9')
+    || !$service->verify($scoped, '09121111111', '123456', 1001, 'delegate:8')
+    || $service->verify($scoped, '09121111111', '123456', 1001, 'delegate:8')) {
+    throw new LogicException('Delegate OTP is not single-use and scoped to its owner.');
+}
 echo "Enrollment OTP fixture passed.\n";

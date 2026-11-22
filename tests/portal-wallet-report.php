@@ -27,7 +27,7 @@ function auth(array $roles): array
     return ['id' => 17];
 }
 /** Commit fixture updates only when the database callback returns successfully. */
-function db(bool $write, callable $callback): array
+function db(bool $write, callable $callback): ?array
 {
     $snapshot = $GLOBALS['state'];
     $result = $callback($snapshot);
@@ -108,4 +108,81 @@ if ($customerWallet['balance'] !== 1050
     || array_key_exists('note', $customerWallet['transactions'][0]) || array_key_exists('actor_id', $customerWallet['transactions'][0])) {
     throw new LogicException('Customer wallet omitted the credit or disclosed staff audit fields.');
 }
-echo "Portal wallet roles, customer isolation, manual credit and safe retries verified.\n";
+$withdrawal = ['request_id' => str_repeat('b', 32), 'amount' => 100, 'destination' => 'IR'.str_repeat('1', 24)];
+$validIban = 'IR220000000000000000000001';
+(new GpPortalAccount())->saveBank($state, 1, ['iban' => $validIban, 'bank_name' => 'بانک آزمایشی']);
+$service = new GpOrderWallet();
+$service->requestRefund($state, 1, $withdrawal, now(), ['max_amount' => 1000]);
+$service->requestRefund($state, 1, $withdrawal, now(), ['max_amount' => 1000]);
+$scope = ['refunds' => '1'];
+walletReportRequest('sales', $scope, 403);
+walletReportRequest('customer', $scope, 403);
+$queue = walletReportRequest('finance', $scope, 200);
+if (count($queue) !== 1 || $queue[0]['status'] !== 'pending' || $queue[0]['destination'] !== $validIban || $queue[0]['bank_name'] !== 'بانک آزمایشی'
+    || isset($service->refundRequests($state, 1)[0]['destination'])
+    || $service->refundRequests($state, 2) !== [] || $service->read($state, 1)['balance'] !== 1050) {
+    throw new LogicException('Refund queue, isolation or pending balance is incorrect.');
+}
+$review = ['customer_id' => 1, 'request_id' => $withdrawal['request_id'], 'kind' => 'wallet', 'action' => 'approve'];
+walletReportRequest('finance', $scope, 200, $review);
+walletReportRequest('finance', $scope, 200, $review);
+$paid = array_replace($review, ['action' => 'paid', 'reference' => 'TEST-REF']);
+$final = walletReportRequest('finance', $scope, 200, $paid);
+if ($final[0]['status'] !== 'paid' || $final[0]['reference'] !== 'TEST-REF' || $service->read($state, 1)['balance'] !== 950) {
+    throw new LogicException('Refund was not debited once or payment reference was lost.');
+}
+$accounts = new GpPortalAccount();
+function clean_mobile(string $value): string { return preg_replace('/[^0-9]/', '', $value); }
+$state['users'] = [
+    ['id' => 8, 'roles' => ['customer'], 'active' => true, 'customer_id' => 1],
+    ['id' => 9, 'roles' => ['customer'], 'active' => true, 'customer_id' => 2],
+];
+$state['next_user'] = 10;
+if ($accounts->ownerId($state, 8) !== 1) throw new LogicException('Wrong account owner.');
+$extra = $accounts->addDelegate($state, 8, 1, 'همکار آزمایشی', '09121111111', 'FixturePassword');
+if ($state['users'][2]['customer_id'] !== 1 || !password_verify('FixturePassword', $state['users'][2]['password_hash'])
+    || $accounts->delegates($state, 2) !== [] || isset($extra['password_hash'])) {
+    throw new LogicException('Delegate scoping, credentials or public projection is incorrect.');
+}
+try {
+    $accounts->ownerId($state, $extra['id']);
+    throw new LogicException('A delegate was allowed to administer the account.');
+} catch (DomainException $error) {
+    if ($error->getCode() !== 403) throw $error;
+}
+try {
+    $accounts->revoke($state, 2, $extra['id']);
+    throw new LogicException('An unrelated owner was allowed to revoke a delegate.');
+} catch (DomainException $error) {
+    if ($error->getCode() !== 404) throw $error;
+}
+/** Read one customer record through the administrator-only account route. */
+function staffAccountRequest(string $roleName, string $customerId, int $status): ?array
+{
+    global $role;
+    $role = $roleName;
+    $p = '/api/customer-accounts/access';
+    $m = 'GET';
+    $_GET = ['customer_id' => $customerId];
+    try {
+        require __DIR__.'/../lib/portal-account-staff-route.php';
+    } catch (PortalWalletResponse $response) {
+        if ($response->getCode() !== $status) throw $response;
+        return $response->payload;
+    }
+    throw new LogicException('Expected an account response.');
+}
+staffAccountRequest('finance', '1', 403);
+staffAccountRequest('customer', '1', 403);
+staffAccountRequest('admin', '0', 422);
+staffAccountRequest('admin', '2', 404);
+$access = staffAccountRequest('admin', '1', 200);
+if ($access['users'] !== [$extra] || $access['bank']['iban'] !== $validIban) {
+    throw new LogicException('Customer account details did not match their record.');
+}
+$accounts->revoke($state, 1, $extra['id']);
+if ($accounts->delegates($state, 1) !== [] || $state['users'][2]['active']) {
+    throw new LogicException('Delegate access was not disabled.');
+}
+
+echo "Portal wallet roles, refunds, customer isolation, manual credit and safe retries verified.\n";
