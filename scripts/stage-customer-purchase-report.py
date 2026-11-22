@@ -292,6 +292,8 @@ class CustomerPurchaseReportStage:
         "lib/wallet-refund-route.php",
         "lib/portal-account.php",
         "lib/portal-account-route.php",
+        "lib/portal-account-staff-route.php",
+        "assets/portal-customer-access.js",
         "assets/portal-phase-two.css",
         "lib/portal-messages.php",
         "lib/portal-messages-routes.php",
@@ -1379,6 +1381,11 @@ class CustomerPurchaseReportStage:
                 "&&empty($iv['order_id']))$n++;return $n;}",
                 "&&empty($iv['order_id'])&&(int)($iv['warehouse_id']??$wholesale)===$wholesale)$n++;return $n;}",
             )
+        staff_access = "require __DIR__.'/lib/portal-account-staff-route.php';"
+        wallet_route = "require __DIR__.'/lib/portal-wallet-report-route.php';"
+        index = self._insert(index, wallet_route, staff_access + "\n" + wallet_route)
+        access_asset = '<script defer src="/assets/portal-customer-access.js?v=1"></script>'
+        app = self._insert(app, closing, access_asset + "\n" + closing)
         app, router = self.stage_account_refunds(app, router)
         output.mkdir(parents=True, exist_ok=True)
         for name in self._files:

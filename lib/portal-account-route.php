@@ -62,7 +62,7 @@ $result = db($m === 'POST', static function (array &$state) use ($p, $m, $actorI
         $password = $body['password'] ?? null;
         if (!is_string($name) || strlen(trim($name)) < 3 || strlen($name) > 200) fail('نام کاربر معتبر نیست.', 422);
         if (!is_string($mobile) || !preg_match('/^09[0-9]{9}$/D', $mobile)) fail('شماره همراه معتبر نیست.', 422);
-        if (!is_string($password) || strlen($password) < 8 || strlen($password) > 72 || str_contains($password, "\0")) fail('رمز ورود کاربر معتبر نیست.', 422);
+        if (!is_string($password) || strlen($password) < 8 || strlen($password) > 72 || strpos($password, "\0") !== false) fail('رمز ورود کاربر معتبر نیست.', 422);
         if (!is_string($code) || !preg_match('/^[0-9]{6}$/D', $code)) fail('کد تأیید باید ۶ رقم باشد.', 422);
         $accounts->assertAvailable($state, $mobile);
         if (!$membership->verify($state, $mobile, $code, time(), $scope)) return null;

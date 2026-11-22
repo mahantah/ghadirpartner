@@ -27,7 +27,7 @@ function auth(array $roles): array
     return ['id' => 17];
 }
 /** Commit fixture updates only when the database callback returns successfully. */
-function db(bool $write, callable $callback): array
+function db(bool $write, callable $callback): ?array
 {
     $snapshot = $GLOBALS['state'];
     $result = $callback($snapshot);
@@ -155,6 +155,30 @@ try {
     throw new LogicException('An unrelated owner was allowed to revoke a delegate.');
 } catch (DomainException $error) {
     if ($error->getCode() !== 404) throw $error;
+}
+/** Read one customer record through the administrator-only account route. */
+function staffAccountRequest(string $roleName, string $customerId, int $status): ?array
+{
+    global $role;
+    $role = $roleName;
+    $p = '/api/customer-accounts/access';
+    $m = 'GET';
+    $_GET = ['customer_id' => $customerId];
+    try {
+        require __DIR__.'/../lib/portal-account-staff-route.php';
+    } catch (PortalWalletResponse $response) {
+        if ($response->getCode() !== $status) throw $response;
+        return $response->payload;
+    }
+    throw new LogicException('Expected an account response.');
+}
+staffAccountRequest('finance', '1', 403);
+staffAccountRequest('customer', '1', 403);
+staffAccountRequest('admin', '0', 422);
+staffAccountRequest('admin', '2', 404);
+$access = staffAccountRequest('admin', '1', 200);
+if ($access['users'] !== [$extra] || $access['bank']['iban'] !== $validIban) {
+    throw new LogicException('Customer account details did not match their record.');
 }
 $accounts->revoke($state, 1, $extra['id']);
 if ($accounts->delegates($state, 1) !== [] || $state['users'][2]['active']) {
