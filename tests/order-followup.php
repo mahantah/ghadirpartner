@@ -37,7 +37,7 @@ $denied = static function (callable $action, int $code) use ($assert): void {
     throw new RuntimeException('Expected operation to be rejected.');
 };
 /** Mirror the authenticated editor's callback contract using synthetic state. */
-function db(bool $write, callable $operation): mixed
+function db(bool $write, callable $operation): array
 {
     if (!$write) throw new LogicException('Order edit must use a write transaction.');
     return $operation($GLOBALS['edited_order_fixture']);

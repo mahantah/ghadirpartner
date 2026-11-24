@@ -63,9 +63,9 @@ final class GpOrderEditReview
 }
 
 /** Observe the native editor inside its existing write transaction. */
-function gp_staff_order_edit_transaction(array $request, array $actor, callable $edit): mixed
+function gp_staff_order_edit_transaction(array $request, array $actor, callable $edit): array
 {
-    return db(true, static function (array &$state) use ($request, $actor, $edit): mixed {
+    return db(true, static function (array &$state) use ($request, $actor, $edit): array {
         $index = idx($state['orders'], $request['id'] ?? 0);
         $before = $index >= 0 ? $state['orders'][$index] : null;
         $result = $edit($state);
