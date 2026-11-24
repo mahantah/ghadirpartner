@@ -11,18 +11,23 @@
   };
   function settlementHtml(order, fallback = "") {
     const progress = order.settlement_progress;
+    const review = order.order_edit_review;
+    const pending = review && !(review.checked?.settlement && review.checked?.shipping);
+    const editBadge = pending
+      ? '<span class="badge pay-check">ویرایش شده · نیاز به بررسی</span>'
+      : review ? '<span class="badge">ویرایش شده · بررسی شد</span>' : "";
     const selector = `data-settlement-order="${Number(order.id) || 0}"`;
     const pendingCredit = ["اعتباری · در انتظار تأیید", "ترکیبی با اعتبار · در انتظار تأیید"];
     if (progress?.awaiting_approval === true && pendingCredit.includes(progress.label)) {
-      return `<span class="gp-settlement-display" ${selector}><span class="badge pay-check">${progress.label}</span></span>`;
+      return `<span class="gp-settlement-display" ${selector}><span class="badge pay-check">${progress.label}</span>${editBadge}</span>`;
     }
     const labels = ["پرداخت بخشی", "تسویه کامل", "بخش اعتباری تسویه شد"];
-    if (!progress || !labels.includes(progress.label)) return `<span ${selector}>${fallback}</span>`;
+    if (!progress || !labels.includes(progress.label)) return `<span ${selector}>${fallback}${editBadge}</span>`;
     const status = progress.settled ? "pay-paid" : "pay-deposit";
     return `<span class="gp-settlement-display" ${selector}>
       <span class="badge ${status}">${progress.label}</span>
       <small>واریزی تأییدشده ${money(progress.paid)}</small>
-      <small>ماندهٔ اعتباری ${money(progress.outstanding)}</small>
+      <small>ماندهٔ اعتباری ${money(progress.outstanding)}</small>${editBadge}
     </span>`;
   }
 
@@ -31,7 +36,7 @@
     if (!Number.isSafeInteger(id) || id < 1 || !Object.hasOwn(summary, "settlement_progress")) return;
     const order = typeof ORD !== "undefined" ? ORD.find(item => Number(item.id) === id) : null;
     if (order) order.settlement_progress = summary.settlement_progress;
-    const shown = {id, settlement_progress: summary.settlement_progress};
+    const shown = {id, settlement_progress: summary.settlement_progress, order_edit_review: order?.order_edit_review};
     for (const node of document.querySelectorAll(`[data-settlement-order="${id}"]`)) {
       node.outerHTML = settlementHtml(shown, order && typeof detailPayBadge === "function" ? detailPayBadge(order.payment_status) : "");
     }
@@ -207,6 +212,38 @@
       status.textContent = "";
       if (paymentStatus) paymentStatus.textContent = "";
       const send = (action, fields) => request(endpoint, {order_id: id, action, ...fields});
+      if (data.order_edit_review) {
+        const edit = section(overview, "بررسی پس از ویرایش سفارش");
+        overview.prepend(edit);
+        const record = data.order_edit_review;
+        edit.append(element("p", "ویرایش در مرحلهٔ «" + (record.stage || "ثبت سفارش") + "» · " + record.edited_at));
+        edit.append(element("p", "موارد تغییرکرده: " + record.changed.join("، ")));
+        for (const [part, label, role] of [
+          ["settlement", "نحوه تسویه", "finance"],
+          ["shipping", "نحوه ارسال", "sales"],
+        ]) {
+          const reviewed = Boolean(record.checked?.[part]);
+          const note = element("p", label + (reviewed ? " بررسی شد" : " نیاز به بررسی دارد"));
+          edit.append(note);
+          if (reviewed || !has(role)) continue;
+          const control = button("تأیید بررسی " + label, async () => {
+            control.disabled = true;
+            try {
+              const result = await send("confirm_edited_" + part, {version: record.version});
+              const order = typeof ORD !== "undefined" ? ORD.find(item => Number(item.id) === Number(id)) : null;
+              if (order) order.order_edit_review = result.order_edit_review;
+              if (typeof renderActiveCore === "function") renderActiveCore();
+              control.remove();
+              note.textContent = label + " بررسی شد";
+              await updateAlerts();
+            } catch (error) {
+              control.disabled = false;
+              note.textContent = error.message;
+            }
+          });
+          edit.append(control);
+        }
+      }
       const review = data.correction;
       const agentReview = data.agent_settlement_review;
       if (review?.reason) correction.append(element("p", review.reason));
@@ -372,7 +409,7 @@
         message.textContent = entries.length ? "" : "اعلان تازه‌ای برای بررسی وجود ندارد.";
         list.replaceChildren(...entries.map(entry => {
           const label = {credit_proof: "فیش واریز اعتباری", refund: "بازگشت وجه", revision: "سفارش اصلاح‌شده",
-            agent_settlement: "بررسی تسویه عامل فروش", agent_final_review: "تأیید نهایی سفارش عامل فروش"}[entry.kind] ?? "اعلان سفارش";
+            order_edit_review: "ویرایش سفارش · بازبینی تسویه و ارسال", agent_settlement: "بررسی تسویه عامل فروش", agent_final_review: "تأیید نهایی سفارش عامل فروش"}[entry.kind] ?? "اعلان سفارش";
           const row = element("li");
           row.append(button(label + " · " + entry.number, async () => {
             try { await openAlert(entry); } catch (error) { message.textContent = error.message; }

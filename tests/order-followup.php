@@ -36,6 +36,53 @@ $denied = static function (callable $action, int $code) use ($assert): void {
     }
     throw new RuntimeException('Expected operation to be rejected.');
 };
+/** Mirror the authenticated editor's callback contract using synthetic state. */
+function db(bool $write, callable $operation): mixed
+{
+    if (!$write) throw new LogicException('Order edit must use a write transaction.');
+    return $operation($GLOBALS['edited_order_fixture']);
+}
+
+function idx(array $orders, int $id): int
+{
+    foreach ($orders as $index => $order) if ($order['id'] === $id) return $index;
+    return -1;
+}
+
+function now(): string { return '1405-08-24 11:00:00'; }
+
+function hist(array &$order, string $actor, string $note): void { $order['history'][] = [$actor, $note]; }
+
+$GLOBALS['edited_order_fixture'] = ['orders' => [$base]];
+$stored = gp_staff_order_edit_transaction(['id' => 4], ['username' => 'fixture'], static function (array &$sample): array {
+    $sample['orders'][0]['notes'] = 'اصلاح سفارش';
+    return $sample['orders'][0];
+});
+$assert($stored === $GLOBALS['edited_order_fixture']['orders'][0], 'Review must be stored and returned in the same write.');
+$assert($stored['order_edit_review']['version'] === 1 && count($stored['history']) === 1, 'Edited order was not marked.');
+unset($GLOBALS['edited_order_fixture']);
+
+$edition = $base;
+$edition['notes'] = 'توضیح ویرایش‌شده';
+$assert(GpOrderEditReview::record($base, $edition, $now), 'A real edit must start review.');
+$assert($edition['order_edit_review']['stage'] === $base['status'], 'The order stage at edit time is required.');
+$assert($workflow->alerts(['orders' => [$edition]], true, true)['count'] === 1, 'An edit must raise a single alert.');
+GpOrderEditReview::confirm($edition, 'settlement', 1, $now);
+$assert($workflow->alerts(['orders' => [$edition]], true, false)['count'] === 0, 'Finance already reviewed this version.');
+$assert($workflow->alerts(['orders' => [$edition]], false, true)['count'] === 1, 'Shipping review is still pending.');
+GpOrderEditReview::confirm($edition, 'shipping', 1, $now);
+$assert($workflow->alerts(['orders' => [$edition]], true, true)['count'] === 0, 'Two confirmations resolve the alert.');
+$unchanged = $edition;
+$unchanged['updated_at'] = '1405-08-25 09:00:00';
+$assert(!GpOrderEditReview::record($edition, $unchanged, $now), 'Timestamp-only edits must not reopen the review.');
+$revised = $edition;
+$revised['shipping_type'] = 'باربری';
+$assert(GpOrderEditReview::record($edition, $revised, $now), 'A later edit must reopen both reviews.');
+$assert($revised['order_edit_review']['checked'] === [], 'Previous checks cannot approve a changed order.');
+$denied(static function () use (&$revised, $now) {
+    GpOrderEditReview::confirm($revised, 'shipping', 1, $now);
+}, 409);
+
 try {
     $request = ['request_id' => $key, 'amount' => 300, 'files' => [
         ['data' => $png, 'note' => 'رسید اول'],

@@ -34,7 +34,10 @@ if ($m === 'GET') {
                 return $followup->document($order, $token);
             }
             $summary = $followup->summary($order);
-            if ($customerId > 0) $summary['wallet'] = (new GpOrderWallet())->read($state, $customerId);
+            if ($customerId > 0) {
+                $summary['wallet'] = (new GpOrderWallet())->read($state, $customerId);
+                unset($summary['order_edit_review']);
+            }
             if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['pending_amount'], $summary['submittable_amount'], $summary['settlement_progress'], $summary['proofs'], $summary['initial_payment'], $summary['cancellation']);
             return $summary;
         } catch (DomainException $error) {
@@ -44,8 +47,13 @@ if ($m === 'GET') {
 }
 if ($p !== '/api/order-followup' || $m !== 'POST') fail('روش درخواست مجاز نیست.', 405);
 $action = $request['action'] ?? '';
+$editReviewPart = match ($action) {
+    'confirm_edited_settlement' => $finance ? 'settlement' : null,
+    'confirm_edited_shipping' => $sales ? 'shipping' : null,
+    default => null,
+};
 $receiptActions = ['approve_order_receipt', 'reject_order_receipt', 'adjust_order_receipt'];
-if (!(($customerId > 0 && in_array($action, ['submit', 'cancel_credit_order'], true)) || ($sales && in_array($action, ['return', 'ack_revision'], true))
+if (!($editReviewPart !== null || ($customerId > 0 && in_array($action, ['submit', 'cancel_credit_order'], true)) || ($sales && in_array($action, ['return', 'ack_revision'], true))
     || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust', 'complete_refund'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
 $actorId = (int) $actor['id'];
 
@@ -65,10 +73,16 @@ $sendCorrection = static function (array &$state, array $order, array $summary, 
     ], $audience, $actorId, now());
 };
 
-$result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $actorId, $orderId, $customerId, $sendCorrection): array {
+$result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $editReviewPart, $actorId, $orderId, $customerId, $sendCorrection): array {
     try {
         $index = $followup->index($state, $orderId, $customerId);
         $order = &$state['orders'][$index];
+        if ($editReviewPart !== null) {
+            $version = $request['version'] ?? null;
+            if (!is_int($version)) fail('نسخهٔ سفارش معتبر نیست.', 422);
+            GpOrderEditReview::confirm($order, $editReviewPart, $version, now());
+            return ['order_id' => $orderId, 'order_edit_review' => $order['order_edit_review']];
+        }
         if ($action === 'submit') {
             $summary = isset($request['wallet_amount'])
                 ? $followup->submitWithWallet($state, $order, $request, $actorId, now())
