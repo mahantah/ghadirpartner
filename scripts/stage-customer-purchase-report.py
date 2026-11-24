@@ -299,6 +299,7 @@ class CustomerPurchaseReportStage:
         "lib/portal-messages-routes.php",
         "lib/order-proof-upload.php",
         "lib/order-followup.php",
+        "lib/order-edit-review.php",
         "lib/credit-checkout.php",
         "lib/order-wallet.php",
         "lib/irankish-wallet.php",
@@ -868,6 +869,36 @@ class CustomerPurchaseReportStage:
         )
         return index, app
 
+    def stage_staff_order_edit(self, index: str) -> str:
+        """Record order edits within the authenticated editor's existing transaction."""
+        hook = "gp_staff_order_edit_transaction($x,$u,"
+        route = re.search(
+            r"(?m)^[ \t]*if\s*\(\s*\$p\s*===\s*'/api/orders/edit'"
+            r"(?:\s*&&\s*\$m\s*===\s*'POST')?\s*\)\s*\{",
+            index,
+        )
+        if route is None:
+            raise ValueError("Automation order edit route not found.")
+        tail = index[route.end():]
+        next_route = re.search(r"(?m)^[ \t]*if\s*\(\s*\$p\b", tail)
+        end = route.end() + (next_route.start() if next_route else len(tail))
+        editor = index[route.start():end]
+        if hook in editor:
+            return index
+        writes = list(re.finditer(r"\bdb\s*\(\s*true\s*,", editor))
+        if len(writes) != 1:
+            raise ValueError("Automation order edit transaction is ambiguous.")
+        write = writes[0]
+        before = editor[:write.start()]
+        if not re.search(r"\$u\s*=\s*auth\s*\(", before) or not re.search(
+            r"\$x\s*=\s*input\s*\(", before
+        ):
+            raise ValueError("Automation order edit authentication or input anchor missing.")
+        loader = "if($p==='/api/orders/edit')require_once __DIR__.'/lib/order-edit-review.php';\n"
+        return (
+            index[:route.start()] + loader + before + hook + editor[write.end():] + index[end:]
+        )
+
     def stage_followup(
         self, index: str, app: str, source: Path, output: Path
     ) -> tuple[str, str]:
@@ -889,8 +920,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=8"></script>'
-        for previous_version in (1, 2, 3, 4, 5, 6, 7):
+        script = '<script defer src="/assets/order-followup.js?v=9"></script>'
+        for previous_version in (1, 2, 3, 4, 5, 6, 7, 8):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)
@@ -1302,6 +1333,7 @@ class CustomerPurchaseReportStage:
             )
         app = self.stage_console(app, source, output)
         app = self.stage_proof_documents(app, source, output)
+        index = self.stage_staff_order_edit(index)
         index, app = self.stage_followup(index, app, source, output)
         index, app = self.stage_settlement_progress(index, app)
         index, app = self.stage_product_panel_switch(index, app)

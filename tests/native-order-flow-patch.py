@@ -18,6 +18,35 @@ class NativeOrderPatchTest:
         """Locate the public package without relying on process working directory."""
         self.root = Path(__file__).resolve().parents[1]
 
+    def verify_staff_edit_hook(self) -> None:
+        """Keep existing edit authorization and bind exactly one write transaction."""
+        spec = importlib.util.spec_from_file_location(
+            "stage_purchase_report",
+            self.root / "scripts/stage-customer-purchase-report.py",
+        )
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        stage = module.CustomerPurchaseReportStage(self.root)
+        fixture = (
+            "<?php\n"
+            "if($p==='/api/orders/edit'&&$m==='POST'){\n"
+            "$u=auth(['sales']);$x=input();"
+            "out(db(true,function(&$s)use($x,$u){return $s['orders'][0];}));}\n"
+            "if($p==='/api/payment'){out(db(true,fn(&$s)=>$s));}\n"
+        )
+        staged = stage.stage_staff_order_edit(fixture)
+        assert staged.count("gp_staff_order_edit_transaction($x,$u,") == 1
+        assert "$u=auth(['sales']);$x=input();" in staged
+        assert "if($p==='/api/payment'){out(db(true,fn(&$s)=>$s));}" in staged
+        assert stage.stage_staff_order_edit(staged) == staged
+        try:
+            stage.stage_staff_order_edit(fixture.replace("$u=auth(['sales']);", ""))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("A missing authorization anchor must stop staging")
+
     def run(self) -> None:
         """Validate manifest paths/hashes and fail-closed application when source is supplied."""
         manifest = json.loads(
@@ -42,6 +71,7 @@ class NativeOrderPatchTest:
                 hashlib.sha256((self.root / name).read_bytes()).hexdigest()
                 == manifest["expected_files"][name]
             )
+        self.verify_staff_edit_hook()
         source_env = os.environ.get("GP_OWNER_SOURCE")
         if source_env:
             spec = importlib.util.spec_from_file_location(

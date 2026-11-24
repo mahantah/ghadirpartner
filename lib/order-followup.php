@@ -5,6 +5,7 @@ require_once __DIR__.'/customer-credit.php';
 require_once __DIR__.'/credit-checkout.php';
 require_once __DIR__.'/order-settlement-progress.php';
 require_once __DIR__.'/order-proof-upload.php';
+require_once __DIR__.'/order-edit-review.php';
 
 /** Manage credit repayments and order corrections under the order database lock. */
 final class GpOrderFollowup
@@ -77,6 +78,7 @@ final class GpOrderFollowup
                 return $payment;
             }, $order['credit_repayments'] ?? [])),
             'correction' => $order['customer_correction'] ?? null,
+            'order_edit_review' => $order['order_edit_review'] ?? null,
             'agent_settlement_review' => $order['agent_settlement_review'] ?? null,
             'agent_settlement_amounts' => isset($order['agent_settlement_review']) ? $this->settlementAmounts($order) : null,
             'agent_final_review' => $this->isAgentFinalReview($order),
@@ -361,6 +363,7 @@ final class GpOrderFollowup
         $order['customer_correction']['status'] = 'resubmitted';
         $order['customer_correction']['resubmitted_at'] = $now;
         $this->event($order, 'revision', (string) $order['customer_correction']['version'], $now);
+        GpOrderEditReview::record($previous, $order, $now);
     }
 
     /** Reject a changed quote before attaching proof, reserving wallet or opening the bank gateway. */
@@ -434,8 +437,11 @@ final class GpOrderFollowup
         $items = [];
         foreach ($state['orders'] ?? [] as $order) {
             if (!empty($order['deleted'])) continue;
+            $reviewAlert = GpOrderEditReview::alert($order, $showCredit, $showCorrections);
+            $decisionAlert = false;
             $agentStatus = $order['agent_settlement_review']['status'] ?? '';
             if ($showCorrections && (($agentStatus === 'staff_review' && $this->canReturn($order)) || $this->isAgentFinalReview($order))) {
+                $decisionAlert = true;
                 $kind = $agentStatus === 'staff_review' ? 'agent_settlement' : 'agent_final_review';
                 $items[] = ['kind' => $kind, 'created_at' => (string) ($order['updated_at'] ?? $order['created_at']),
                     'order_id' => (int) $order['id'], 'number' => (string) $order['number']];
@@ -443,8 +449,10 @@ final class GpOrderFollowup
             foreach ($order['followup_events'] ?? [] as $event) {
                 if ($agentStatus !== '' && $event['kind'] === 'revision') continue;
                 if (in_array($event['kind'], ['credit_proof', 'refund'], true) ? !$showCredit : !$showCorrections) continue;
+                if ($event['kind'] === 'revision') $decisionAlert = true;
                 $items[] = $event + ['order_id' => (int) $order['id'], 'number' => (string) $order['number']];
             }
+            if (!$decisionAlert && $reviewAlert !== null) $items[] = $reviewAlert;
         }
         usort($items, static fn (array $a, array $b): int => strcmp($b['created_at'], $a['created_at']));
         return ['count' => count($items), 'items' => array_slice($items, 0, $this->policy['inbox_limit'])];
