@@ -114,6 +114,32 @@ $review->check($shipped, $proposal['id'], 'shipping', $now);
 unset($shipped['amendments']);
 $assert($shipped === $originalShipped, 'Proposal and reviews must preserve the original order and ledgers.');
 
+$mixedDraft = $originalShipped;
+$mixedTerms = ['cash_amount' => 300, 'check_amount' => 400, 'credit_amount' => 100, 'wallet_amount' => 0];
+$mixedProposal = $revision;
+$mixedProposal['basis'] = $review->summary($mixedDraft)['amendment_basis'];
+$mixedProposal['proposal']['settlement'] = $mixedTerms;
+$mixedProposal['proposal']['total'] = 800;
+$denied(static function () use ($workflow, &$mixedDraft, $mixedProposal, $now) {
+    $workflow->proposeAmendment($mixedDraft, $mixedProposal, $now);
+}, 422);
+$review->approveMixedTerms($mixedDraft, $mixedProposal['basis'], $mixedTerms, 9, $now);
+$review->approveMixedTerms($mixedDraft, $mixedProposal['basis'], $mixedTerms, 9, $now);
+$mixedProposal['basis'] = $review->summary($mixedDraft)['amendment_basis'];
+$altered = $mixedProposal;
+$altered['proposal']['settlement']['cash_amount']--;
+$altered['proposal']['settlement']['credit_amount']++;
+$denied(static function () use ($workflow, &$mixedDraft, $altered, $now) {
+    $workflow->proposeAmendment($mixedDraft, $altered, $now);
+}, 422);
+$changedOrder = $mixedDraft;
+$changedOrder['shipping_type'] = 'باربری';
+$assert($review->summary($changedOrder)['amendment_mixed_terms'] === null, 'A changed order must require new authorization.');
+$approvedProposal = $workflow->proposeAmendment($mixedDraft, $mixedProposal, $now);
+$assert($approvedProposal['settlement'] === $mixedTerms, 'Only the exact authorized terms may be proposed.');
+unset($mixedDraft['amendments'], $mixedDraft['amendment_mixed_approval']);
+$assert($mixedDraft === $originalShipped, 'Authorization must not alter the ledger or original order.');
+
 try {
     $request = ['request_id' => $key, 'amount' => 300, 'files' => [
         ['data' => $png, 'note' => 'رسید اول'],

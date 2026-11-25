@@ -32,8 +32,40 @@ final class GpOrderAmendments
             'can_propose_amendment' => $this->eligible($order),
             'amendment' => $latest,
             'amendment_basis' => $this->basis($order),
+            'amendment_mixed_terms' => $this->mixedTerms($order),
             'amendment_current' => $this->eligible($order) ? $this->current($order) : null,
         ];
+    }
+
+    /** Permit precisely the amounts approved by finance for this revision of this order. */
+    public function approveMixedTerms(array &$order, string $basis, $input, int $actor, string $now): void
+    {
+        if (!$this->eligible($order)) {
+            throw new DomainException('این سفارش برای اصلاحیهٔ مشتری قابل انتخاب نیست.', 409);
+        }
+        if (!is_array($input)) throw new DomainException('مبالغ تسویه را وارد کنید.', 422);
+        $remaining = $this->policy['max_amount'];
+        $terms = [];
+        foreach (self::PARTS as $part) {
+            $min = in_array($part, ['check_amount', 'credit_amount'], true) ? 1 : 0;
+            $max = $part === 'wallet_amount' ? 0 : $remaining;
+            $terms[$part] = $this->amount($input[$part] ?? null, $min, $max);
+            $remaining -= $terms[$part];
+        }
+        $existing = $this->mixedTerms($order);
+        if ($existing === $terms) return;
+        if ($basis !== $this->basis($order)) {
+            throw new DomainException('سفارش تغییر کرده است. جزئیات را دوباره باز کنید.', 409);
+        }
+        $order['amendment_mixed_approval'] = [
+            'terms' => $terms, 'order_hash' => $this->orderHash($order), 'actor' => $actor, 'at' => $now,
+        ];
+    }
+
+    private function mixedTerms(array $order): ?array
+    {
+        $approval = $order['amendment_mixed_approval'] ?? [];
+        return ($approval['order_hash'] ?? null) === $this->orderHash($order) ? $approval['terms'] : null;
     }
 
     /** Record or resend a proposal without touching operational totals, payments or shipping. */
@@ -52,6 +84,10 @@ final class GpOrderAmendments
         }
         if ($basis !== $this->basis($order)) {
             throw new DomainException('سفارش یا اصلاحیه تغییر کرده است. جزئیات را دوباره باز کنید.', 409);
+        }
+        $settlement = $proposal['settlement'];
+        if ($settlement['check_amount'] > 0 && $settlement['credit_amount'] > 0 && $settlement !== $this->mixedTerms($order)) {
+            throw new DomainException('ترکیب چک و اعتبار فقط با تأیید همین مبالغ توسط امور مالی مجاز است.', 422);
         }
         $previousKey = array_key_last($history);
         if ($previousKey !== null && $history[$previousKey]['status'] === 'pending') {
@@ -152,7 +188,7 @@ final class GpOrderAmendments
     private function basis(array $order): string
     {
         $last = array_key_last($order['amendments'] ?? []);
-        return hash('sha256', serialize([$this->orderHash($order), $last, $order['amendments'][$last] ?? null]));
+        return hash('sha256', serialize([$this->orderHash($order), $last, $order['amendments'][$last] ?? null, $order['amendment_mixed_approval'] ?? null]));
     }
 
     private function validate($input): array
@@ -189,8 +225,8 @@ final class GpOrderAmendments
         if ($remaining !== 0 || !in_array($input['invoice'] ?? '', ['رسمی', 'غیررسمی'], true)) {
             throw new DomainException('نوع فاکتور و برابری جمع تسویه با مبلغ نهایی را بررسی کنید.', 422);
         }
-        if ($settlement['check_amount'] > 0 && ($settlement['credit_amount'] > 0 || $settlement['wallet_amount'] > 0)) {
-            throw new DomainException('چک با اعتبار یا کیف پول ترکیب نمی‌شود.', 422);
+        if ($settlement['check_amount'] > 0 && $settlement['wallet_amount'] > 0) {
+            throw new DomainException('چک با کیف پول ترکیب نمی‌شود.', 422);
         }
         return [
             'items' => $items, 'total' => $total, 'settlement' => $settlement, 'invoice' => $input['invoice'],

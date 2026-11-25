@@ -189,6 +189,7 @@
     overview.prepend(panel);
     const message = element("p");
     message.setAttribute("role", "status");
+    message.dataset.amendmentStatus = "";
     panel.append(message);
     const pending = data.amendment;
     if (pending) {
@@ -224,11 +225,33 @@
         if (!pending.checked?.finance || !pending.checked?.shipping) return;
       }
     }
+    if (data.can_propose_amendment && has("finance")) {
+      const authorization = element("details");
+      authorization.append(element("summary", "مجوز ترکیب چک و اعتبار برای این سفارش"));
+      const fields = group(authorization, "gp-followup-fields");
+      const configured = data.amendment_mixed_terms ?? data.amendment_current.settlement;
+      const editable = Object.entries(settlementParts).filter(([key]) => key !== "wallet_amount").map(([key, label]) =>
+        [key, field(fields, label + " (تومان)", configured[key], true)]);
+      authorization.append(element("p", "مبالغ تأییدشده فقط برای اصلاحیهٔ همین سفارش قابل استفاده‌اند."));
+      authorization.append(button("ثبت مجوز ترکیب چک و اعتبار", safe(message, async () => {
+        const settlement = Object.fromEntries(editable.map(([key, input]) => [key, enteredAmount(input, 0)]));
+        const response = await send("approve_amendment_mixed_terms", {
+          basis: data.amendment_basis, settlement: {...settlement, wallet_amount: 0},
+        });
+        panel.remove();
+        mountAmendment(overview, response, send, safe);
+        const refreshed = overview.querySelector("[data-amendment-status]");
+        if (refreshed) refreshed.textContent = "مجوز مالی ثبت شد. اکنون می‌توانید اصلاحیه را تنظیم کنید.";
+      })));
+      panel.append(authorization);
+    }
     if (!has("sales") || !data.can_propose_amendment) return;
     const editor = element("details");
     editor.append(element("summary", pending?.status === "pending" ? "ارسال نسخهٔ تازهٔ اصلاحیه" : "تنظیم اصلاحیه"));
     panel.append(editor);
-    const initial = pending?.status === "pending" ? pending : data.amendment_current;
+    const original = pending?.status === "pending" ? pending : data.amendment_current;
+    const terms = data.amendment_mixed_terms;
+    const initial = terms ? {...original, settlement: terms, total: Object.values(terms).reduce((a, b) => a + b, 0)} : original;
     const fields = group(editor, "gp-followup-fields");
     const invoice = choice(fields, "نوع فاکتور", {"رسمی": "رسمی", "غیررسمی": "غیررسمی"}, initial.invoice);
     const shipping = field(fields, "روش ارسال", initial.shipping);

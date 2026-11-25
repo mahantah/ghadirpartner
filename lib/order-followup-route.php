@@ -36,7 +36,7 @@ if ($m === 'GET') {
             $summary = $followup->summary($order);
             if ($customerId > 0) {
                 $summary['wallet'] = (new GpOrderWallet())->read($state, $customerId);
-                unset($summary['order_edit_review'], $summary['amendment_basis'], $summary['amendment_current'], $summary['can_propose_amendment']);
+                unset($summary['order_edit_review'], $summary['amendment_basis'], $summary['amendment_current'], $summary['can_propose_amendment'], $summary['amendment_mixed_terms']);
             }
             if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['pending_amount'], $summary['submittable_amount'], $summary['settlement_progress'], $summary['proofs'], $summary['initial_payment'], $summary['cancellation']);
             return $summary;
@@ -55,7 +55,7 @@ $amendmentPart = null;
 if ($action === 'check_amendment_finance' && $finance) $amendmentPart = 'finance';
 if ($action === 'check_amendment_shipping' && $sales) $amendmentPart = 'shipping';
 if (!($amendmentPart !== null || $editReviewPart !== null || ($customerId > 0 && in_array($action, ['submit', 'cancel_credit_order', 'accept_amendment', 'reject_amendment'], true)) || ($sales && in_array($action, ['return', 'ack_revision', 'propose_amendment'], true))
-    || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust', 'complete_refund'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
+    || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust', 'complete_refund', 'approve_amendment_mixed_terms'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
 $actorId = (int) $actor['id'];
 
 /** Save the correction message alongside the order mutation so customers receive the reason once. */
@@ -78,6 +78,13 @@ $result = db(true, static function (array &$state) use ($followup, $request, $ac
     try {
         $index = $followup->index($state, $orderId, $customerId);
         $order = &$state['orders'][$index];
+        if ($action === 'approve_amendment_mixed_terms') {
+            $basis = $request['basis'] ?? null;
+            if (!is_string($basis)) fail('نسخهٔ سفارش معتبر نیست.', 422);
+            $amendments = $followup->amendments();
+            $amendments->approveMixedTerms($order, $basis, $request['settlement'] ?? null, $actorId, now());
+            return ['order_id' => $orderId] + $amendments->summary($order);
+        }
         if ($action === 'propose_amendment') {
             $proposal = $followup->proposeAmendment($order, $request, now());
             $id = (int) $order['customer_id'];
