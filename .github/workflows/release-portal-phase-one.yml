@@ -42,6 +42,7 @@ jobs:
           php tests/portal-activity.php
           php tests/order-proof-upload.php
           php tests/order-followup.php
+          node --test tests/order-amendment-entry.test.js
           php -l lib/order-shipping-receipts-route.php
           php tests/order-shipping-receipts.php
           node --check assets/order-shipping-receipts.js

@@ -72,7 +72,7 @@ final class GpOrderAmendments
     public function propose(array &$order, array $request, string $key, string $reason, string $now): array
     {
         if (!$this->eligible($order)) throw new DomainException('این سفارش برای اصلاحیهٔ مشتری قابل انتخاب نیست.', 409);
-        $proposal = $this->validate($request['proposal'] ?? null);
+        $proposal = $this->validate($request['proposal'] ?? null, $this->shipping($order) !== '');
         $basis = $request['basis'] ?? '';
         $fingerprint = hash('sha256', serialize([$proposal, $reason, $basis]));
         $history = $order['amendments'] ?? [];
@@ -159,7 +159,7 @@ final class GpOrderAmendments
         return [
             'total' => (int) (($order['approved_total'] ?? 0) ?: ($order['estimated_total'] ?? 0)),
             'invoice' => (string) ($order['invoice_type'] ?? ''),
-            'shipping' => (string) ($order['shipping_type'] ?? ''),
+            'shipping' => $this->shipping($order),
             'address' => (string) ($order['shipping_address'] ?? $order['address'] ?? ''),
             'items' => array_values(array_map(static function (array $row): array {
                 $type = (string) ($row['price_key'] ?? '');
@@ -185,13 +185,18 @@ final class GpOrderAmendments
             $order['payment_status'] ?? '', $order['customer_id'] ?? 0]));
     }
 
+    private function shipping(array $order): string
+    {
+        return trim((string) ($order['shipping_type'] ?? ''));
+    }
+
     private function basis(array $order): string
     {
         $last = array_key_last($order['amendments'] ?? []);
         return hash('sha256', serialize([$this->orderHash($order), $last, $order['amendments'][$last] ?? null, $order['amendment_mixed_approval'] ?? null]));
     }
 
-    private function validate($input): array
+    private function validate($input, bool $shippingRequired): array
     {
         if (!is_array($input) || !is_array($input['items'] ?? null)
             || !$input['items'] || count($input['items']) > $this->policy['inbox_limit']) {
@@ -230,7 +235,7 @@ final class GpOrderAmendments
         }
         return [
             'items' => $items, 'total' => $total, 'settlement' => $settlement, 'invoice' => $input['invoice'],
-            'shipping' => $this->text($input['shipping'] ?? null, true),
+            'shipping' => $this->text($input['shipping'] ?? null, $shippingRequired),
             'address' => $this->text($input['address'] ?? '', false),
         ];
     }
