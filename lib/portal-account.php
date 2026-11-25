@@ -50,13 +50,41 @@ final class GpPortalAccount
         return $remainder === 1;
     }
 
+    /** Check method and path against the capabilities granted to a scoped delegate. */
+    public function assertDelegateRoute(array $actor, string $method, string $path, array $body = []): void
+    {
+        $level = $actor['portal_access_level'] ?? null;
+        if (empty($actor['portal_delegate_owner']) || $level === null) return;
+        $commonReads = ['/api/me', '/api/native/account-access', '/api/catalog', '/api/products',
+            '/api/offers', '/api/orders', '/api/notifications', '/api/native/panel-switches'];
+        $salesReads = ['/api/addresses', '/api/customers', '/api/native/credit', '/api/orders/irankish'];
+        $financeReads = ['/api/native/credit', '/api/order-followup', '/api/order-followup/document',
+            '/api/reports/customer-summary', '/api/orders/irankish'];
+        if ($path === '/api/logout' || ($method === 'POST' && in_array($path, ['/api/password', '/api/notifications/read', '/api/portal-activity'], true))) return;
+        if ($method === 'GET' && (in_array($path, $commonReads, true)
+            || ($level === 'sales' && in_array($path, $salesReads, true))
+            || ($level === 'finance' && in_array($path, $financeReads, true)))) return;
+        if ($method === 'POST' && $level === 'sales' && $path === '/api/addresses') return;
+        if ($method === 'POST' && $level === 'sales' && $path === '/api/orders/add') {
+            $terms = $body['settlement_details'] ?? [];
+            if (is_array($terms) && in_array($body['requested_payment_method'] ?? '', ['cash', 'check', 'mixed'], true)
+                && empty($body['online_checkout_mode']) && empty($body['online_checkout_id'])
+                && empty($terms['cash_online']) && empty($terms['cash_online_amount'])
+                && empty($terms['credit_amount']) && empty($terms['credit_enabled'])
+                && empty($terms['wallet_amount']) && empty($terms['wallet_enabled'])) return;
+        }
+        if ($method === 'POST' && $level === 'finance' && $path === '/api/order-followup'
+            && ($body['action'] ?? '') === 'submit' && !array_key_exists('wallet_amount', $body)) return;
+        throw new DomainException('این عملیات در سطح دسترسی شما مجاز نیست.', 403);
+    }
+
     /** List active delegates with a projection that excludes credentials. */
     public function delegates(array $state, int $customerId): array
     {
         $rows = [];
         foreach ($state['users'] ?? [] as $user) {
             if ((int) ($user['customer_id'] ?? 0) !== $customerId || empty($user['portal_delegate_owner']) || empty($user['active'])) continue;
-            $rows[] = ['id' => (int) $user['id'], 'name' => $user['portal_delegate_name'], 'mobile' => $user['login_mobile']];
+            $rows[] = ['id' => (int) $user['id'], 'name' => $user['portal_delegate_name'], 'mobile' => $user['login_mobile'], 'access_level' => $user['portal_access_level'] ?? 'legacy'];
         }
         return $rows;
     }
@@ -84,17 +112,20 @@ final class GpPortalAccount
     }
 
     /** Create a regular customer identity after the route verifies the scoped SMS challenge. */
-    public function addDelegate(array &$state, int $ownerId, int $customerId, string $name, string $mobile, string $password): array
+    public function addDelegate(array &$state, int $ownerId, int $customerId, string $name, string $mobile, string $password, string $access = 'viewer'): array
     {
+        if (!in_array($access, ['viewer', 'sales', 'finance'], true)) {
+            throw new DomainException('سطح دسترسی معتبر نیست.', 422);
+        }
         $this->assertAvailable($state, $mobile);
         $id = (int) $state['next_user']++;
         $state['users'][] = [
             'id' => $id, 'username' => $mobile, 'login_mobile' => $mobile, 'alternate_mobile' => '',
             'password_hash' => password_hash($password, PASSWORD_DEFAULT), 'roles' => ['customer'],
             'active' => true, 'customer_id' => $customerId, 'portal_delegate_owner' => $ownerId,
-            'portal_delegate_name' => $name,
+            'portal_delegate_name' => $name, 'portal_access_level' => $access,
         ];
-        return ['id' => $id, 'name' => $name, 'mobile' => $mobile];
+        return ['id' => $id, 'name' => $name, 'mobile' => $mobile, 'access_level' => $access];
     }
 
     /** Disable a delegate without deleting the actor associated with historical records. */
