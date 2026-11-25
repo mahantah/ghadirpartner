@@ -72,6 +72,7 @@ final class GpOrderFollowup
     {
         $outstanding = $this->credit->debt($order);
         $pending = $this->pendingAmount($order);
+        $initialPayment = $this->checkout->summary($order);
         return [
             'order_id' => (int) $order['id'],
             'number' => (string) ($order['number'] ?? ''),
@@ -81,7 +82,7 @@ final class GpOrderFollowup
             'pending_amount' => $pending,
             'submittable_amount' => max(0, $outstanding - $pending),
             'can_submit' => $outstanding > $pending && $this->checkout->canRepay($order),
-            'initial_payment' => $this->checkout->summary($order),
+            'initial_payment' => $initialPayment,
             'cancellation' => $order['customer_credit_cancel'] ?? null,
             'can_cancel' => isset($order['credit_checkout']) && ($order['customer_correction']['status'] ?? '') === 'requested',
             'can_return' => $this->canReturn($order),
@@ -95,6 +96,7 @@ final class GpOrderFollowup
             'agent_settlement_review' => $order['agent_settlement_review'] ?? null,
             'agent_settlement_amounts' => isset($order['agent_settlement_review']) ? $this->settlementAmounts($order) : null,
             'agent_final_review' => $this->isAgentFinalReview($order),
+            'agent_cash_pending' => $this->isAgentFinalReview($order) && ($initialPayment['cash_remaining'] ?? 0) > 0,
         ] + $this->amendments()->summary($order);
     }
 

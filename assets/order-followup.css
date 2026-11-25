@@ -45,6 +45,7 @@
 .gp-followup-field :is(input, textarea) { width: 100%; min-width: 0; margin: 0; }
 .gp-followup-field textarea { min-height: 3.1rem; resize: vertical; }
 .gp-followup-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.gp-followup-actions [hidden] { display: none; }
 .gp-followup-actions .gp-followup-reject { background: #fff4f4; color: #9b2424; border: 1px solid #e6b7b7; }
 .gp-followup-state { justify-self: start; border-radius: 1rem; padding: .18rem .55rem; font-size: .82rem; background: #fff0d9; color: #744200; }
 .gp-followup-state[data-state="approved"] { background: #e4f5ed; color: #145739; }
@@ -58,3 +59,23 @@
 
 .gp-settlement-display { display: grid; justify-items: start; gap: .25rem; min-width: 0; }
 .gp-settlement-display small { color: #405671; font-size: .76rem; line-height: 1.45; }
+
+.gp-agent-settlement { border-color: #cfddec; }
+.gp-agent-settlement details { border-top: 1px solid #dce5ef; padding-block: .55rem; }
+.gp-agent-settlement summary { color: #102a43; cursor: pointer; font-weight: 700; }
+.gp-agent-settlement details > :not(summary) { margin-block-start: .65rem; }
+.gp-agent-step {
+  display: grid;
+  justify-items: start;
+  gap: .4rem;
+  border-inline-start: .25rem solid #f58220;
+  border-radius: .6rem;
+  padding: .8rem;
+  color: #102a43;
+  background: #fff4e4;
+}
+.gp-agent-step[data-state="ready"] { border-color: #257953; background: #edf7f1; }
+.gp-agent-amounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: .5rem; }
+.gp-agent-amounts:empty { display: none; }
+.gp-agent-amount { display: grid; gap: .2rem; border: 1px solid #dce5ef; border-radius: .6rem; padding: .55rem; color: #102a43; }
+.gp-agent-amount span { font-size: .82rem; }

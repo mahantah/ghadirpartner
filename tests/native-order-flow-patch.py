@@ -19,7 +19,7 @@ class NativeOrderPatchTest:
         self.root = Path(__file__).resolve().parents[1]
 
     def verify_staff_edit_hook(self) -> None:
-        """Keep existing edit authorization and bind exactly one write transaction."""
+        """Verify staff edit authorization and the stylesheet used by its follow-up panel."""
         spec = importlib.util.spec_from_file_location(
             "stage_purchase_report",
             self.root / "scripts/stage-customer-purchase-report.py",
@@ -28,6 +28,14 @@ class NativeOrderPatchTest:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         stage = module.CustomerPurchaseReportStage(self.root)
+        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=3">\n'
+        shipping = (
+            '<link rel="stylesheet" href="/assets/order-shipping-receipts.css?v=1">\n'
+        )
+        dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css?v=1">\n'
+        styles = stage.stage_followup_styles(stylesheet + shipping + stylesheet + dock)
+        assert styles == stylesheet.replace("?v=3", "?v=4") + shipping + dock
+        assert stage.stage_followup_styles(styles) == styles
         fixture = (
             "<?php\n"
             "if($p==='/api/orders/edit'&&$m==='POST'){\n"

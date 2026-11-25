@@ -226,9 +226,8 @@
         if (!pending.checked?.finance || !pending.checked?.shipping) return;
       }
     }
-    if (data.can_propose_amendment && has("finance")) {
+    if (data.can_propose_amendment && has("finance") && !(data.agent_settlement_review && data.can_return)) {
       const authorization = element("details");
-      authorization.dataset.mixedTermsApproval = "";
       authorization.append(element("summary", "مجوز ترکیب چک و اعتبار برای این سفارش"));
       const fields = group(authorization, "gp-followup-fields");
       const configured = data.amendment_mixed_terms ?? data.amendment_current.settlement;
@@ -240,10 +239,6 @@
         const response = await send("approve_amendment_mixed_terms", {
           basis: data.amendment_basis, settlement: {...settlement, wallet_amount: 0},
         });
-        for (const input of overview.querySelectorAll("[data-agent-settlement-part]")) {
-          input.value = response.amendment_mixed_terms[input.dataset.agentSettlementPart];
-        }
-        overview.querySelector("[data-open-mixed-terms-approval]")?.remove();
         panel.remove();
         mountAmendment(overview, response, send, safe);
         const refreshed = overview.querySelector("[data-amendment-status]");
@@ -325,6 +320,7 @@
     overview.append(marker);
     const correction = section(overview, "اصلاح سفارش مشتری");
     const credit = has("finance") ? section(payment, "بررسی فیش‌ها") : null;
+    if (credit) credit.tabIndex = -1;
     if (credit && modern) payment.prepend(credit);
     const status = element("p");
     const paymentStatus = credit ? element("p") : null;
@@ -395,57 +391,140 @@
       }
       const review = data.correction;
       const agentReview = data.agent_settlement_review;
-      if (review?.reason) correction.append(element("p", review.reason));
-      if (agentReview?.reason) correction.append(element("p", "درخواست تغییر شرایط عامل فروش: " + agentReview.reason));
-      if (review?.status === "resubmitted") {
-        correction.append(element("p", "مشتری سفارش را دوباره ارسال کرده است."));
-        if (has("sales") && data.agent_final_review) {
-          correction.append(button("تأیید نهایی سفارش عامل فروش", safe(status, async () => {
-            const total = Object.values(review.settlement_amounts).reduce((sum, amount) => sum + amount, 0);
-            await request("/api/customer-order/approve", {id: Number(id), total});
-            status.textContent = "سفارش تأیید شد و در سفارشات کلی نمایش داده می‌شود.";
-            if (typeof refresh === "function") await refresh();
+      let agentStep;
+      let agentAmounts;
+      if (agentReview) {
+        correction.querySelector("h4").textContent = "تسویهٔ سفارش";
+        correction.classList.add("gp-agent-settlement");
+        overview.prepend(correction);
+        agentStep = group(correction, "gp-agent-step");
+        agentAmounts = group(correction, "gp-agent-amounts");
+        renderAgentStep(data);
+        if (review?.reason || agentReview.reason) {
+          const notes = element("details");
+          notes.append(element("summary", "یادداشت‌های تسویه"));
+          if (review?.reason) notes.append(element("p", "توضیح ارسالی به مشتری: " + review.reason));
+          if (agentReview.reason) notes.append(element("p", "درخواست اولیه مشتری: " + agentReview.reason));
+          correction.append(notes);
+        }
+      } else {
+        if (review?.reason) correction.append(element("p", review.reason));
+        if (has("sales") && review?.status === "resubmitted") {
+          correction.append(element("p", "مشتری سفارش را دوباره ارسال کرده است."));
+          correction.append(button("اعلان بررسی شد", safe(status, async () => {
+            await send("ack_revision", {version: review.version});
+            status.textContent = "اعلان بررسی شد.";
             await updateAlerts();
           })));
         }
-        if (has("sales") && !agentReview) correction.append(button("اعلان بررسی شد", safe(status, async () => {
-          await send("ack_revision", {version: review.version});
-          status.textContent = "اعلان بررسی شد.";
-          await updateAlerts();
-        })));
       }
-      if (has("sales") && data.can_return && review?.status !== "requested") {
-        const approvedTerms = data.amendment_mixed_terms;
-        if (agentReview && !approvedTerms) {
-          const approval = overview.querySelector("[data-mixed-terms-approval]");
-          if (approval) {
-            const openApproval = button("ثبت مجوز ترکیب چک و اعتبار", () => {
-              approval.open = true;
-              approval.querySelector("summary").focus();
-            });
-            openApproval.dataset.openMixedTermsApproval = "";
-            correction.append(openApproval);
-          } else {
-            correction.append(element("p", "برای ترکیب چک و اعتبار، امور مالی باید همین مبالغ را تأیید کند."));
-          }
+
+      function renderAgentStep(summary) {
+        if (!agentStep) return;
+        agentStep.replaceChildren();
+        agentAmounts.replaceChildren();
+        for (const [part, label] of Object.entries(settlementParts)) {
+          const amount = summary.correction?.settlement_amounts?.[part] ?? 0;
+          if (!amount) continue;
+          const item = group(agentAmounts, "gp-agent-amount");
+          item.append(element("span", label), element("strong", money(amount)));
         }
-        const fields = group(correction, "gp-followup-fields");
-        const reason = field(fields, agentReview ? "توضیح شرایط برای مشتری" : "علت بازگشت سفارش");
-        const amounts = agentReview ? Object.entries({cash_amount: "نقد", check_amount: "چک", credit_amount: "اعتبار", wallet_amount: "کیف پول"})
+        const updateStep = (state, title, text) => {
+          agentStep.dataset.state = state;
+          agentStep.append(element("strong", title), element("p", text));
+        };
+        if (summary.agent_cash_pending) {
+          const remaining = summary.initial_payment?.cash_remaining;
+          updateStep("pending", "در انتظار تأیید واریز", remaining
+            ? money(remaining) + " از واریز سفارش هنوز تأیید نشده است."
+            : "امور مالی باید واریز سفارش را بررسی و تأیید کند.");
+          if (credit) {
+            agentStep.append(button("بررسی واریز", () => {
+              root.querySelector('[data-od2-tab="payment"]')?.click();
+              credit.focus();
+            }));
+          }
+        } else if (summary.agent_final_review) {
+          updateStep("ready", "آمادهٔ تأیید نهایی", "مشتری سفارش را دوباره ارسال کرده است.");
+          if (has("sales")) {
+            agentStep.append(button("تأیید نهایی سفارش", safe(status, async () => {
+              const total = Object.values(summary.correction.settlement_amounts).reduce((sum, amount) => sum + amount, 0);
+              await request("/api/customer-order/approve", {id: Number(id), total});
+              agentStep.replaceChildren();
+              updateStep("ready", "سفارش تأیید شد", "سفارش در فهرست سفارشات کلی قابل مشاهده است.");
+              if (typeof refresh === "function") await refresh();
+              await updateAlerts();
+            })));
+          }
+        } else if (summary.correction?.status === "requested") {
+          updateStep("pending", "در انتظار ارسال مشتری", "شرایط تسویه برای مشتری ارسال شد.");
+        } else if (summary.can_return) {
+          updateStep("pending", "در انتظار بررسی شرایط", "مبلغ هر روش تسویه را بررسی کنید.");
+        } else if (summary.correction?.status === "resubmitted") {
+          updateStep("ready", "شرایط تسویه ثبت شده است", "");
+        } else {
+          updateStep("ready", "شرایط تسویه", "وضعیت سفارش را در همین صفحه بررسی کنید.");
+        }
+      }
+
+      if (data.can_return && review?.status !== "requested" && (has("sales") || (agentReview && has("finance")))) {
+        const form = agentReview ? element("details") : correction;
+        if (agentReview) {
+          form.append(element("summary", review?.status === "resubmitted" ? "تغییر شرایط تسویه" : "بررسی شرایط و ارسال"));
+          correction.append(form);
+        }
+        const fields = group(form, "gp-followup-fields");
+        let approvedTerms = data.amendment_mixed_terms;
+        const amounts = agentReview ? Object.entries(settlementParts)
           .map(([key, label]) => [key, field(fields, label + " (تومان)", (approvedTerms ?? data.agent_settlement_amounts)?.[key] ?? 0, true)]) : [];
-        for (const [key, input] of amounts) input.dataset.agentSettlementPart = key;
+        const reason = has("sales") ? field(form, agentReview ? "توضیح برای مشتری" : "علت بازگشت سفارش") : null;
         const key = requestId();
-        const actions = group(correction, "gp-followup-actions");
-        actions.append(button(agentReview ? "ارسال شرایط تسویه به مشتری" : "بازگشت به مشتری", safe(status, async () => {
-          const payload = {request_id: key, note: reason.value};
-          if (agentReview) payload.settlement_amounts = Object.fromEntries(amounts.map(([key, input]) => [key, enteredAmount(input, 0)]));
-          const result = await send("return", payload);
-          reason.disabled = true;
-          amounts.forEach(([, input]) => { input.disabled = true; });
-          status.textContent = result.correction.reason + " · درخواست اصلاح برای مشتری ارسال شد.";
-          await updateAlerts();
-        })));
-      } else if (!review) {
+        const actions = group(form, "gp-followup-actions");
+        const formStatus = element("p");
+        formStatus.setAttribute("role", "status");
+        form.append(formStatus);
+        const getAmounts = () => Object.fromEntries(amounts.map(([part, input]) => [part, enteredAmount(input, 0)]));
+        const needApproval = terms => terms.check_amount > 0 && terms.credit_amount > 0 &&
+          !Object.keys(settlementParts).every(part => terms[part] === approvedTerms?.[part]);
+        const label = agentReview ? "ارسال شرایط به مشتری" : "بازگشت به مشتری";
+        if (has("sales")) {
+          actions.append(button(label, safe(formStatus, async () => {
+            const payload = {request_id: key, note: reason.value};
+            if (agentReview) {
+              payload.settlement_amounts = getAmounts();
+              if (needApproval(payload.settlement_amounts)) {
+                throw new Error("برای ترکیب چک و اعتبار، ابتدا مجوز مالی همین مبالغ را ثبت کنید.");
+              }
+            }
+            const result = await send("return", payload);
+            if (agentReview) {
+              form.remove();
+              renderAgentStep(result);
+            } else {
+              reason.disabled = true;
+              formStatus.textContent = "درخواست اصلاح برای مشتری ارسال شد.";
+            }
+            await updateAlerts();
+          })));
+        }
+        if (agentReview && has("finance")) {
+          let basis = data.amendment_basis;
+          const approval = button("ثبت مجوز چک و اعتبار", safe(formStatus, async () => {
+            const result = await send("approve_amendment_mixed_terms", {basis, settlement: getAmounts()});
+            basis = result.amendment_basis;
+            approvedTerms = result.amendment_mixed_terms;
+            formStatus.textContent = "مجوز مالی این مبالغ ثبت شد.";
+            approval.hidden = true;
+          }));
+          const showApproval = () => {
+            try { approval.hidden = !needApproval(getAmounts()); }
+            catch { approval.hidden = true; }
+          };
+          fields.addEventListener("input", showApproval);
+          actions.prepend(approval);
+          showApproval();
+        }
+      } else if (!review && !agentReview) {
         status.textContent = "امکان بازگشت این سفارش در وضعیت فعلی وجود ندارد.";
       }
       if (!credit) return;
@@ -454,6 +533,7 @@
       const update = async (action, payload) => {
         const result = await send(action, payload);
         showPayments(result);
+        renderAgentStep(result);
         updateSettlement(result);
         creditStatus.textContent = "نتیجه ثبت شد.";
         await updateAlerts();
@@ -464,8 +544,18 @@
         content.replaceChildren();
         const initial = summary.initial_payment;
         if (initial?.cash_required > 0) {
-          content.append(element("p", "تأیید واریز اولیه: " + money(initial.cash_confirmed) +
-            " · مانده: " + money(initial.cash_remaining)));
+          const totals = group(content, "gp-agent-amounts");
+          for (const [label, value] of [
+            ["سهم واریز", initial.cash_required],
+            ["تأییدشده", initial.cash_confirmed],
+            ["ماندهٔ تأییدنشده", initial.cash_remaining],
+          ]) {
+            const item = group(totals, "gp-agent-amount");
+            item.append(element("span", label), element("strong", money(value)));
+          }
+          if (initial.cash_remaining > 0 && !receipts.some(proof => proof.kind === "cash")) {
+            content.append(element("p", "فیش واریز در این سفارش موجود نیست. برای بررسی، رسید همان واریز را از مشتری بگیرید."));
+          }
         }
         const refund = summary.cancellation;
         if (refund?.destination === "refund") {
