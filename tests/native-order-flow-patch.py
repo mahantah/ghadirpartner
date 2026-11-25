@@ -32,9 +32,7 @@ class NativeOrderPatchTest:
         shipping = (
             '<link rel="stylesheet" href="/assets/order-shipping-receipts.css?v=1">\n'
         )
-        dock = (
-            '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css?v=1">\n'
-        )
+        dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css?v=1">\n'
         styles = stage.stage_followup_styles(stylesheet + shipping + stylesheet + dock)
         assert styles == stylesheet.replace("?v=3", "?v=4") + shipping + dock
         assert stage.stage_followup_styles(styles) == styles
