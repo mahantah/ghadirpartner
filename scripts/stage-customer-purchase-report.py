@@ -1121,6 +1121,28 @@ class CustomerPurchaseReportStage:
                 app = self._insert(app, anchor_edit, anchor_edit.replace("`)}", f"`);setProductSwitchModels('{control}',p)}}"))
         return index, app
 
+    def stage_delegate_authentication(self, router: str, *, partner: bool) -> str:
+        """Enforce a delegate account's restrictions wherever an API authorizes it."""
+        if "/* GP_PORTAL_DELEGATE_ACCESS */" in router:
+            return router
+        auth = re.search(r"(?m)^function auth\([^\n]+return \$u;\}", router)
+        if auth is None:
+            raise ValueError("Expected the customer authentication function.")
+        guard = """
+/* GP_PORTAL_DELEGATE_ACCESS */
+if(!empty($u['portal_delegate_owner'])&&isset($u['portal_access_level'])){
+    global $p,$m;
+    require_once GP_ACCOUNT_ROOT.'/lib/portal-account.php';
+    try{
+        (new GpPortalAccount())->assertDelegateRoute($u,$m??'',$p??'',
+            $m==='POST'&&in_array($p,['/api/order-followup','/api/orders/add'],true)?(array)input():[]);
+    }catch(DomainException $error){fail($error->getMessage(),$error->getCode());}
+}
+"""
+        root = "dirname(__DIR__)" if partner else "__DIR__"
+        position = auth.end() - len("return $u;}")
+        return router[:position] + guard.replace("GP_ACCOUNT_ROOT", root) + router[position:]
+
     def stage_account_refunds(self, app: str, partner: str | None) -> tuple[str, str | None]:
         """Expose the finance queue and install the authenticated customer account routes."""
         if self._wallet_refund_section not in app:
@@ -1140,6 +1162,20 @@ class CustomerPurchaseReportStage:
                 loader = f"require dirname(__DIR__).'/lib/{filename}';"
                 if loader not in partner:
                     partner = self._insert(partner, anchor, loader + "\n" + anchor)
+            partner = self.stage_delegate_authentication(partner, partner=True)
+            shipping = "        $history=$isCustomer?'سفارش توسط مشتری با فاکتور "
+            delivery_date = """
+        if($isCustomer){
+            $suggestedDate=$x['suggested_shipping_date']??'';
+            if(!is_string($suggestedDate)||($suggestedDate!==''&&(
+                !preg_match('~^1[34][0-9]{2}/(?:0[1-9]|1[0-2])/(?:0[1-9]|[12][0-9]|3[01])$~D',$suggestedDate)
+                ||normalize_jalali_input($suggestedDate)!==$suggestedDate))){
+                fail('تاریخ پیشنهادی ارسال معتبر نیست.',422);
+            }
+            if($suggestedDate!=='')$o['suggested_shipping_date']=$suggestedDate;
+        }
+"""
+            partner = self._insert(partner, shipping, delivery_date + shipping)
         return app, partner
 
     def stage(
@@ -1429,7 +1465,10 @@ class CustomerPurchaseReportStage:
             path.parent.mkdir(parents=True, exist_ok=True)
             copyfile(self._package / name, path)
         (output / "index.php").write_text(
-            self.stage_staff_wallet_cancellation(self.stage_credit_checkout(index, partner=False))
+            self.stage_delegate_authentication(
+                self.stage_staff_wallet_cancellation(self.stage_credit_checkout(index, partner=False)),
+                partner=False,
+            )
         )
         (output / "app.html").write_text(app)
         if router is not None:
