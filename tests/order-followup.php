@@ -83,6 +83,37 @@ $denied(static function () use (&$revised, $now) {
     GpOrderEditReview::confirm($revised, 'shipping', 1, $now);
 }, 409);
 
+$shipped = $base + [
+    'purchase_items' => [['product' => 'Original', 'qty' => 1, 'unit_price' => 800, 'price_key' => 'serial_1_50']],
+    'shipping_type' => 'پیک', 'exit_items' => [['serial' => 'TEST']],
+    'payment_status' => 'تسویه کامل', 'invoice_type' => 'غیررسمی',
+];
+$originalShipped = $shipped;
+$review = $workflow->amendments();
+$revision = [
+    'basis' => $review->summary($shipped)['amendment_basis'],
+    'request_id' => str_repeat('f', 32), 'note' => 'اصلاح فاکتور',
+    'proposal' => [
+        'items' => [['product' => 'Replacement', 'quantity' => 1, 'unit' => 600, 'type' => 'panel', 'switch' => 'ایرانکیش']],
+        'total' => 600, 'invoice' => 'رسمی', 'shipping' => 'باربری', 'address' => 'Fixture',
+        'settlement' => ['cash_amount' => 600, 'check_amount' => 0, 'credit_amount' => 0, 'wallet_amount' => 0],
+    ],
+];
+$proposal = $workflow->proposeAmendment($shipped, $revision, $now);
+$assert($proposal['difference'] === -200, 'The shipped order may receive a separate price adjustment.');
+$assert($workflow->proposeAmendment($shipped, $revision, $now) === $proposal, 'Retry must not create a second version.');
+$denied(static function () use ($review, &$shipped, $now) {
+    $review->decide($shipped, 'old-version', 'accepted', $now);
+}, 409);
+$assert($review->decide($shipped, $proposal['id'], 'accepted', $now)['status'] === 'accepted', 'Customer acceptance must be recorded.');
+$assert($workflow->alerts(['orders' => [$shipped]], true, true)['items'][0]['kind'] === 'amendment_accepted', 'Accepted amendment must be queued.');
+$review->check($shipped, $proposal['id'], 'finance', $now);
+$assert($workflow->alerts(['orders' => [$shipped]], true, false)['count'] === 0, 'Finance review must close only its own work.');
+$assert($workflow->alerts(['orders' => [$shipped]], false, true)['count'] === 1, 'Shipping review must remain open.');
+$review->check($shipped, $proposal['id'], 'shipping', $now);
+unset($shipped['amendments']);
+$assert($shipped === $originalShipped, 'Proposal and reviews must preserve the original order and ledgers.');
+
 try {
     $request = ['request_id' => $key, 'amount' => 300, 'files' => [
         ['data' => $png, 'note' => 'رسید اول'],

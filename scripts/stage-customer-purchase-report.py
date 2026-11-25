@@ -300,6 +300,7 @@ class CustomerPurchaseReportStage:
         "lib/order-proof-upload.php",
         "lib/order-followup.php",
         "lib/order-edit-review.php",
+        "lib/order-amendments.php",
         "lib/credit-checkout.php",
         "lib/order-wallet.php",
         "lib/irankish-wallet.php",
@@ -920,8 +921,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=9"></script>'
-        for previous_version in (1, 2, 3, 4, 5, 6, 7, 8):
+        script = '<script defer src="/assets/order-followup.js?v=10"></script>'
+        for previous_version in (1, 2, 3, 4, 5, 6, 7, 8, 9):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)

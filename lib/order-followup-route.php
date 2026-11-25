@@ -36,7 +36,7 @@ if ($m === 'GET') {
             $summary = $followup->summary($order);
             if ($customerId > 0) {
                 $summary['wallet'] = (new GpOrderWallet())->read($state, $customerId);
-                unset($summary['order_edit_review']);
+                unset($summary['order_edit_review'], $summary['amendment_basis'], $summary['amendment_current'], $summary['can_propose_amendment']);
             }
             if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['pending_amount'], $summary['submittable_amount'], $summary['settlement_progress'], $summary['proofs'], $summary['initial_payment'], $summary['cancellation']);
             return $summary;
@@ -51,7 +51,10 @@ $editReviewPart = null;
 if ($action === 'confirm_edited_settlement' && $finance) $editReviewPart = 'settlement';
 if ($action === 'confirm_edited_shipping' && $sales) $editReviewPart = 'shipping';
 $receiptActions = ['approve_order_receipt', 'reject_order_receipt', 'adjust_order_receipt'];
-if (!($editReviewPart !== null || ($customerId > 0 && in_array($action, ['submit', 'cancel_credit_order'], true)) || ($sales && in_array($action, ['return', 'ack_revision'], true))
+$amendmentPart = null;
+if ($action === 'check_amendment_finance' && $finance) $amendmentPart = 'finance';
+if ($action === 'check_amendment_shipping' && $sales) $amendmentPart = 'shipping';
+if (!($amendmentPart !== null || $editReviewPart !== null || ($customerId > 0 && in_array($action, ['submit', 'cancel_credit_order', 'accept_amendment', 'reject_amendment'], true)) || ($sales && in_array($action, ['return', 'ack_revision', 'propose_amendment'], true))
     || ($finance && in_array($action, array_merge(['approve', 'reject', 'manual', 'adjust', 'complete_refund'], $receiptActions), true)))) fail('عملیات مجاز نیست.', 403);
 $actorId = (int) $actor['id'];
 
@@ -71,10 +74,34 @@ $sendCorrection = static function (array &$state, array $order, array $summary, 
     ], $audience, $actorId, now());
 };
 
-$result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $editReviewPart, $actorId, $orderId, $customerId, $sendCorrection): array {
+$result = db(true, static function (array &$state) use ($followup, $request, $action, $receiptActions, $editReviewPart, $amendmentPart, $actorId, $orderId, $customerId, $sendCorrection): array {
     try {
         $index = $followup->index($state, $orderId, $customerId);
         $order = &$state['orders'][$index];
+        if ($action === 'propose_amendment') {
+            $proposal = $followup->proposeAmendment($order, $request, now());
+            $id = (int) $order['customer_id'];
+            $config = json_decode((string) file_get_contents(dirname(__DIR__).'/config/portal-messages.yaml'), true, 512, JSON_THROW_ON_ERROR);
+            $messages = new GpPortalMessages($config);
+            $audience = $messages->recipients($state, 'is_customer_user', 'clean_mobile');
+            if (!isset($audience[$id])) fail('حساب مشتری برای دریافت اصلاحیه در دسترس نیست.', 409);
+            $messages->create($state, [
+                'id' => $proposal['id'], 'title' => 'اصلاحیهٔ سفارش '.$order['number'],
+                'body' => 'اصلاحیهٔ شماره '.$proposal['version'].' با مبلغ نهایی '.number_format($proposal['total'])." تومان. برای مشاهده و اعلام نظر، جزئیات سفارش را از «سفارش‌های من» باز کنید.",
+                'recipients' => [$id], 'app' => true, 'sms' => false,
+            ], $audience, $actorId, now());
+            return ['order_id' => $orderId] + $followup->amendments()->summary($order);
+        }
+        if ($amendmentPart !== null || in_array($action, ['accept_amendment', 'reject_amendment'], true)) {
+            $id = $request['amendment_id'] ?? null;
+            if (!is_string($id)) fail('شناسهٔ اصلاحیه معتبر نیست.', 422);
+            $amendments = $followup->amendments();
+            $entry = $amendmentPart !== null
+                ? $amendments->check($order, $id, $amendmentPart, now())
+                : $amendments->decide($order, $id, $action === 'accept_amendment' ? 'accepted' : 'rejected', now());
+            unset($entry['order_hash'], $entry['request_hash']);
+            return ['order_id' => $orderId, 'amendment' => $entry];
+        }
         if ($editReviewPart !== null) {
             $version = $request['version'] ?? null;
             if (!is_int($version)) fail('نسخهٔ سفارش معتبر نیست.', 422);

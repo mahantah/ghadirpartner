@@ -46,6 +46,8 @@ jobs:
           php tests/order-shipping-receipts.php
           node --check assets/order-shipping-receipts.js
           php tests/order-correction-route.php
+          php tests/order-correction-route.php amendment
+          php tests/order-correction-route.php other_customer
           python3 scripts/release-portal-phase-one.py inspect
       - name: Apply and verify phase one
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
