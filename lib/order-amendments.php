@@ -52,6 +52,9 @@ final class GpOrderAmendments
             $terms[$part] = $this->amount($input[$part] ?? null, $min, $max);
             $remaining -= $terms[$part];
         }
+        if (isset($order['agent_settlement_review']) && array_sum($terms) !== (int) ($order['estimated_total'] ?? 0)) {
+            throw new DomainException('جمع تسویه باید برابر مبلغ فاکتور عامل فروش باشد.', 422);
+        }
         $existing = $this->mixedTerms($order);
         if ($existing === $terms) return;
         if ($basis !== $this->basis($order)) {
@@ -62,7 +65,8 @@ final class GpOrderAmendments
         ];
     }
 
-    private function mixedTerms(array $order): ?array
+    /** Return the finance-approved split while it still matches the current order. */
+    public function mixedTerms(array $order): ?array
     {
         $approval = $order['amendment_mixed_approval'] ?? [];
         return ($approval['order_hash'] ?? null) === $this->orderHash($order) ? $approval['terms'] : null;

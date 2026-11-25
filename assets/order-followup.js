@@ -228,6 +228,7 @@
     }
     if (data.can_propose_amendment && has("finance")) {
       const authorization = element("details");
+      authorization.dataset.mixedTermsApproval = "";
       authorization.append(element("summary", "مجوز ترکیب چک و اعتبار برای این سفارش"));
       const fields = group(authorization, "gp-followup-fields");
       const configured = data.amendment_mixed_terms ?? data.amendment_current.settlement;
@@ -239,6 +240,10 @@
         const response = await send("approve_amendment_mixed_terms", {
           basis: data.amendment_basis, settlement: {...settlement, wallet_amount: 0},
         });
+        for (const input of overview.querySelectorAll("[data-agent-settlement-part]")) {
+          input.value = response.amendment_mixed_terms[input.dataset.agentSettlementPart];
+        }
+        overview.querySelector("[data-open-mixed-terms-approval]")?.remove();
         panel.remove();
         mountAmendment(overview, response, send, safe);
         const refreshed = overview.querySelector("[data-amendment-status]");
@@ -410,10 +415,25 @@
         })));
       }
       if (has("sales") && data.can_return && review?.status !== "requested") {
+        const approvedTerms = data.amendment_mixed_terms;
+        if (agentReview && !approvedTerms) {
+          const approval = overview.querySelector("[data-mixed-terms-approval]");
+          if (approval) {
+            const openApproval = button("ثبت مجوز ترکیب چک و اعتبار", () => {
+              approval.open = true;
+              approval.querySelector("summary").focus();
+            });
+            openApproval.dataset.openMixedTermsApproval = "";
+            correction.append(openApproval);
+          } else {
+            correction.append(element("p", "برای ترکیب چک و اعتبار، امور مالی باید همین مبالغ را تأیید کند."));
+          }
+        }
         const fields = group(correction, "gp-followup-fields");
         const reason = field(fields, agentReview ? "توضیح شرایط برای مشتری" : "علت بازگشت سفارش");
         const amounts = agentReview ? Object.entries({cash_amount: "نقد", check_amount: "چک", credit_amount: "اعتبار", wallet_amount: "کیف پول"})
-          .map(([key, label]) => [key, field(fields, label + " (تومان)", data.agent_settlement_amounts?.[key] ?? 0, true)]) : [];
+          .map(([key, label]) => [key, field(fields, label + " (تومان)", (approvedTerms ?? data.agent_settlement_amounts)?.[key] ?? 0, true)]) : [];
+        for (const [key, input] of amounts) input.dataset.agentSettlementPart = key;
         const key = requestId();
         const actions = group(correction, "gp-followup-actions");
         actions.append(button(agentReview ? "ارسال شرایط تسویه به مشتری" : "بازگشت به مشتری", safe(status, async () => {

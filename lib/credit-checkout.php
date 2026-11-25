@@ -25,17 +25,26 @@ final class GpCreditCheckout
     {
         $settlement = $order['native_settlement'] ?? [];
         $cash = $settlement['cash_amount'] ?? 0;
+        $check = $settlement['check_amount'] ?? 0;
         $credit = $settlement['credit_amount'] ?? 0;
         $method = $order['requested_payment_method'] ?? '';
+        // A returned agent order has already passed the exact quote and credit commitment checks.
+        $terms = $previous['customer_correction']['settlement_amounts'] ?? [];
+        $agentMixed = ($previous['agent_settlement_review']['status'] ?? '') === 'awaiting_customer'
+            && $method === 'mixed' && is_int($check) && $check > 0 && is_int($credit) && $credit > 0
+            && $cash === ($terms['cash_amount'] ?? null) && $check === ($terms['check_amount'] ?? null)
+            && $credit === ($terms['credit_amount'] ?? null) && $walletAmount === 0 && ($terms['wallet_amount'] ?? null) === 0;
         if ($method === 'credit' && $credit === 0 && $walletAmount === 0) $credit = (int) $order['estimated_total'];
         if ($method === 'cash' && (isset($previous['credit_checkout']) || $walletAmount > 0)) {
             $cash = (int) $order['estimated_total'] - $walletAmount;
         }
-        if (isset($previous['credit_checkout']) || $walletAmount > 0 || $method === 'credit' || ($method === 'mixed'
-            && $cash > 0 && $credit > 0 && ($settlement['check_amount'] ?? 0) === 0)) {
+        if ($agentMixed || isset($previous['credit_checkout']) || $walletAmount > 0 || $method === 'credit' || ($method === 'mixed'
+            && $cash > 0 && $credit > 0 && $check === 0)) {
             $total = (int) $order['estimated_total'];
-            if (!is_int($cash) || !is_int($credit) || $cash < 0 || $credit < 0 || $walletAmount < 0 || $cash !== $total - $credit - $walletAmount
-                || ($settlement['check_amount'] ?? 0) !== 0 || !in_array($order['requested_payment_method'], ['mixed', 'cash', 'credit'], true)) {
+            $chequePortion = $agentMixed ? $check : 0;
+            if (!is_int($cash) || !is_int($credit) || $cash < 0 || $credit < 0 || $walletAmount < 0
+                || $cash !== $total - $credit - $walletAmount - $chequePortion
+                || (!$agentMixed && $check !== 0) || !in_array($method, ['mixed', 'cash', 'credit'], true)) {
                 throw new DomainException('جمع مبلغ نقدی و اعتباری باید برابر مبلغ نهایی سفارش باشد.', 422);
             }
             $order['credit_checkout'] = ['cash_required' => $cash, 'credit_reserved' => $credit, 'wallet_reserved' => $walletAmount];
@@ -50,16 +59,23 @@ final class GpCreditCheckout
     {
         if (!isset($order['credit_checkout'])) return null;
         $required = $order['credit_checkout']['cash_required'];
-        $confirmed = (int) ($order['irankish_order_payment']['receipt']['amount'] ?? 0);
-        foreach ($order['order_receipt_reviews'] ?? [] as $review) {
-            if (($review['status'] ?? '') === 'approved') $confirmed += $review['amount'];
-        }
+        $confirmed = $this->confirmedCash($order);
         return [
             'cash_required' => $required,
             'wallet_amount' => $order['credit_checkout']['wallet_reserved'] ?? 0,
             'cash_confirmed' => $confirmed,
             'cash_remaining' => max(0, $required - $confirmed),
         ];
+    }
+
+    /** Count confirmed cash even when an agent order's credit reservation has not started. */
+    public function confirmedCash(array $order): int
+    {
+        $confirmed = (int) ($order['irankish_order_payment']['receipt']['amount'] ?? 0);
+        foreach ($order['order_receipt_reviews'] ?? [] as $review) {
+            if (($review['status'] ?? '') === 'approved') $confirmed += $review['amount'];
+        }
+        return $confirmed;
     }
 
     /** Reject progression and price edits until the original server-priced split is covered. */

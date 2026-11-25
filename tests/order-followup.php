@@ -290,6 +290,30 @@ try {
     $assert($workflow->alerts(['orders' => [$agentRevised]], false, true)['items'][0]['kind'] === 'agent_final_review', 'Resubmitted agent order did not send the final staff alert.');
     $denied(static fn () => $checkout->assertApproval($agentRevised, 810), 409);
     $checkout->assertApproval($agentRevised, 800);
+
+    $agentMixed = $agent;
+    unset($agentMixed['customer_correction']);
+    $agentMixed['status'] = 'در انتظار تأیید سفارش';
+    $agentMixed['approval_status'] = 'در انتظار تأیید';
+    $agentMixed['agent_settlement_review']['status'] = 'staff_review';
+    $agentMixed['order_receipt_reviews'] = [['status' => 'approved', 'amount' => 300]];
+    $mixedTerms = ['cash_amount' => 300, 'check_amount' => 400, 'credit_amount' => 100, 'wallet_amount' => 0];
+    $mixedRequest = array_replace($agentReviewRequest, ['settlement_amounts' => $mixedTerms]);
+    $denied(static fn () => $workflow->returnOrder($agentMixed, $mixedRequest, 2, $now), 409);
+    $review->approveMixedTerms($agentMixed, $review->summary($agentMixed)['amendment_basis'], $mixedTerms, 9, $now);
+    $summary = $workflow->returnOrder($agentMixed, $mixedRequest, 2, $now);
+    $assert($summary['correction']['settlement_amounts'] === $mixedTerms, 'Finance-approved mixed terms must reach the returned order.');
+    $mixedRevision = array_replace($agentMixed, ['native_settlement' => $mixedTerms]);
+    $mixedDetails = $mixedTerms + ['cash_enabled' => true, 'check_enabled' => true, 'credit_enabled' => true];
+    $denied(static fn () => $workflow->assertAgentRevision($agentMixed, $mixedRevision, array_replace($mixedDetails, [
+        'check_amount' => 390, 'credit_amount' => 110,
+    ])), 409);
+    $workflow->assertAgentRevision($agentMixed, $mixedRevision, $mixedDetails);
+    $checkout->initialize($mixedRevision, $agentMixed, 0);
+    $workflow->preserveRevision($agentMixed, $mixedRevision, [], $now);
+    $checkout->assertApproval($mixedRevision, 800);
+    $assert($checkout->summary($mixedRevision)['cash_confirmed'] === 300 && $credit->amount($mixedRevision) === 100,
+        'Mixed resubmission must retain the confirmed receipt and reserve only its credit portion.');
 } finally {
     $upload->cleanup();
     if (is_dir($directory)) rmdir($directory);
