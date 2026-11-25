@@ -921,8 +921,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=12"></script>'
-        for previous_version in range(1, 12):
+        script = '<script defer src="/assets/order-followup.js?v=13"></script>'
+        for previous_version in range(1, 13):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)
@@ -951,9 +951,9 @@ class CustomerPurchaseReportStage:
             app = self._insert(app, old_button, alerts.split("\n<dialog", 1)[0])
         elif 'id="gpOrderAlerts"' not in app:
             app = self._insert(app, header, header + alerts)
-        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=3">'
-        for previous_version in (1, 2):
-            old_stylesheet = stylesheet.replace("?v=3", f"?v={previous_version}")
+        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=4">'
+        for previous_version in (1, 2, 3):
+            old_stylesheet = stylesheet.replace("?v=4", f"?v={previous_version}")
             if old_stylesheet in app:
                 app = self._insert(app, old_stylesheet, stylesheet)
 

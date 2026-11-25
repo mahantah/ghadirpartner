@@ -311,6 +311,12 @@ try {
     $workflow->assertAgentRevision($agentMixed, $mixedRevision, $mixedDetails);
     $checkout->initialize($mixedRevision, $agentMixed, 0);
     $workflow->preserveRevision($agentMixed, $mixedRevision, [], $now);
+    $mixedRevision['status'] = 'در انتظار تأیید سفارش';
+    $mixedRevision['approval_status'] = 'در انتظار تأیید';
+    $assert(!$workflow->summary($mixedRevision)['agent_cash_pending'], 'A fully confirmed deposit must allow the final review action.');
+    $cashPending = $mixedRevision;
+    $cashPending['order_receipt_reviews'][0]['amount'] = 200;
+    $assert($workflow->summary($cashPending)['agent_cash_pending'], 'An incomplete deposit must block the final review action.');
     $checkout->assertApproval($mixedRevision, 800);
     $assert($checkout->summary($mixedRevision)['cash_confirmed'] === 300 && $credit->amount($mixedRevision) === 100,
         'Mixed resubmission must retain the confirmed receipt and reserve only its credit portion.');

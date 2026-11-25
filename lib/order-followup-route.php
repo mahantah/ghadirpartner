@@ -36,7 +36,7 @@ if ($m === 'GET') {
             $summary = $followup->summary($order);
             if ($customerId > 0) {
                 $summary['wallet'] = (new GpOrderWallet())->read($state, $customerId);
-                unset($summary['order_edit_review'], $summary['amendment_basis'], $summary['amendment_current'], $summary['can_propose_amendment'], $summary['amendment_mixed_terms']);
+                unset($summary['order_edit_review'], $summary['amendment_basis'], $summary['amendment_current'], $summary['can_propose_amendment'], $summary['amendment_mixed_terms'], $summary['agent_cash_pending']);
             }
             if (!$finance && $customerId === 0) unset($summary['repayments'], $summary['outstanding'], $summary['pending_amount'], $summary['submittable_amount'], $summary['settlement_progress'], $summary['proofs'], $summary['initial_payment'], $summary['cancellation']);
             return $summary;
