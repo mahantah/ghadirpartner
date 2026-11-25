@@ -933,7 +933,6 @@ class CustomerPurchaseReportStage:
         shipping_script = '<script defer src="/assets/order-shipping-receipts.js?v=1"></script>'
         if shipping_script not in app:
             app = self._insert(app, script, shipping_script + "\n" + script)
-        shipping_style = '<link rel="stylesheet" href="/assets/order-shipping-receipts.css?v=1">'
         alerts = """<button class="gp-order-alerts" type="button" id="gpOrderAlerts" aria-haspopup="dialog" aria-label="اعلان‌های سفارش" title="اعلان‌های سفارش" hidden>
   <span aria-hidden="true">🔔</span><span class="gp-order-alert-badge" id="gpOrderAlertsCount" hidden></span>
 </button>
@@ -951,16 +950,7 @@ class CustomerPurchaseReportStage:
             app = self._insert(app, old_button, alerts.split("\n<dialog", 1)[0])
         elif 'id="gpOrderAlerts"' not in app:
             app = self._insert(app, header, header + alerts)
-        stylesheet = '<link rel="stylesheet" href="/assets/order-followup.css?v=4">'
-        for previous_version in (1, 2, 3):
-            old_stylesheet = stylesheet.replace("?v=4", f"?v={previous_version}")
-            if old_stylesheet in app:
-                app = self._insert(app, old_stylesheet, stylesheet)
-
-        dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css'
-        app = self._insert(app, dock, stylesheet + "\n" + dock)
-        if shipping_style not in app:
-            app = self._insert(app, stylesheet, stylesheet + "\n" + shipping_style)
+        app = self.stage_followup_styles(app)
         legacy = "$('orderDetailOverlay').classList.remove('hidden')}\nfunction closeOrderDetails()"
         app = self._insert(
             app,
@@ -976,6 +966,19 @@ class CustomerPurchaseReportStage:
         poll = "async function pollNotif(){if(!ME)return;try{"
         app = self._insert(app, poll, poll + "window.gpOrderFollowup?.updateAlerts();")
         return index, app
+
+    def stage_followup_styles(self, app: str) -> str:
+        """Replace the known legacy links and load each stylesheet exactly once."""
+        shipping = '<link rel="stylesheet" href="/assets/order-shipping-receipts.css?v=1">'
+        followup = '<link rel="stylesheet" href="/assets/order-followup.css?v=4">'
+        dock = '<link rel="stylesheet" href="/assets/order-details-v2-approved-20261024.css'
+        app = re.sub(
+            r'<link rel="stylesheet" href="/assets/order-followup\.css\?v=[1-4]">\r?\n?',
+            "",
+            app,
+        )
+        app = app.replace(shipping + "\n", "").replace(shipping, "")
+        return self._insert(app, dock, followup + "\n" + shipping + "\n" + dock)
 
     def stage_panel_switches(
         self, app: str, router: str, source: Path, output: Path
