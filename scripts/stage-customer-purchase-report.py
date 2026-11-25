@@ -921,8 +921,8 @@ class CustomerPurchaseReportStage:
             )
         (output / credit).parent.mkdir(parents=True, exist_ok=True)
         (output / credit).write_bytes(candidate)
-        script = '<script defer src="/assets/order-followup.js?v=10"></script>'
-        for previous_version in (1, 2, 3, 4, 5, 6, 7, 8, 9):
+        script = '<script defer src="/assets/order-followup.js?v=11"></script>'
+        for previous_version in range(1, 11):
             old_script = f'<script defer src="/assets/order-followup.js?v={previous_version}"></script>'
             if old_script in app:
                 app = self._insert(app, old_script, script)

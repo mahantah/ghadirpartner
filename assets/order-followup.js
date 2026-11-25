@@ -4,6 +4,7 @@
   const money = value => Number(value).toLocaleString("fa-IR") + " تومان";
   const ascii = value => value.replace(/[۰-۹٠-٩]/g, digit => String(digit.charCodeAt(0) & 15));
   const requestId = () => crypto.randomUUID().replaceAll("-", "");
+  let amendmentToOpen = null;
   const element = (name, text) => {
     const node = document.createElement(name);
     if (text) node.textContent = text;
@@ -248,6 +249,7 @@
     if (!has("sales") || !data.can_propose_amendment) return;
     const editor = element("details");
     editor.append(element("summary", pending?.status === "pending" ? "ارسال نسخهٔ تازهٔ اصلاحیه" : "تنظیم اصلاحیه"));
+    editor.dataset.orderAmendmentEditor = "";
     panel.append(editor);
     const original = pending?.status === "pending" ? pending : data.amendment_current;
     const terms = data.amendment_mixed_terms;
@@ -278,7 +280,10 @@
     initial.items.forEach(add);
     editor.append(button("افزودن قلم", () => add({})));
     let retry = null;
-    editor.append(button("ارسال اصلاحیه به اپ مشتری", safe(message, async () => {
+    const saveStatus = element("p");
+    saveStatus.setAttribute("role", "status");
+    editor.append(button("ارسال اصلاحیه به اپ مشتری", safe(saveStatus, async () => {
+      saveStatus.textContent = "";
       const proposal = {
         invoice: invoice.value, shipping: shipping.value, address: address.value, total: enteredAmount(total, 0),
         settlement: Object.fromEntries(parts.map(([key, input]) => [key, enteredAmount(input, 0)])),
@@ -293,7 +298,7 @@
       panel.remove();
       mountAmendment(overview, response, send, safe);
       await updateAlerts();
-    })));
+    })), saveStatus);
   }
 
   const allowed = () => typeof has === "function" && (has("finance") || has("sales"));
@@ -373,6 +378,16 @@
         }
       }
       mountAmendment(overview, data, send, safe);
+      if (amendmentToOpen === Number(id)) {
+        amendmentToOpen = null;
+        const editor = overview.querySelector("[data-order-amendment-editor]");
+        if (editor) {
+          editor.open = true;
+          editor.querySelector("summary").focus();
+        } else if (!data.amendment) {
+          status.textContent = "فرم اصلاحیه برای این سفارش در دسترس نیست.";
+        }
+      }
       const review = data.correction;
       const agentReview = data.agent_settlement_review;
       if (review?.reason) correction.append(element("p", review.reason));
@@ -563,6 +578,25 @@
   }
   function showInOrderList(order) {
     return !order.agent_settlement_review || order.approval_status === "تأیید شده" || order.status === "لغو شد";
+  }
+  const legacyEdit = window.openOrderEdit;
+  if (typeof legacyEdit === "function") {
+    window.openOrderEdit = async function (id) {
+      const order = typeof ORD === "undefined" ? null : ORD.find(item => Number(item.id) === Number(id));
+      const customerPurchase = Number(order?.customer_id) > 0 && order?.purchase_items?.length > 0 &&
+        ["", "customer"].includes(order.source ?? "customer");
+      const separatePrices = order?.items?.some(item => item.purchase_lines?.length > 1);
+      if (!(customerPurchase || separatePrices) || !has("sales") || typeof window.openOrderDetails !== "function") {
+        return legacyEdit.call(this, id);
+      }
+      amendmentToOpen = Number(id);
+      try {
+        await window.openOrderDetails(id, "overview");
+      } catch (error) {
+        amendmentToOpen = null;
+        window.alert(error.message);
+      }
+    };
   }
   window.gpOrderFollowup = {mount, updateAlerts, settlementHtml, showInOrderList};
 })();

@@ -114,6 +114,17 @@ $review->check($shipped, $proposal['id'], 'shipping', $now);
 unset($shipped['amendments']);
 $assert($shipped === $originalShipped, 'Proposal and reviews must preserve the original order and ledgers.');
 
+$unassigned = $originalShipped;
+unset($unassigned['shipping_type']);
+$earlyEdit = $revision;
+$earlyEdit['proposal']['shipping'] = '';
+$earlyEdit['basis'] = $review->summary($unassigned)['amendment_basis'];
+$assert($workflow->proposeAmendment($unassigned, $earlyEdit, $now)['shipping'] === '', 'An unassigned delivery method must not block an amendment.');
+$earlyEdit['basis'] = $review->summary($shipped)['amendment_basis'];
+$denied(static function () use ($workflow, &$shipped, $earlyEdit, $now) {
+    $workflow->proposeAmendment($shipped, $earlyEdit, $now);
+}, 422);
+
 $mixedDraft = $originalShipped;
 $mixedTerms = ['cash_amount' => 300, 'check_amount' => 400, 'credit_amount' => 100, 'wallet_amount' => 0];
 $mixedProposal = $revision;
