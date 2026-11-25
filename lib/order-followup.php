@@ -6,6 +6,7 @@ require_once __DIR__.'/credit-checkout.php';
 require_once __DIR__.'/order-settlement-progress.php';
 require_once __DIR__.'/order-proof-upload.php';
 require_once __DIR__.'/order-edit-review.php';
+require_once __DIR__.'/order-amendments.php';
 
 /** Manage credit repayments and order corrections under the order database lock. */
 final class GpOrderFollowup
@@ -34,6 +35,18 @@ final class GpOrderFollowup
     {
         $policy = json_decode((string) file_get_contents(dirname(__DIR__).'/config/order-followup.yaml'), true, 512, JSON_THROW_ON_ERROR);
         return new self(new GpCreditModel(), GpOrderProofUpload::configured($directory), $policy);
+    }
+
+    /** Reuse the configured limits for the independent customer amendment workflow. */
+    public function amendments(): GpOrderAmendments
+    {
+        return new GpOrderAmendments($this->policy);
+    }
+
+    /** Validate and record a staff correction proposal. */
+    public function proposeAmendment(array &$order, array $request, string $now): array
+    {
+        return $this->amendments()->propose($order, $request, $this->requestKey($request), $this->note($request, true), $now);
     }
 
     /** Retain all uploaded files once the order transaction commits. */
@@ -82,7 +95,7 @@ final class GpOrderFollowup
             'agent_settlement_review' => $order['agent_settlement_review'] ?? null,
             'agent_settlement_amounts' => isset($order['agent_settlement_review']) ? $this->settlementAmounts($order) : null,
             'agent_final_review' => $this->isAgentFinalReview($order),
-        ];
+        ] + $this->amendments()->summary($order);
     }
 
     /** Record a customer's claimed payment without applying it to the balance. */
@@ -329,7 +342,7 @@ final class GpOrderFollowup
             $order['agent_settlement_review'] = $previous['agent_settlement_review'];
             $order['agent_settlement_review']['status'] = 'customer_resubmitted';
         }
-        foreach (['number', 'created_at', 'created_by', 'history', 'credit_repayments', 'followup_events', 'customer_correction', 'correction_history', 'order_receipt_reviews'] as $key) {
+        foreach (['number', 'created_at', 'created_by', 'history', 'credit_repayments', 'followup_events', 'customer_correction', 'correction_history', 'order_receipt_reviews', 'amendments'] as $key) {
             if (array_key_exists($key, $previous)) $order[$key] = $previous[$key];
         }
         $proofs = $previous['native_settlement']['proofs'] ?? [];
@@ -435,8 +448,11 @@ final class GpOrderFollowup
     public function alerts(array $state, bool $showCredit, bool $showCorrections): array
     {
         $items = [];
+        $amendments = $this->amendments();
         foreach ($state['orders'] ?? [] as $order) {
             if (!empty($order['deleted'])) continue;
+            $amendmentAlert = $amendments->alert($order, $showCredit, $showCorrections);
+            if ($amendmentAlert !== null) $items[] = $amendmentAlert;
             $reviewAlert = GpOrderEditReview::alert($order, $showCredit, $showCorrections);
             $decisionAlert = false;
             $agentStatus = $order['agent_settlement_review']['status'] ?? '';

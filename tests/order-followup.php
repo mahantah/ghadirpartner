@@ -83,6 +83,63 @@ $denied(static function () use (&$revised, $now) {
     GpOrderEditReview::confirm($revised, 'shipping', 1, $now);
 }, 409);
 
+$shipped = $base + [
+    'purchase_items' => [['product' => 'Original', 'qty' => 1, 'unit_price' => 800, 'price_key' => 'serial_1_50']],
+    'shipping_type' => 'پیک', 'exit_items' => [['serial' => 'TEST']],
+    'payment_status' => 'تسویه کامل', 'invoice_type' => 'غیررسمی',
+];
+$originalShipped = $shipped;
+$review = $workflow->amendments();
+$revision = [
+    'basis' => $review->summary($shipped)['amendment_basis'],
+    'request_id' => str_repeat('f', 32), 'note' => 'اصلاح فاکتور',
+    'proposal' => [
+        'items' => [['product' => 'Replacement', 'quantity' => 1, 'unit' => 600, 'type' => 'panel', 'switch' => 'ایرانکیش']],
+        'total' => 600, 'invoice' => 'رسمی', 'shipping' => 'باربری', 'address' => 'Fixture',
+        'settlement' => ['cash_amount' => 600, 'check_amount' => 0, 'credit_amount' => 0, 'wallet_amount' => 0],
+    ],
+];
+$proposal = $workflow->proposeAmendment($shipped, $revision, $now);
+$assert($proposal['difference'] === -200, 'The shipped order may receive a separate price adjustment.');
+$assert($workflow->proposeAmendment($shipped, $revision, $now) === $proposal, 'Retry must not create a second version.');
+$denied(static function () use ($review, &$shipped, $now) {
+    $review->decide($shipped, 'old-version', 'accepted', $now);
+}, 409);
+$assert($review->decide($shipped, $proposal['id'], 'accepted', $now)['status'] === 'accepted', 'Customer acceptance must be recorded.');
+$assert($workflow->alerts(['orders' => [$shipped]], true, true)['items'][0]['kind'] === 'amendment_accepted', 'Accepted amendment must be queued.');
+$review->check($shipped, $proposal['id'], 'finance', $now);
+$assert($workflow->alerts(['orders' => [$shipped]], true, false)['count'] === 0, 'Finance review must close only its own work.');
+$assert($workflow->alerts(['orders' => [$shipped]], false, true)['count'] === 1, 'Shipping review must remain open.');
+$review->check($shipped, $proposal['id'], 'shipping', $now);
+unset($shipped['amendments']);
+$assert($shipped === $originalShipped, 'Proposal and reviews must preserve the original order and ledgers.');
+
+$mixedDraft = $originalShipped;
+$mixedTerms = ['cash_amount' => 300, 'check_amount' => 400, 'credit_amount' => 100, 'wallet_amount' => 0];
+$mixedProposal = $revision;
+$mixedProposal['basis'] = $review->summary($mixedDraft)['amendment_basis'];
+$mixedProposal['proposal']['settlement'] = $mixedTerms;
+$mixedProposal['proposal']['total'] = 800;
+$denied(static function () use ($workflow, &$mixedDraft, $mixedProposal, $now) {
+    $workflow->proposeAmendment($mixedDraft, $mixedProposal, $now);
+}, 422);
+$review->approveMixedTerms($mixedDraft, $mixedProposal['basis'], $mixedTerms, 9, $now);
+$review->approveMixedTerms($mixedDraft, $mixedProposal['basis'], $mixedTerms, 9, $now);
+$mixedProposal['basis'] = $review->summary($mixedDraft)['amendment_basis'];
+$altered = $mixedProposal;
+$altered['proposal']['settlement']['cash_amount']--;
+$altered['proposal']['settlement']['credit_amount']++;
+$denied(static function () use ($workflow, &$mixedDraft, $altered, $now) {
+    $workflow->proposeAmendment($mixedDraft, $altered, $now);
+}, 422);
+$changedOrder = $mixedDraft;
+$changedOrder['shipping_type'] = 'باربری';
+$assert($review->summary($changedOrder)['amendment_mixed_terms'] === null, 'A changed order must require new authorization.');
+$approvedProposal = $workflow->proposeAmendment($mixedDraft, $mixedProposal, $now);
+$assert($approvedProposal['settlement'] === $mixedTerms, 'Only the exact authorized terms may be proposed.');
+unset($mixedDraft['amendments'], $mixedDraft['amendment_mixed_approval']);
+$assert($mixedDraft === $originalShipped, 'Authorization must not alter the ledger or original order.');
+
 try {
     $request = ['request_id' => $key, 'amount' => 300, 'files' => [
         ['data' => $png, 'note' => 'رسید اول'],

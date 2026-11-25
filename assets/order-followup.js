@@ -168,6 +168,134 @@
       actions.append(button("اصلاح مبلغ فیش", run("adjust")));
     }
   }
+  const purchaseTypes = {serial: "سریال آزاد", panel: "ثبت در پنل", agent: "عامل فروش"};
+  const settlementParts = {cash_amount: "نقد", check_amount: "چک", credit_amount: "اعتبار", wallet_amount: "کیف پول"};
+
+  function choice(parent, label, values, selected) {
+    const wrapper = element("label");
+    wrapper.className = "gp-followup-field";
+    const input = element("select");
+    wrapper.append(element("span", label), input);
+    input.append(new Option("انتخاب کنید", ""));
+    for (const [value, caption] of Object.entries(values)) input.append(new Option(caption, value));
+    input.value = selected ?? "";
+    parent.append(wrapper);
+    return input;
+  }
+
+  function mountAmendment(overview, data, send, safe) {
+    if (!data.can_propose_amendment && !data.amendment) return;
+    const panel = section(overview, "اصلاحیهٔ سفارش برای مشتری");
+    overview.prepend(panel);
+    const message = element("p");
+    message.setAttribute("role", "status");
+    message.dataset.amendmentStatus = "";
+    panel.append(message);
+    const pending = data.amendment;
+    if (pending) {
+      const status = {pending: "در انتظار پاسخ مشتری", accepted: "تأیید مشتری ثبت شد", rejected: "مشتری اصلاحیه را رد کرد"}[pending.status];
+      panel.append(element("p", "نسخهٔ " + pending.version.toLocaleString("fa-IR") + " · " + status));
+      panel.append(element("p", "مبلغ قبلی " + money(pending.previous_total) + " · مبلغ پیشنهادی " + money(pending.total)));
+      panel.append(element("p", "تغییر مبلغ فاکتور: " + money(pending.difference)));
+      panel.append(element("p", "فاکتور " + pending.invoice + " · ارسال " + pending.shipping + (pending.address ? " · " + pending.address : "")));
+      panel.append(element("p", pending.reason));
+      const lines = element("ul");
+      for (const row of pending.items) {
+        lines.append(element("li", row.product + " · " + purchaseTypes[row.type] + " · " + row.quantity.toLocaleString("fa-IR") +
+          " عدد × " + money(row.unit) + (row.switch ? " · " + row.switch : "")));
+      }
+      panel.append(lines);
+      panel.append(element("p", Object.entries(settlementParts).map(([key, label]) =>
+        label + " " + money(pending.settlement[key])).join(" · ")));
+      if (pending.status === "accepted") {
+        for (const [part, role, label] of [["finance", "finance", "مابه‌التفاوت و تسویه"], ["shipping", "sales", "تغییر ارسال"]]) {
+          const done = Boolean(pending.checked?.[part]);
+          const note = element("p", label + (done ? " · رسیدگی شد" : " · در انتظار رسیدگی"));
+          panel.append(note);
+          if (!done && has(role)) {
+            const check = button("ثبت رسیدگی " + label, safe(message, async () => {
+              await send("check_amendment_" + part, {amendment_id: pending.id});
+              note.textContent = label + " · رسیدگی شد";
+              check.remove();
+              await updateAlerts();
+            }));
+            panel.append(check);
+          }
+        }
+        if (!pending.checked?.finance || !pending.checked?.shipping) return;
+      }
+    }
+    if (data.can_propose_amendment && has("finance")) {
+      const authorization = element("details");
+      authorization.append(element("summary", "مجوز ترکیب چک و اعتبار برای این سفارش"));
+      const fields = group(authorization, "gp-followup-fields");
+      const configured = data.amendment_mixed_terms ?? data.amendment_current.settlement;
+      const editable = Object.entries(settlementParts).filter(([key]) => key !== "wallet_amount").map(([key, label]) =>
+        [key, field(fields, label + " (تومان)", configured[key], true)]);
+      authorization.append(element("p", "مبالغ تأییدشده فقط برای اصلاحیهٔ همین سفارش قابل استفاده‌اند."));
+      authorization.append(button("ثبت مجوز ترکیب چک و اعتبار", safe(message, async () => {
+        const settlement = Object.fromEntries(editable.map(([key, input]) => [key, enteredAmount(input, 0)]));
+        const response = await send("approve_amendment_mixed_terms", {
+          basis: data.amendment_basis, settlement: {...settlement, wallet_amount: 0},
+        });
+        panel.remove();
+        mountAmendment(overview, response, send, safe);
+        const refreshed = overview.querySelector("[data-amendment-status]");
+        if (refreshed) refreshed.textContent = "مجوز مالی ثبت شد. اکنون می‌توانید اصلاحیه را تنظیم کنید.";
+      })));
+      panel.append(authorization);
+    }
+    if (!has("sales") || !data.can_propose_amendment) return;
+    const editor = element("details");
+    editor.append(element("summary", pending?.status === "pending" ? "ارسال نسخهٔ تازهٔ اصلاحیه" : "تنظیم اصلاحیه"));
+    panel.append(editor);
+    const original = pending?.status === "pending" ? pending : data.amendment_current;
+    const terms = data.amendment_mixed_terms;
+    const initial = terms ? {...original, settlement: terms, total: Object.values(terms).reduce((a, b) => a + b, 0)} : original;
+    const fields = group(editor, "gp-followup-fields");
+    const invoice = choice(fields, "نوع فاکتور", {"رسمی": "رسمی", "غیررسمی": "غیررسمی"}, initial.invoice);
+    const shipping = field(fields, "روش ارسال", initial.shipping);
+    const address = field(fields, "نشانی ارسال", initial.address);
+    const total = field(fields, "مبلغ نهایی فاکتور (تومان)", initial.total, true);
+    const parts = Object.entries(settlementParts).map(([key, label]) =>
+      [key, field(fields, label + " (تومان)", initial.settlement[key], true)]);
+    const note = field(fields, "توضیح اصلاحیه برای مشتری");
+    const rows = group(editor, "gp-followup-list");
+    const items = new Map();
+    const add = row => {
+      const line = group(rows, "gp-followup-fields");
+      const product = field(line, "نام کالا", row.product ?? "");
+      const quantity = field(line, "تعداد", row.quantity ?? 1, true);
+      const unit = field(line, "قیمت واحد (تومان)", row.unit ?? 0, true);
+      const type = choice(line, "نوع خرید", purchaseTypes, row.type);
+      const panelSwitch = field(line, "سوییچ", row.switch ?? "");
+      items.set(line, () => ({
+        product: product.value, quantity: enteredAmount(quantity), unit: enteredAmount(unit, 0),
+        type: type.value, switch: panelSwitch.value,
+      }));
+      line.append(button("حذف قلم", () => { items.delete(line); line.remove(); }));
+    };
+    initial.items.forEach(add);
+    editor.append(button("افزودن قلم", () => add({})));
+    let retry = null;
+    editor.append(button("ارسال اصلاحیه به اپ مشتری", safe(message, async () => {
+      const proposal = {
+        invoice: invoice.value, shipping: shipping.value, address: address.value, total: enteredAmount(total, 0),
+        settlement: Object.fromEntries(parts.map(([key, input]) => [key, enteredAmount(input, 0)])),
+        items: Array.from(items.values(), read => read()),
+      };
+      if (!note.value.trim() || !proposal.items.length) throw new Error("اقلام و توضیح اصلاحیه را وارد کنید.");
+      const signature = JSON.stringify([proposal, note.value]);
+      if (retry?.signature !== signature) retry = {signature, key: requestId()};
+      const response = await send("propose_amendment", {
+        request_id: retry.key, basis: data.amendment_basis, note: note.value, proposal,
+      });
+      panel.remove();
+      mountAmendment(overview, response, send, safe);
+      await updateAlerts();
+    })));
+  }
+
   const allowed = () => typeof has === "function" && (has("finance") || has("sales"));
   async function mount(root, id, activeSection) {
     window.gpOrderShippingReceipts?.mount(root, id);
@@ -244,6 +372,7 @@
           edit.append(control);
         }
       }
+      mountAmendment(overview, data, send, safe);
       const review = data.correction;
       const agentReview = data.agent_settlement_review;
       if (review?.reason) correction.append(element("p", review.reason));
@@ -409,7 +538,7 @@
         message.textContent = entries.length ? "" : "اعلان تازه‌ای برای بررسی وجود ندارد.";
         list.replaceChildren(...entries.map(entry => {
           const label = {credit_proof: "فیش واریز اعتباری", refund: "بازگشت وجه", revision: "سفارش اصلاح‌شده",
-            order_edit_review: "ویرایش سفارش · بازبینی تسویه و ارسال", agent_settlement: "بررسی تسویه عامل فروش", agent_final_review: "تأیید نهایی سفارش عامل فروش"}[entry.kind] ?? "اعلان سفارش";
+            order_edit_review: "ویرایش سفارش · بازبینی تسویه و ارسال", amendment_accepted: "اصلاحیه تأیید شد · رسیدگی مالی و ارسال", agent_settlement: "بررسی تسویه عامل فروش", agent_final_review: "تأیید نهایی سفارش عامل فروش"}[entry.kind] ?? "اعلان سفارش";
           const row = element("li");
           row.append(button(label + " · " + entry.number, async () => {
             try { await openAlert(entry); } catch (error) { message.textContent = error.message; }
