@@ -305,7 +305,7 @@ final class GpOrderFollowup
         if (isset($order['agent_settlement_review'])) {
             $amounts = $request['settlement_amounts'] ?? null;
             if (!is_array($amounts)) throw new DomainException('مبالغ پیشنهادی تسویه را وارد کنید.', 422);
-            $terms = $this->agentTerms($order, $amounts);
+            $terms = $this->agentTerms($order, $amounts, $this->amendments()->mixedTerms($order));
             $order['agent_settlement_review']['status'] = 'awaiting_customer';
         }
         $order['customer_correction'] = [
@@ -384,7 +384,7 @@ final class GpOrderFollowup
     {
         $terms = $prior['customer_correction']['settlement_amounts'] ?? null;
         if ($terms === null) return;
-        $this->agentTerms($prior, $settlement);
+        $this->agentTerms($prior, $settlement, $terms);
         foreach ($terms as $field => $amount) {
             $enabled = substr($field, 0, -strlen('_amount')).'_enabled';
             if ($amount !== ($settlement[$field] ?? 0) || ($amount > 0 && ($settlement[$enabled] ?? false) !== true)) {
@@ -423,7 +423,7 @@ final class GpOrderFollowup
         ];
     }
 
-    private function agentTerms(array $order, array $input): array
+    private function agentTerms(array $order, array $input, ?array $approved): array
     {
         $amounts = [];
         $remaining = (int) $order['estimated_total'];
@@ -435,10 +435,16 @@ final class GpOrderFollowup
             $amounts[$field] = $amount;
             $remaining -= $amount;
         }
-        if ($remaining !== 0 || ($amounts['check_amount'] > 0 && ($amounts['credit_amount'] > 0 || $amounts['wallet_amount'] > 0))) {
-            throw new DomainException('جمع تسویه باید برابر فاکتور باشد و چک با اعتبار یا کیف پول ترکیب نمی‌شود.', 422);
+        if ($remaining !== 0) {
+            throw new DomainException('جمع تسویه باید برابر مبلغ فاکتور باشد.', 422);
         }
-        if ($amounts['cash_amount'] < ($this->checkout->summary($order)['cash_confirmed'] ?? 0)) {
+        if ($amounts['check_amount'] > 0 && $amounts['wallet_amount'] > 0) {
+            throw new DomainException('چک با کیف پول ترکیب نمی‌شود.', 422);
+        }
+        if ($amounts['check_amount'] > 0 && $amounts['credit_amount'] > 0 && $amounts !== $approved) {
+            throw new DomainException('ترکیب چک و اعتبار به تأیید همین مبالغ توسط امور مالی نیاز دارد.', 409);
+        }
+        if ($amounts['cash_amount'] < $this->checkout->confirmedCash($order)) {
             throw new DomainException('سهم نقدی نمی‌تواند کمتر از مبلغ تأییدشده باشد.', 409);
         }
         return $amounts;
