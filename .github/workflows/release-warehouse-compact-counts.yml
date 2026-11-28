@@ -1,6 +1,13 @@
 name: Release compact warehouse counts
 
 on:
+  pull_request:
+    paths:
+      - 'config/warehouse-compact-counts-release.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'config/warehouse-compact-counts-release.yaml'
   workflow_dispatch:
     inputs:
       apply:
@@ -34,5 +41,5 @@ jobs:
       - name: Check pinned sources and run warehouse regression fixture
         run: python3 scripts/release-carton-serial-detail.py --config warehouse-compact-counts-release.yaml --mode inspect
       - name: Publish with rollback backups
-        if: inputs.apply
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.apply)
         run: python3 scripts/release-carton-serial-detail.py --config warehouse-compact-counts-release.yaml --mode apply
