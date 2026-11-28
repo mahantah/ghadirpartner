@@ -1,0 +1,102 @@
+{
+  "ftps": {
+    "host": "shahin500.limoo.host",
+    "port": 21,
+    "timeout_seconds": 45,
+    "username": "${FTP_USERNAME}",
+    "password": "${FTP_PASSWORD}"
+  },
+  "health": {
+    "url": "https://ghadirpartner.ir/healthz",
+    "timeout_seconds": 30
+  },
+  "backup_directory": "storage/release-backups",
+  "targets": [
+    {
+      "path": "assets/warehouse-v53438.js",
+      "before_sha256": "3e9c86da415b142f87a673c3f6d955b319fbc92798efdea7c830aff72383df03",
+      "after_sha256": "7a0e8ca38e88a54f60d7dfd1c3eebf8a22f9f5fdc9b144bf360e828624b05b02",
+      "edits": [
+        {
+          "offset": 12893,
+          "delete": 35,
+          "insert": "/** Report known counts without treating omitted compact fields as zero. */\nfunction whCompactCount(value){\n  if(value===null||value===undefined||value==='')return null;\n  const count=Number(value);\n  return Number.isSafeInteger(count)&&count>=0?count:null;\n}\n\nwindow.renderWarehouse=function(){\n  // The compact list can coexist with inventory from one open carton only.\n  const compact=Array.isArray(WH.carton_stats);\n  const compactStats=new Map((compact?WH.carton_stats:[]).map(row=>[Number(row.id),row]));\n  const cartStats=c=>{\n    const row=compactStats.get(Number(c.id));\n    const total=whCompactCount(row?.total),free=whCompactCount(row?.free);\n    const allFree=total!==null&&free===total;\n    const reserved=whCompactCount(row?.reserved)??(allFree?0:null);\n    const out=whCompactCount(row?.out)??(allFree?0:null);\n    const levels=Array.isArray(row?.levels)?row.levels.map(whCompactCount).filter(level=>level>0):[];\n    const location=whCompactCount(c.warehouse_id);\n    const present=(free??0)>0||(reserved??0)>0;\n    const wh=present&&location>0?whBadge(location):out>0&&out===total?whBadge(0):'—';\n    const status=total===null||free===null?'نامشخص':out>0&&out===total?'خارج کامل':\n      reserved>0?(free>0?'رزرو جزئی':'رزرو کامل'):\n      levels.length||total<c.capacity?'خُرد در قفسه':allFree?'کارتن کامل':'کارتن باز';\n    return {free,reserved,out,levels,serialCount:total,wh,status};\n  };\n"
+        },
+        {
+          "offset": 12930,
+          "delete": 87,
+          "insert": "let inv=compact?[]:(WH.inventory||[]),cartons=WH.cartons||[],stats=new Map(),byCode=new Map(),shelf="
+        },
+        {
+          "offset": 13537,
+          "delete": 26,
+          "insert": "const sh=(compact?WH.shelves?.[level]:shelf[level])||{n:0,by:{}};return"
+        },
+        {
+          "offset": 13871,
+          "delete": 927,
+          "insert": "  $('warehouseBody').innerHTML=cartons.slice().reverse().map(c=>{\n    const items=(stats.get(Number(c.id))||{items:[]}).items;\n    const present=items.filter(x=>Number(x.warehouse_id||0)>0);\n    const available=present.filter(x=>!x.order_id);\n    const wids=[...new Set(present.map(x=>Number(x.warehouse_id)))];\n    const legacyFree=available.length,legacyReserved=present.filter(x=>Number(x.order_id||0)>0).length;\n    const legacyOut=items.filter(x=>Number(x.warehouse_id||0)===0).length;\n    const legacyTotal=(c.serials||[]).length;\n    const legacyLevels=[...new Set(available.map(x=>x.shelf_level).filter(Boolean))];\n    const legacyWh=wids.length>1?'<span class=\"warehouse-box-badge\">مختلط</span>':whBadge(wids[0]||0);\n    const legacyStatus=legacyOut===legacyTotal&&legacyTotal?'خارج کامل':\n      legacyReserved?(legacyFree?'رزرو جزئی':'رزرو کامل'):\n      legacyLevels.length||legacyTotal<c.capacity?'خُرد در قفسه':'کارتن کامل';\n    const {free,reserved,out,levels,serialCount,wh,status}=compact?cartStats(c):{\n      free:legacyFree,reserved:legacyReserved,out:legacyOut,levels:legacyLevels,\n      serialCount:legacyTotal,wh:legacyWh,status:legacyStatus\n    };\n    const showCount=value=>value===null?'—':value.toLocaleString('fa-IR');\n    "
+        },
+        {
+          "offset": 14926,
+          "delete": 28,
+          "insert": "${showCount(serialCount)}/${c.capacity}"
+        },
+        {
+          "offset": 14966,
+          "delete": 31,
+          "insert": "${showCount(free)}"
+        },
+        {
+          "offset": 15010,
+          "delete": 35,
+          "insert": "${showCount(reserved)}"
+        },
+        {
+          "offset": 15054,
+          "delete": 30,
+          "insert": "${showCount(out)}"
+        },
+        {
+          "offset": 15174,
+          "delete": 27,
+          "insert": "out>0&&out===serialCount?'st-sent'"
+        },
+        {
+          "offset": 15793,
+          "delete": 22,
+          "insert": "serialCount!==null&&reserved===0&&out===0?"
+        }
+      ]
+    },
+    {
+      "path": "assets/warehouse-ui-refine-v53438.js",
+      "before_sha256": "280d8f221d7dc2f3a1def755adf9d7f4e24992a76aebf9a204eb7c8130e58311",
+      "after_sha256": "1188940f0473574334b9a54f8ea5f22c6f8d046137d911e9539a285dcf1ec6b9",
+      "edits": [
+        {
+          "offset": 23149,
+          "delete": 59,
+          "insert": "  // Compact mode only loads serials for the open carton.\n  if(Array.isArray(WH.carton_stats)) return;\n  const inv=WH.inventory||[];\n  const byCartonId=new Map();"
+        }
+      ]
+    },
+    {
+      "path": "app.html",
+      "before_sha256": "c8d006a64118be657974b3be835680c8469924585e0201145afc54395a9dfdfe",
+      "after_sha256": "1e6a2adf6d15470f9847f7287803ff49cedb00b3764a50003e3616336f66ff35",
+      "edits": [
+        {
+          "offset": 315620,
+          "delete": 64,
+          "insert": "warehouse-v53438.js?v=20261128compactcounts&whfix=20261028a&supplier=20261031"
+        },
+        {
+          "offset": 315859,
+          "delete": 68,
+          "insert": "warehouse-ui-refine-v53438.js?v=20261128compactcounts&whfix=20261028a"
+        }
+      ]
+    }
+  ]
+}
