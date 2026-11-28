@@ -141,7 +141,9 @@ class Settings:
                 raise ValueError("invalid_hash")
             targets.append(Target(string(item, "path"), before, after, tuple(parsed)))
         allowed = {"assets/warehouse-ui-refine-v53438.js", "app.html"}
-        if path.name != "carton-serial-detail-release.yaml":
+        if path.name == "warehouse-compact-counts-release.yaml":
+            allowed.add("assets/warehouse-v53438.js")
+        elif path.name != "carton-serial-detail-release.yaml":
             raise ValueError("unknown_release_configuration")
         if (
             len(targets) != len(allowed)
@@ -259,6 +261,14 @@ class Validator:
                     subprocess.run(
                         [*command, str(target)], check=True, capture_output=True
                     )
+            if "assets/warehouse-v53438.js" in candidates:
+                fixture = self.project / "tests/warehouse-compact-counts.cjs"
+                subprocess.run(
+                    ["node", str(fixture), str(root / "candidate")],
+                    check=True,
+                    capture_output=True,
+                )
+                return
             for fixture_path in (self.project / "tests/carton-serial-detail").iterdir():
                 if fixture_path.is_file():
                     shutil.copyfile(fixture_path, root / fixture_path.name)
@@ -412,7 +422,10 @@ class Entry:
         parser.add_argument("--mode", choices=("inspect", "apply"), required=True)
         parser.add_argument(
             "--config",
-            choices=("carton-serial-detail-release.yaml",),
+            choices=(
+                "carton-serial-detail-release.yaml",
+                "warehouse-compact-counts-release.yaml",
+            ),
             default="carton-serial-detail-release.yaml",
         )
         args = parser.parse_args()
