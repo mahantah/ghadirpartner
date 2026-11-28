@@ -262,9 +262,9 @@ class Validator:
                         [*command, str(target)], check=True, capture_output=True
                     )
             if "assets/warehouse-v53438.js" in candidates:
-                fixture = self.project / "tests/warehouse-compact-counts.cjs"
+                compact_fixture = self.project / "tests/warehouse-compact-counts.cjs"
                 subprocess.run(
-                    ["node", str(fixture), str(root / "candidate")],
+                    ["node", str(compact_fixture), str(root / "candidate")],
                     check=True,
                     capture_output=True,
                 )
